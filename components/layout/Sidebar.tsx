@@ -12,6 +12,7 @@ import {
   BarChart3,
   Sun,
   Moon,
+  Ticket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/records", label: "Financial Records", icon: FileText },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/tools", label: "Tools", icon: Wrench },
+  { href: "/hubspot", label: "HubSpot Tickets", icon: Ticket },
 ];
 
 function ThemeToggle() {
