@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "next start -p ${PORT}",
+    "startCommand": "next start -p 8080",
     "restartPolicyType": "ON_FAILURE"
   }
 }
