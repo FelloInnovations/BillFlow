@@ -23,7 +23,7 @@ export function SpendByMonthCard({ monthlyTrend }: Props) {
           <select
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
-            className="appearance-none pr-6 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-transparent border-none outline-none cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            className="appearance-none pr-6 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 bg-transparent border-none outline-none cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
           >
             {sorted.map((m) => (
               <option key={m.month} value={m.month}>
