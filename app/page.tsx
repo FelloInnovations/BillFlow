@@ -1,5 +1,6 @@
-import { DollarSign, AlertCircle, Clock, TrendingUp, CalendarClock } from "lucide-react";
+import { AlertCircle, Clock, TrendingUp, CalendarClock } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
+import { SpendByMonthCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
 import { MonthlyTrendChart } from "@/components/dashboard/MonthlyTrendChart";
 import { DashboardMetrics } from "@/types";
@@ -34,14 +35,7 @@ export default async function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          title="Last Month's Spend"
-          value={metrics.totalMonthlySpend}
-          sub={metrics.spendMonth ? `${metrics.spendMonth} · paid invoices` : undefined}
-          icon={DollarSign}
-          isCurrency
-          accent="indigo"
-        />
+        <SpendByMonthCard monthlyTrend={metrics.monthlyTrend} />
         <KPICard
           title="Unpaid Invoices"
           value={metrics.unpaidCount}
