@@ -3,10 +3,14 @@ import { Tool } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
 async function getTools(): Promise<{ tools: Tool[] }> {
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-  const res = await fetch(`${base}/api/tools`, { cache: "no-store" });
-  if (!res.ok) return { tools: [] };
-  return res.json();
+  try {
+    const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+    const res = await fetch(`${base}/api/tools`, { cache: "no-store" });
+    if (!res.ok) return { tools: [] };
+    return res.json();
+  } catch {
+    return { tools: [] };
+  }
 }
 
 export default async function ToolsPage() {
