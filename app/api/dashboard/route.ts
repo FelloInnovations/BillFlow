@@ -30,7 +30,7 @@ export async function GET() {
     // All unpaid records
     supabase
       .from("financial_records")
-      .select("total_amount")
+      .select("total_amount, due_date")
       .neq("payment_status", "paid")
       .not("vendor_name", "ilike", "%makemytrip%"),
 
@@ -66,10 +66,11 @@ export async function GET() {
     (s, r) => s + Number(r.total_amount ?? 0), 0
   );
 
-  // Aggregate: unpaid
+  // Aggregate: unpaid + overdue
   const unpaidData = unpaidRes.data ?? [];
   const unpaidCount = unpaidData.length;
   const unpaidTotal = unpaidData.reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
+  const overdueCount = unpaidData.filter((r) => r.due_date && r.due_date < today).length;
 
   // Aggregate: spend by vendor (top 10)
   const vendorMap = new Map<string, number>();
@@ -108,7 +109,7 @@ export async function GET() {
     spendMonth,
     unpaidCount,
     unpaidTotal,
-    overdueCount: 0,
+    overdueCount,
     upcomingDue: (upcomingRes.data ?? []) as FinancialRecord[],
     spendByVendor,
     monthlyTrend,

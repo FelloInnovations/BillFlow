@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { AlertCircle, Clock, TrendingUp, CalendarClock, RefreshCw } from "lucide-react";
+import { AlertCircle, Clock, TrendingUp, CalendarClock, RefreshCw, OctagonAlert } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { SpendRangeCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
@@ -42,7 +42,7 @@ export function DashboardClient({ initial }: Props) {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap">
-            Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <button
             onClick={refresh}
@@ -56,7 +56,7 @@ export function DashboardClient({ initial }: Props) {
       </div>
 
       {/* KPI Cards */}
-      <div className={cn("grid grid-cols-2 lg:grid-cols-4 gap-4 transition-opacity", loading && "opacity-60")}>
+      <div className={cn("grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 transition-opacity", loading && "opacity-60")}>
         <SpendRangeCard />
         <KPICard
           title="Unpaid Invoices"
@@ -64,6 +64,13 @@ export function DashboardClient({ initial }: Props) {
           sub={`${formatCurrency(metrics.unpaidTotal)} outstanding`}
           icon={AlertCircle}
           accent="amber"
+        />
+        <KPICard
+          title="Overdue"
+          value={metrics.overdueCount}
+          sub="Past due date"
+          icon={OctagonAlert}
+          accent="rose"
         />
         <KPICard
           title="Due This Week"
@@ -98,26 +105,50 @@ export function DashboardClient({ initial }: Props) {
             </span>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {metrics.upcomingDue.map((inv: FinancialRecord) => (
-              <div key={inv.id} className="flex items-center justify-between px-6 py-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950 flex items-center justify-center shrink-0">
-                    <span className="text-rose-600 dark:text-rose-400 text-xs font-bold">
-                      {(inv.vendor_name ?? "?")[0].toUpperCase()}
-                    </span>
+            {metrics.upcomingDue.map((inv: FinancialRecord) => {
+              const today = new Date().toISOString().split("T")[0];
+              const isOverdue = inv.due_date ? inv.due_date < today : false;
+              const daysUntil = inv.due_date
+                ? Math.ceil((new Date(inv.due_date).getTime() - new Date(today).getTime()) / 86400000)
+                : null;
+              return (
+                <div key={inv.id} className={cn(
+                  "flex items-center justify-between px-6 py-3.5",
+                  isOverdue && "bg-red-50/60 dark:bg-red-950/20"
+                )}>
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                      isOverdue ? "bg-red-100 dark:bg-red-900/40" : "bg-rose-50 dark:bg-rose-950"
+                    )}>
+                      <span className={cn(
+                        "text-xs font-bold",
+                        isOverdue ? "text-red-600 dark:text-red-400" : "text-rose-600 dark:text-rose-400"
+                      )}>
+                        {(inv.vendor_name ?? "?")[0].toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{inv.vendor_name ?? "Unknown"}</p>
+                        {isOverdue && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">OVERDUE</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        Invoice #{inv.invoice_number ?? "—"} · {isOverdue
+                          ? `${Math.abs(daysUntil ?? 0)}d overdue`
+                          : daysUntil === 0 ? "Due today"
+                          : `Due in ${daysUntil}d`}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{inv.vendor_name ?? "Unknown"}</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      Invoice #{inv.invoice_number ?? "—"} · Due {formatDate(inv.due_date)}
-                    </p>
-                  </div>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(inv.total_amount, inv.currency)}
+                  </span>
                 </div>
-                <span className="text-sm font-bold text-slate-900 dark:text-white">
-                  {formatCurrency(inv.total_amount, inv.currency)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

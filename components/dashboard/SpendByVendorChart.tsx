@@ -23,6 +23,7 @@ const BAR_COLORS = [
 export function SpendByVendorChart({ data }: Props) {
   const sorted = [...data].sort((a, b) => b.total - a.total);
   const max = sorted[0]?.total ?? 1;
+  const grandTotal = sorted.reduce((s, d) => s + d.total, 0);
 
   return (
     <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6">
@@ -43,9 +44,12 @@ export function SpendByVendorChart({ data }: Props) {
                 }}
               />
             </div>
-            <span className="w-20 shrink-0 text-xs font-semibold text-slate-700 dark:text-slate-300 text-right">
-              {formatCurrency(total)}
-            </span>
+            <div className="w-28 shrink-0 text-right">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(total)}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-1">
+                {grandTotal > 0 ? `${Math.round((total / grandTotal) * 100)}%` : ""}
+              </span>
+            </div>
           </div>
         ))}
         {sorted.length === 0 && (
