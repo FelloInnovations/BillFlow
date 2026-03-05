@@ -67,43 +67,45 @@ export function RecordsTable({ initial, vendors }: Props) {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={filters.vendor}
-          onChange={(e) => applyFilter("vendor", e.target.value)}
-          className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        >
-          <option value="">All Vendors</option>
-          {vendors.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={filters.vendor}
+            onChange={(e) => applyFilter("vendor", e.target.value)}
+            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="">All Vendors</option>
+            {vendors.map((v) => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
 
-        <select
-          value={filters.status}
-          onChange={(e) => applyFilter("status", e.target.value)}
-          className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s || "All Statuses"}</option>
-          ))}
-        </select>
+          <select
+            value={filters.status}
+            onChange={(e) => applyFilter("status", e.target.value)}
+            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s || "All Statuses"}</option>
+            ))}
+          </select>
 
-        <input
-          type="date"
-          value={filters.dateFrom}
-          onChange={(e) => applyFilter("dateFrom", e.target.value)}
-          className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-        <input
-          type="date"
-          value={filters.dateTo}
-          onChange={(e) => applyFilter("dateTo", e.target.value)}
-          className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => applyFilter("dateFrom", e.target.value)}
+            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+          <input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => applyFilter("dateTo", e.target.value)}
+            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
             Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <button
