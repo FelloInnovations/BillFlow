@@ -6,18 +6,18 @@ interface Props {
   data: { vendor: string; total: number }[];
 }
 
-// Muted tonal palette: steps from slate-blue → indigo → violet
+// Light harmonious palette — soft pastels in cool tones
 const BAR_COLORS = [
-  "#818cf8", // indigo-400
-  "#6366f1", // indigo-500
-  "#4f46e5", // indigo-600
-  "#7c3aed", // violet-600
-  "#8b5cf6", // violet-500
-  "#a78bfa", // violet-400
-  "#60a5fa", // blue-400
-  "#3b82f6", // blue-500
-  "#06b6d4", // cyan-500
-  "#0ea5e9", // sky-500
+  "#a5b4fc", // indigo-300
+  "#c4b5fd", // violet-300
+  "#93c5fd", // blue-300
+  "#7dd3fc", // sky-300
+  "#6ee7b7", // emerald-300
+  "#86efac", // green-300
+  "#67e8f9", // cyan-300
+  "#fca5a5", // red-300
+  "#fcd34d", // amber-300
+  "#f9a8d4", // pink-300
 ];
 
 export function SpendByVendorChart({ data }: Props) {
@@ -40,13 +40,13 @@ export function SpendByVendorChart({ data }: Props) {
                 style={{
                   width: `${(total / max) * 100}%`,
                   backgroundColor: BAR_COLORS[i % BAR_COLORS.length],
-                  opacity: 0.85,
+                  opacity: 1,
                 }}
               />
             </div>
             <div className="w-28 shrink-0 text-right">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(total)}</span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-1">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 ml-1">
                 {grandTotal > 0 ? `${Math.round((total / grandTotal) * 100)}%` : ""}
               </span>
             </div>

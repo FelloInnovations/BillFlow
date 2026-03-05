@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { AlertCircle, Clock, TrendingUp, CalendarClock, RefreshCw, OctagonAlert } from "lucide-react";
+import { AlertCircle, TrendingUp, CalendarClock, RefreshCw, OctagonAlert } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { SpendRangeCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
@@ -56,7 +56,7 @@ export function DashboardClient({ initial }: Props) {
       </div>
 
       {/* KPI Cards */}
-      <div className={cn("grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 transition-opacity", loading && "opacity-60")}>
+      <div className={cn("grid grid-cols-2 lg:grid-cols-4 gap-4 transition-opacity", loading && "opacity-60")}>
         <SpendRangeCard />
         <KPICard
           title="Unpaid Invoices"
@@ -70,13 +70,6 @@ export function DashboardClient({ initial }: Props) {
           value={metrics.overdueCount}
           sub="Past due date"
           icon={OctagonAlert}
-          accent="rose"
-        />
-        <KPICard
-          title="Due This Week"
-          value={metrics.upcomingDue.length}
-          sub="Due within 7 days"
-          icon={Clock}
           accent="rose"
         />
         <KPICard
