@@ -1,3 +1,20 @@
+export interface HubspotTicket {
+  id: string;
+  created_at: string;
+  ticket_link: string | null;
+  category: string | null;
+  list_detail: string | null;
+  contacts_to_enrich: number;
+  fields_to_enrich: string | null;
+  eta: string | null;
+  enrichment_status: string | null;
+  valid_enriched: number | null;
+  hit_rate: number | null;
+  final_status: string | null;
+  notes: string | null;
+  owner: string | null;
+}
+
 export interface FinancialRecord {
   id: string;
   created_at: string;
