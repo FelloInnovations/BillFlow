@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Sparkles, Send, X, Minus, Loader2, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardMetrics } from "@/types";
 import { formatCurrency } from "@/lib/utils";
@@ -44,7 +44,8 @@ function buildContext(metrics: DashboardMetrics): string {
 }
 
 export function DashboardChat({ metrics }: Props) {
-  const [open, setOpen] = useState(false);
+  // popup = full modal on load, minimized = small pill in corner
+  const [mode, setMode] = useState<"popup" | "minimized">("popup");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -52,14 +53,14 @@ export function DashboardChat({ metrics }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+    if (mode === "popup") {
+      setTimeout(() => inputRef.current?.focus(), 150);
     }
-  }, [open]);
+  }, [mode]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streaming]);
+  }, [messages]);
 
   async function send(text: string) {
     if (!text.trim() || streaming) return;
@@ -68,9 +69,7 @@ export function DashboardChat({ metrics }: Props) {
     setMessages(next);
     setInput("");
     setStreaming(true);
-
-    const assistantMsg: Message = { role: "assistant", content: "" };
-    setMessages([...next, assistantMsg]);
+    setMessages([...next, { role: "assistant", content: "" }]);
 
     try {
       const res = await fetch("/api/chat", {
@@ -101,107 +100,125 @@ export function DashboardChat({ metrics }: Props) {
     }
   }
 
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300",
-        open ? "opacity-100" : "opacity-50 hover:opacity-80"
-      )}
-    >
-      {/* Header — always visible */}
+  // Minimized pill — fixed bottom right
+  if (mode === "minimized") {
+    return (
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
+        onClick={() => setMode("popup")}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl transition-all hover:scale-105 active:scale-95"
       >
-        <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 shrink-0">
-          <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Ask AI about your dashboard</p>
-          {!open && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
-              Spend insights, vendor breakdown, invoice status…
-            </p>
-          )}
-        </div>
-        {open
-          ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
-          : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-        }
+        <MessageCircle className="w-4 h-4" />
+        <span className="text-sm font-semibold">Ask AI</span>
+        {messages.length > 0 && (
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+        )}
       </button>
+    );
+  }
 
-      {/* Expanded chat */}
-      {open && (
-        <div className="border-t border-slate-100 dark:border-slate-800">
-          {/* Messages */}
-          <div className="px-5 py-4 space-y-3 max-h-64 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#c4b5fd #f1f5f9" }}>
-            {messages.length === 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">Conversation starters:</p>
-                <div className="flex flex-wrap gap-2">
-                  {STARTERS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => send(s)}
-                      className="text-xs px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950 border border-indigo-100 dark:border-indigo-900 transition-colors font-medium"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
+  // Full popup modal
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Blurred backdrop */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/60 via-slate-900/50 to-violet-950/60 backdrop-blur-sm" />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-lg mx-4 rounded-3xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col"
+        style={{ maxHeight: "80vh" }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/40 dark:to-violet-950/40">
+          <div className="p-2 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 shrink-0">
+            <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-900 dark:text-white">SpendSync AI</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Ask anything about your dashboard</p>
+          </div>
+          <button
+            onClick={() => setMode("minimized")}
+            title="Minimize"
+            className="p-2 rounded-xl hover:bg-white/60 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setMode("minimized")}
+            title="Close"
+            className="p-2 rounded-xl hover:bg-white/60 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Messages / starters */}
+        <div
+          className="flex-1 overflow-y-auto px-6 py-5 space-y-3 min-h-0"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "#c4b5fd #f1f5f9" }}
+        >
+          {messages.length === 0 ? (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">
+                Conversation starters
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {STARTERS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => send(s)}
+                    className="text-left text-xs px-3.5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800 text-slate-700 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all leading-snug font-medium"
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
-            ) : (
-              messages.map((m, i) => (
+            </div>
+          ) : (
+            messages.map((m, i) => (
+              <div
+                key={i}
+                className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}
+              >
                 <div
-                  key={i}
                   className={cn(
-                    "flex",
-                    m.role === "user" ? "justify-end" : "justify-start"
+                    "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                    m.role === "user"
+                      ? "bg-indigo-600 text-white rounded-br-sm"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                      m.role === "user"
-                        ? "bg-indigo-600 text-white rounded-br-sm"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm"
-                    )}
-                  >
-                    {m.content || (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
-                    )}
-                  </div>
+                  {m.content || <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
                 </div>
-              ))
-            )}
-            <div ref={bottomRef} />
-          </div>
-
-          {/* Input */}
-          <div className="px-5 pb-4 flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send(input)}
-              placeholder="Ask anything about your spend…"
-              disabled={streaming}
-              className="flex-1 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition disabled:opacity-50"
-            />
-            <button
-              onClick={() => send(input)}
-              disabled={!input.trim() || streaming}
-              className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white transition-colors shrink-0"
-            >
-              {streaming
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <Send className="w-4 h-4" />
-              }
-            </button>
-          </div>
+              </div>
+            ))
+          )}
+          <div ref={bottomRef} />
         </div>
-      )}
+
+        {/* Input */}
+        <div className="px-6 pb-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send(input)}
+            placeholder="Ask anything about your spend…"
+            disabled={streaming}
+            className="flex-1 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition disabled:opacity-50"
+          />
+          <button
+            onClick={() => send(input)}
+            disabled={!input.trim() || streaming}
+            className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white transition-colors shrink-0"
+          >
+            {streaming
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Send className="w-4 h-4" />
+            }
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
