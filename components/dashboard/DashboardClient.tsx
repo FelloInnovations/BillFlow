@@ -37,15 +37,17 @@ export function DashboardClient({ initial }: Props) {
     <div className="p-7 space-y-6 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">AI infrastructure spend overview</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">AI infrastructure spend overview</p>
+          </div>
+          <DashboardChat metrics={metrics} />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap">
             {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
-          <DashboardChat metrics={metrics} />
           <button
             onClick={refresh}
             disabled={loading}

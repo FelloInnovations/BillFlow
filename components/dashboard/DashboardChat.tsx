@@ -105,7 +105,7 @@ export function DashboardChat({ metrics }: Props) {
     return (
       <button
         onClick={() => setMode("popup")}
-        className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-colors"
+        className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition-colors shadow-sm"
       >
         <Sparkles className="w-3.5 h-3.5" />
         Ask AI
