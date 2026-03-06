@@ -34,8 +34,8 @@ export default async function ProjectsPage() {
         <p className="text-sm text-muted-foreground text-center py-16">No projects loaded.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {sorted.map((p) => (
-            <ProjectCard key={p.name} project={p} />
+          {sorted.map((p, i) => (
+            <ProjectCard key={p.name} project={p} index={i} maxSpend={sorted[0]?.totalSpend ?? 1} />
           ))}
         </div>
       )}
