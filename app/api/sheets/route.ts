@@ -8,7 +8,8 @@ async function getProjectsFromDB(): Promise<Project[]> {
   const { data, error } = await supabase
     .from("agents_portfolio")
     .select("agents_projects, description, llms, llm_accounts, services_used, status")
-    .order("row_number", { ascending: true });
+    .order("row_number", { ascending: true, nullsFirst: false })
+    .limit(500);
 
   if (error || !data || data.length === 0) return STATIC_PROJECTS;
 
