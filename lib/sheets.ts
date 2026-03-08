@@ -15,6 +15,7 @@ export const STATIC_PROJECTS: Project[] = [
       { provider: "OpenAI", model: "gpt-4o-mini", owner: "Innovations" },
     ],
     services: ["ScraperAPI"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -24,6 +25,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [],
     services: ["Vector"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -32,6 +34,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "OpenAI", model: "gpt-4", owner: "Tom" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -41,6 +44,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [],
     services: ["Oxylabs", "Apify"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -50,6 +54,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Anthropic", model: "TBD", owner: "TBD" }],
     services: ["Profound"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -58,6 +63,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Anthropic", model: "TBD", owner: "TBD" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -66,6 +72,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [],
     services: ["Mention"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -74,6 +81,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Anthropic", model: "TBD", owner: "TBD" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -82,6 +90,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Anthropic", model: "TBD", owner: "TBD" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -90,6 +99,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "OpenAI", model: "TBD", owner: "TBD" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -99,6 +109,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Anthropic", model: "TBD", owner: "TBD" }],
     services: ["Oxylabs", "Apify"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -107,6 +118,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Anthropic", model: "TBD", owner: "TBD" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -116,6 +128,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [],
     services: ["Apollo", "Oxylabs"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -124,6 +137,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "xAI", model: "Grok", owner: "TBD" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -132,6 +146,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Google", model: "Gemini", owner: "TBD" }],
     services: [],
+    status: null,
     totalSpend: null,
   },
   {
@@ -140,6 +155,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [],
     services: ["ngrok"],
+    status: null,
     totalSpend: null,
   },
   {
@@ -149,6 +165,7 @@ export const STATIC_PROJECTS: Project[] = [
     timeline: null,
     llms: [{ provider: "Anthropic", model: "TBD", owner: "TBD" }],
     services: ["Apollo", "ScraperAPI"],
+    status: null,
     totalSpend: null,
   },
 ];

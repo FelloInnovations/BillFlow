@@ -1,11 +1,41 @@
 import { NextResponse } from "next/server";
-import { getProjects } from "@/lib/sheets";
+import { STATIC_PROJECTS } from "@/lib/sheets";
 import { supabase } from "@/lib/supabase";
 import { canonicalVendor } from "@/lib/utils";
+import { Project } from "@/types";
+
+async function getProjectsFromDB(): Promise<Project[]> {
+  const { data, error } = await supabase
+    .from("agents_portfolio")
+    .select("agents_projects, description, llms, llm_accounts, services_used, status")
+    .order("row_number", { ascending: true });
+
+  if (error || !data || data.length === 0) return STATIC_PROJECTS;
+
+  return data.map((row) => {
+    // llms and services_used are comma-separated text fields
+    const llmNames = row.llms
+      ? row.llms.split(",").map((s: string) => s.trim()).filter(Boolean)
+      : [];
+    const services = row.services_used
+      ? row.services_used.split(",").map((s: string) => s.trim()).filter(Boolean)
+      : [];
+
+    return {
+      name: row.agents_projects ?? "",
+      description: row.description ?? "",
+      timeline: null,
+      llms: llmNames.map((model: string) => ({ provider: model, model: "", owner: row.llm_accounts ?? "" })),
+      services,
+      status: row.status ?? null,
+      totalSpend: null,
+    };
+  });
+}
 
 export async function GET() {
   const [projects, { data: rows }] = await Promise.all([
-    getProjects(),
+    getProjectsFromDB(),
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount")

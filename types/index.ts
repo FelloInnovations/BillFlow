@@ -52,6 +52,7 @@ export interface Project {
   timeline: string | null;
   llms: LLMEntry[];
   services: string[];
+  status: string | null;
   totalSpend: number | null; // null = TBD
 }
 

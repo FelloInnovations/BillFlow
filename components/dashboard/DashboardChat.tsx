@@ -105,11 +105,11 @@ export function DashboardChat({ metrics }: Props) {
     return (
       <button
         onClick={() => setMode("popup")}
-        className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-violet-500/70 hover:bg-violet-500/90 text-white transition-colors shadow-sm"
+        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors shadow-sm"
       >
-        <Sparkles className="w-4 h-4 shrink-0" />
+        <Sparkles className="w-4 h-4 shrink-0 text-violet-400" />
         <span>Ask AI</span>
-        <span className="hidden sm:inline text-white/35 font-normal">— Spend Insights</span>
+        <span className="hidden sm:inline text-slate-400 dark:text-slate-500 font-normal">— Spend Insights</span>
         {messages.length > 0 && (
           <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
         )}
