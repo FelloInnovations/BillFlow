@@ -37,10 +37,15 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     name: row.agents_projects ?? "Untitled",
     description: row.description ?? "",
     timeline: null,
-    status: withStatus ? (row.status ?? null) : null,
+    status: withStatus ? (row.status || null) : null,
     llms: row.llms
       ? row.llms.split(",").map((s: string) => s.trim()).filter(Boolean)
-          .map((model: string) => ({ provider: model, model: "", owner: row.llm_accounts ?? "" }))
+          .map((entry: string) => {
+            const parts = entry.trim().split(" ");
+            const provider = parts[0] ?? entry;
+            const model = parts.slice(1).join(" ");
+            return { provider, model, owner: row.llm_accounts ?? "" };
+          })
       : [],
     services: row.services_used
       ? row.services_used.split(",").map((s: string) => s.trim()).filter(Boolean)
