@@ -8,7 +8,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
   const [{ data: portfolioRows, error }, { data: invoiceRows }] = await Promise.all([
     supabase
       .from("agents_portfolio")
-      .select("agents_projects, description, llms, llm_accounts, services_used")
+      .select("agents_projects, description, llms, llm_accounts, services_used, status")
       .limit(500),
     supabase
       .from("financial_records")
@@ -23,7 +23,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     name: row.agents_projects ?? "",
     description: row.description ?? "",
     timeline: null,
-    status: null,
+    status: row.status ?? null,
     llms: row.llms
       ? row.llms.split(",").map((s: string) => s.trim()).filter(Boolean)
           .map((model: string) => ({ provider: model, model: "", owner: row.llm_accounts ?? "" }))
