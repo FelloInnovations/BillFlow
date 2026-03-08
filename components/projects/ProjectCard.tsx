@@ -69,7 +69,7 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
         transform: visible ? "translateY(0)" : "translateY(16px)",
         transition: `opacity 0.4s ease ${index * 60}ms, transform 0.4s ease ${index * 60}ms`,
       }}
-      className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09),0_2px_6px_rgba(0,0,0,0.05)] transition-shadow overflow-hidden"
+      className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09),0_2px_6px_rgba(0,0,0,0.05)] transition-shadow"
     >
       <div className="p-5 space-y-3">
         {/* Header */}
@@ -80,12 +80,16 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
               {project.status && <StatusBadge status={project.status} />}
             </div>
             {project.description && (
-              <p
-                title={project.description}
-                className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-relaxed line-clamp-2 cursor-default"
-              >
-                {project.description}
-              </p>
+              <div className="relative group mt-1.5">
+                <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed line-clamp-2 cursor-default">
+                  {project.description}
+                </p>
+                <div className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden group-hover:block w-72 rounded-xl bg-slate-900 dark:bg-slate-700 border border-slate-700 dark:border-slate-600 px-3 py-2.5 shadow-xl">
+                  <p className="text-xs text-slate-200 leading-relaxed whitespace-normal">
+                    {project.description}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
           {project.totalSpend !== null && (
@@ -159,7 +163,7 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
 
       {/* Spend bar */}
       {spendPct > 0 && (
-        <div className="h-1 bg-slate-100 dark:bg-slate-800">
+        <div className="h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden rounded-b-2xl">
           <div
             className="h-full bg-gradient-to-r from-indigo-400 to-violet-400"
             style={{ width: `${barWidth}%`, transition: "width 0.8s cubic-bezier(0.22,1,0.36,1)" }}
