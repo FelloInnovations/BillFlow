@@ -46,20 +46,20 @@ function buildContext(metrics: DashboardMetrics): string {
 const SEEN_KEY = "spendsync_chat_seen";
 
 export function DashboardChat({ metrics }: Props) {
-  const [mode, setMode] = useState<"popup" | "minimized">(() => {
-    if (typeof window === "undefined") return "minimized";
-    const seen = localStorage.getItem(SEEN_KEY);
-    if (!seen) {
-      localStorage.setItem(SEEN_KEY, "1");
-      return "popup";
-    }
-    return "minimized";
-  });
+  const [mode, setMode] = useState<"popup" | "minimized">("minimized");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const seen = localStorage.getItem(SEEN_KEY);
+    if (!seen) {
+      localStorage.setItem(SEEN_KEY, "1");
+      setMode("popup");
+    }
+  }, []);
 
   useEffect(() => {
     if (mode === "popup") {

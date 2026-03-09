@@ -2,7 +2,7 @@
 
 ## Project Overview
 Internal web app for Fello Innovations to track AI agent costs across projects and vendors.
-No authentication required. Deployed on Railway.
+Password-protected (hardcoded `APP_PASSWORD` env var, checked via `middleware.ts`). Deployed on Railway.
 
 > Note: The sidebar branding renders "SpendAnalyzer" — "SpendSync" is the repo/project name.
 
@@ -38,6 +38,7 @@ No authentication required. Deployed on Railway.
 | `GET /api/hubspot` | HubSpot tickets (DB with static fallback) |
 | `POST /api/hubspot` | Add new HubSpot ticket |
 | `POST /api/chat` | Streaming OpenAI chat for dashboard AI assistant |
+| `POST /api/auth` | Verify password, set `auth` cookie (7-day session) |
 
 ### Self-fetch pattern
 Server components fetch their own API routes. The base URL must be set:
@@ -66,8 +67,13 @@ components/
 - 4 conversation starters pre-loaded
 - System prompt: concise 2-4 sentence answers, spend insights only, professional tone
 
+### Route structure
+- `app/(app)/` — all protected app pages (dashboard, records, projects, tools, hubspot). Shares sidebar layout via `app/(app)/layout.tsx`
+- `app/login/` — public login page, no sidebar
+- `middleware.ts` — redirects unauthenticated requests to `/login`, checks `auth` cookie
+
 ### Adding a new page
-1. Create `app/<name>/page.tsx` (server component with try/catch)
+1. Create `app/(app)/<name>/page.tsx` (server component with try/catch)
 2. Add to `NAV` array in `components/layout/Sidebar.tsx`
 3. Add icon import from `lucide-react`
 
@@ -82,6 +88,7 @@ SUPABASE_URL=
 SUPABASE_ANON_KEY=
 NEXT_PUBLIC_BASE_URL=https://spendsync-production.up.railway.app
 OPENAI_API_KEY=      # required for DashboardChat (/api/chat)
+APP_PASSWORD=        # required for login — hardcoded password auth
 ```
 
 ## Deployment
