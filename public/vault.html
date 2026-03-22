@@ -1271,7 +1271,28 @@ async function setupMasterScreen() {
 async function init() {
   const loading = document.getElementById('loading-screen');
 
-  // Detect invite or password-reset token in URL hash
+  // Detect token_hash in query params (from custom email template link)
+  const qp = new URLSearchParams(window.location.search);
+  const tokenHash = qp.get('token_hash');
+  const qpType = qp.get('type');
+  if (tokenHash && qpType === 'recovery') {
+    const sub = document.getElementById('setpw-sub');
+    sub.textContent = 'Choose a new password.';
+    const { data, error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
+    if (!error && data.session) {
+      currentUser = data.session.user;
+      // Clean the token from URL so refresh doesn't re-trigger
+      history.replaceState(null, '', window.location.pathname);
+    }
+    loading.classList.add('hidden');
+    showScreen('setpw-screen');
+    sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') { currentUser = null; vaultKey = null; allEntries = []; entryMap.clear(); showScreen('auth-screen'); }
+    });
+    return;
+  }
+
+  // Detect invite or password-reset token in URL hash (legacy / VaultAuthRedirect path)
   const hash = new URLSearchParams(window.location.hash.slice(1));
   const tokenType = hash.get('type');
   if (tokenType === 'invite' || tokenType === 'recovery') {
