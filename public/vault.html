@@ -853,7 +853,9 @@ async function handleAuth() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: pw }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch(_) { throw new Error(`Server error (${res.status}): ${text || '(empty response)'}`); }
       if (!res.ok) throw new Error(json.error || 'Registration failed.');
       // Sign in immediately after account creation
       const { error: signInErr } = await sb.auth.signInWithPassword({ email, password: pw });
