@@ -530,12 +530,12 @@
     </div>
     <div class="form-group">
       <label class="form-label">Email</label>
-      <input type="email" id="a-email" class="form-input" placeholder="you@company.com" autocomplete="email">
+      <input type="email" id="a-email" class="form-input" placeholder="you@company.com" autocomplete="off">
     </div>
     <div class="form-group">
       <label class="form-label">Password</label>
       <div class="input-wrap">
-        <input type="password" id="a-pw" class="form-input" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleAuth()">
+        <input type="password" id="a-pw" class="form-input" placeholder="••••••••" autocomplete="off" onkeydown="if(event.key==='Enter')handleAuth()">
         <button class="eye-btn" onclick="toggleVis('a-pw',this)">👁</button>
       </div>
     </div>
@@ -875,6 +875,9 @@ async function handleAuth() {
 async function signOut() {
   lockVault();
   await sb.auth.signOut();
+  document.getElementById('a-email').value = '';
+  document.getElementById('a-pw').value = '';
+  document.getElementById('a-err').textContent = '';
   showScreen('auth-screen');
 }
 
