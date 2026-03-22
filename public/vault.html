@@ -542,13 +542,13 @@
     <div id="a-confirm-wrap" class="form-group" style="display:none">
       <label class="form-label">Confirm Password</label>
       <div class="input-wrap">
-        <input type="password" id="a-confirm" class="form-input" placeholder="••••••••">
+        <input type="password" id="a-confirm" class="form-input" placeholder="••••••••" autocomplete="off">
         <button class="eye-btn" onclick="toggleVis('a-confirm',this)">👁</button>
       </div>
     </div>
     <button class="btn-primary" id="a-btn" onclick="handleAuth()">Sign In</button>
     <div id="a-err" class="form-error"></div>
-    <button class="form-link" onclick="showResetForm()">Forgot password / First time setup</button>
+    <button class="form-link" onclick="showResetForm()">Forgot password</button>
     <div id="reset-wrap" style="display:none;margin-top:12px;">
       <div class="form-group">
         <label class="form-label">Your Email</label>
@@ -877,6 +877,7 @@ async function signOut() {
   await sb.auth.signOut();
   document.getElementById('a-email').value = '';
   document.getElementById('a-pw').value = '';
+  document.getElementById('a-confirm').value = '';
   document.getElementById('a-err').textContent = '';
   showScreen('auth-screen');
 }
