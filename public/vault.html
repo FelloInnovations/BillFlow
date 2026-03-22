@@ -593,6 +593,13 @@
         <button class="eye-btn" onclick="toggleVis('m-pw',this)">👁</button>
       </div>
     </div>
+    <div id="m-confirm-wrap" class="form-group" style="display:none">
+      <label class="form-label">Confirm Master Password</label>
+      <div class="input-wrap">
+        <input type="password" id="m-confirm" class="form-input" placeholder="••••••••" autocomplete="off">
+        <button class="eye-btn" onclick="toggleVis('m-confirm',this)">👁</button>
+      </div>
+    </div>
 <button class="btn-primary" id="m-btn" onclick="handleMaster()">Unlock Vault</button>
     <div id="m-err" class="form-error"></div>
     <button class="form-link" onclick="signOut()">Sign out</button>
@@ -920,23 +927,45 @@ async function handleMaster() {
   const err = document.getElementById('m-err');
   err.textContent = '';
   if (!pw) { err.textContent = 'Enter your master password.'; return; }
+  const isCreating = document.getElementById('m-confirm-wrap').style.display !== 'none';
+  if (isCreating) {
+    const confirm = document.getElementById('m-confirm').value;
+    if (pw !== confirm) { err.textContent = 'Passwords do not match.'; return; }
+    if (pw.length < 10) { err.textContent = 'Master password must be at least 10 characters.'; return; }
+  }
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
   try {
-    const { data: cfg, error } = await sb
+    const { data: cfg } = await sb
       .from('user_settings').select('pbkdf2_salt,verification_blob,verification_iv')
       .limit(1).single();
-    if (error || !cfg) throw new Error('Vault not configured. Contact your administrator.');
-    const salt = Uint8Array.from(atob(cfg.pbkdf2_salt), c => c.charCodeAt(0));
-    const key  = await deriveKey(pw, salt);
-    const chk  = await decryptField(key, cfg.verification_iv, cfg.verification_blob);
-    if (chk !== 'billflow-vault-verified') { err.textContent = 'Incorrect master password.'; return; }
-    vaultKey = key;
+    if (!cfg) {
+      // First-time setup: create master password
+      const salt = crypto.getRandomValues(new Uint8Array(32));
+      const key  = await deriveKey(pw, salt);
+      const { iv: viv, ct: vblob } = await encryptField(key, 'billflow-vault-verified');
+      const { error: insErr } = await sb.from('user_settings').insert({
+        user_id: currentUser.id,
+        pbkdf2_salt: btoa(String.fromCharCode(...salt)),
+        verification_blob: vblob,
+        verification_iv: viv,
+      });
+      if (insErr) throw new Error(insErr.message);
+      vaultKey = key;
+    } else {
+      // Unlock existing vault
+      const salt = Uint8Array.from(atob(cfg.pbkdf2_salt), c => c.charCodeAt(0));
+      const key  = await deriveKey(pw, salt);
+      const chk  = await decryptField(key, cfg.verification_iv, cfg.verification_blob);
+      if (chk !== 'billflow-vault-verified') { err.textContent = 'Incorrect master password.'; return; }
+      vaultKey = key;
+    }
     await loadVault();
     showScreen('vault-screen');
   } catch(e) {
     if (!err.textContent) err.textContent = e.message || 'Failed to unlock vault.';
   } finally {
-    btn.disabled = false; btn.textContent = 'Unlock Vault';
+    btn.disabled = false;
+    btn.textContent = document.getElementById('m-confirm-wrap').style.display !== 'none' ? 'Create Vault' : 'Unlock Vault';
   }
 }
 
@@ -1255,8 +1284,16 @@ function toast(msg, type) {
 
 // ── App init ───────────────────────────────────────────────────────
 async function setupMasterScreen() {
-  document.getElementById('m-btn').textContent = 'Unlock Vault';
-  document.getElementById('m-sub').textContent = 'Decrypt your vault. This password never leaves your browser.';
+  const { data: cfg } = await sb.from('user_settings').select('id').limit(1).single();
+  const isNew = !cfg;
+  document.getElementById('m-title').textContent = isNew ? 'Create Master Password' : 'Enter Master Password';
+  document.getElementById('m-sub').textContent = isNew
+    ? 'Set a master password to encrypt your vault. Store it safely — it cannot be recovered.'
+    : 'Decrypt your vault. This password never leaves your browser.';
+  document.getElementById('m-btn').textContent = isNew ? 'Create Vault' : 'Unlock Vault';
+  document.getElementById('m-confirm-wrap').style.display = isNew ? 'block' : 'none';
+  document.getElementById('m-pw').value = '';
+  document.getElementById('m-confirm').value = '';
 }
 
 async function init() {
