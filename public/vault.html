@@ -946,7 +946,6 @@ async function handleMaster() {
       const key  = await deriveKey(pw, salt);
       const { iv: viv, ct: vblob } = await encryptField(key, 'billflow-vault-verified');
       const { error: insErr } = await sb.from('user_settings').insert({
-        user_id: currentUser.id,
         pbkdf2_salt: btoa(String.fromCharCode(...salt)),
         verification_blob: vblob,
         verification_iv: viv,
@@ -1304,7 +1303,7 @@ const MAX_MASTER_ATTEMPTS = 5;
 
 async function setupMasterScreen() {
   masterAttempts = 0; // reset on each screen load
-  const { data: cfg, error: cfgErr } = await sb.from('user_settings').select('id').limit(1).single();
+  const { data: cfg, error: cfgErr } = await sb.from('user_settings').select('pbkdf2_salt').limit(1).single();
   // PGRST116 = no rows (expected for new vault); anything else is a real DB/RLS error
   if (cfgErr && cfgErr.code !== 'PGRST116') {
     document.getElementById('m-title').textContent = 'Vault Error';
