@@ -946,6 +946,7 @@ async function handleMaster() {
       const key  = await deriveKey(pw, salt);
       const { iv: viv, ct: vblob } = await encryptField(key, 'billflow-vault-verified');
       const { error: insErr } = await sb.from('user_settings').insert({
+        user_id: currentUser.id,
         pbkdf2_salt: btoa(String.fromCharCode(...salt)),
         verification_blob: vblob,
         verification_iv: viv,
