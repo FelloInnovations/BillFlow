@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
+    // Log the new member for admin visibility
+    await supabaseAdmin.from("vault_members").insert({ email });
+
     return NextResponse.json({ id: data.user.id });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
