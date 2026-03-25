@@ -4,7 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node node_modules/.bin/next start -p 8080",
-    "restartPolicyType": "ON_FAILURE"
+"restartPolicyType": "ON_FAILURE"
   }
 }
