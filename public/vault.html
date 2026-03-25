@@ -1,3 +1,57 @@
+<!--
+════════════════════════════════════════════════════════════════════
+BILLFLOW VAULT — COMPLETE SCHEMA REFERENCE
+════════════════════════════════════════════════════════════════════
+
+TABLE: public.vault_members
+  email               text  PRIMARY KEY
+  role                text  NOT NULL DEFAULT 'member'   -- 'admin' | 'manager' | 'member'
+  is_active           boolean NOT NULL DEFAULT true
+  last_signin_at      timestamptz NULL
+  last_signin_method  text NULL                         -- 'master_password' | 'otp'
+
+TABLE: public.vault_entries
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY
+  user_id       uuid REFERENCES auth.users NOT NULL
+  service_name  text NOT NULL
+  category      text NOT NULL
+  tags          text
+  enc_username  text | iv_username  text
+  enc_password  text | iv_password  text
+  enc_url       text | iv_url       text
+  enc_notes     text | iv_notes     text
+  created_at    timestamptz DEFAULT now()
+  updated_at    timestamptz
+
+TABLE: public.user_settings
+  user_id              uuid REFERENCES auth.users PRIMARY KEY
+  pbkdf2_salt          text NULL            -- base64, 16 random bytes
+  verification_blob    text NULL            -- AES-GCM ciphertext of sentinel string
+  verification_iv      text NULL            -- base64 IV for verification_blob
+  is_admin_settings    boolean DEFAULT false -- true only on admin's row (used by members to find wrapped key)
+  role                 text NOT NULL DEFAULT 'member'
+  signin_method        text NULL            -- 'master_password' | 'otp'
+  last_signin_at       timestamptz NULL
+  signin_count         integer NOT NULL DEFAULT 0
+  last_ip              text NULL
+  last_user_agent      text NULL
+  member_access_key    text NULL            -- base64 raw AES-256 key; used to wrap/unwrap vaultKey
+  wrapped_vault_key    text NULL            -- base64 AES-GCM ciphertext of raw vaultKey
+  wrapped_vault_key_iv text NULL            -- base64 IV for wrapped_vault_key
+
+RLS POLICIES:
+  vault_members:
+    SELECT  — open to all (pre-auth email check)
+    INSERT/UPDATE/DELETE — admin only (via user_settings.role = 'admin')
+    UPDATE own row — allowed for tracking (email = auth.users.email)
+  vault_entries:
+    ALL — auth.uid() = user_id
+  user_settings:
+    SELECT — own row (auth.uid() = user_id) OR is_admin_settings = true
+    INSERT/UPDATE/DELETE — own row only (auth.uid() = user_id)
+
+════════════════════════════════════════════════════════════════════
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -629,37 +683,11 @@
       <div id="a-err" class="form-error"></div>
     </div>
 
-    <!-- Step 2: Choose Sign-In Method -->
-    <div id="auth-step2-in" style="display:none">
-      <div class="step2-header">
-        <span class="step2-email" id="si-email-display"></span>
-        <button class="back-btn" onclick="goBackToStep1()">← Change</button>
-      </div>
-      <div class="method-cards">
-        <button class="method-card" onclick="selectMethod('password')">
-          <div class="method-card-icon">🔐</div>
-          <div class="method-card-body">
-            <div class="method-card-title">Master Password</div>
-            <div class="method-card-desc">Sign in with your account password</div>
-          </div>
-          <div class="method-card-arrow">›</div>
-        </button>
-        <button class="method-card" onclick="selectMethod('otp')">
-          <div class="method-card-icon">📧</div>
-          <div class="method-card-body">
-            <div class="method-card-title">Email OTP</div>
-            <div class="method-card-desc">Get a one-time code sent to your email</div>
-          </div>
-          <div class="method-card-arrow">›</div>
-        </button>
-      </div>
-    </div>
-
-    <!-- Step 3a: Password -->
-    <div id="auth-step3-pw" style="display:none">
+    <!-- Step 2: Password (admin / manager) -->
+    <div id="auth-step2-pw" style="display:none">
       <div class="step2-header">
         <span class="step2-email" id="si-email-display-pw"></span>
-        <button class="back-btn" onclick="goBackToStep2()">← Back</button>
+        <button class="back-btn" onclick="goBackToStep1()">← Change</button>
       </div>
       <div class="form-group">
         <label class="form-label">Account Password</label>
@@ -673,11 +701,11 @@
       <div id="a-pw-err" class="form-error"></div>
     </div>
 
-    <!-- Step 3b: OTP -->
-    <div id="auth-step3-otp" style="display:none">
+    <!-- Step 2: OTP (member) -->
+    <div id="auth-step2-otp" style="display:none">
       <div class="step2-header">
         <span class="step2-email" id="si-email-display-otp"></span>
-        <button class="back-btn" onclick="goBackToStep2()">← Back</button>
+        <button class="back-btn" onclick="goBackToStep1()">← Change</button>
       </div>
       <p class="otp-sent-msg">A 6-digit code was sent to<br><strong id="otp-email-display"></strong></p>
       <div class="form-group">
@@ -943,13 +971,14 @@ let searchQ      = '';
 let editingId    = null;
 
 // Auth flow state
-let authMode     = 'in';   // 'in' | 'up'
-let authStep     = 1;      // 1 (email) | 2 (method)
-let pendingEmail = '';
-let pendingRole  = '';     // 'admin' | 'manager' | 'member'
-let otpTimer     = null;
-let otpSeconds   = 0;
-let handlingAuth = false;  // prevents onAuthStateChange double-navigation
+let authMode         = 'in';   // 'in' | 'up'
+let authStep         = 1;      // 1 (email) | 2 (pw or otp)
+let pendingEmail     = '';
+let pendingRole      = '';     // 'admin' | 'manager' | 'member'
+let currentUserEmail = '';     // email of authenticated user (for vault_members tracking)
+let otpTimer         = null;
+let otpSeconds       = 0;
+let handlingAuth     = false;  // prevents onAuthStateChange double-navigation
 
 // Brute-force protection
 let masterAttempts = 0;
@@ -964,6 +993,19 @@ async function deriveKey(masterPassword, salt) {
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' },
     km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+
+// Same as deriveKey but extractable — used ONLY on first vault setup so raw bytes
+// can be exported and wrapped for member access. Not used on subsequent logins.
+async function deriveKeyExtractable(masterPassword, salt) {
+  const enc = new TextEncoder();
+  const km = await crypto.subtle.importKey(
+    'raw', enc.encode(masterPassword), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
   );
 }
 
@@ -1028,9 +1070,8 @@ function goBackToStep1() {
   authStep = 1;
   clearOtpTimer();
   document.getElementById('auth-step1').style.display = '';
-  document.getElementById('auth-step2-in').style.display = 'none';
-  document.getElementById('auth-step3-pw').style.display = 'none';
-  document.getElementById('auth-step3-otp').style.display = 'none';
+  document.getElementById('auth-step2-pw').style.display = 'none';
+  document.getElementById('auth-step2-otp').style.display = 'none';
   document.getElementById('auth-step2-up').style.display = 'none';
   document.getElementById('a-err').textContent = '';
   document.getElementById('a-pw-err').textContent = '';
@@ -1040,17 +1081,6 @@ function goBackToStep1() {
   document.getElementById('si-otp').value = '';
   document.getElementById('ca-pw').value = '';
   document.getElementById('ca-confirm').value = '';
-}
-
-function goBackToStep2() {
-  clearOtpTimer();
-  document.getElementById('auth-step3-pw').style.display = 'none';
-  document.getElementById('auth-step3-otp').style.display = 'none';
-  document.getElementById('a-pw-err').textContent = '';
-  document.getElementById('a-otp-err').textContent = '';
-  document.getElementById('si-pw').value = '';
-  document.getElementById('si-otp').value = '';
-  document.getElementById('auth-step2-in').style.display = '';
 }
 
 async function handleEmailCheck() {
@@ -1087,20 +1117,15 @@ async function handleEmailCheck() {
   }
 }
 
-// ── Auth: Step 2 — Choose method ──────────────────────────────────
+// ── Auth: Step 2 — Role-based routing (no method selection) ────────
 function showSignInStep2() {
-  document.getElementById('auth-step2-in').style.display = '';
-  document.getElementById('si-email-display').textContent = pendingEmail;
-}
-
-function selectMethod(method) {
-  document.getElementById('auth-step2-in').style.display = 'none';
-  if (method === 'password') {
-    document.getElementById('auth-step3-pw').style.display = '';
+  const isPassword = pendingRole === 'admin' || pendingRole === 'manager';
+  if (isPassword) {
+    document.getElementById('auth-step2-pw').style.display = '';
     document.getElementById('si-email-display-pw').textContent = pendingEmail;
     setTimeout(() => document.getElementById('si-pw').focus(), 80);
   } else {
-    document.getElementById('auth-step3-otp').style.display = '';
+    document.getElementById('auth-step2-otp').style.display = '';
     document.getElementById('si-email-display-otp').textContent = pendingEmail;
     document.getElementById('otp-email-display').textContent = pendingEmail;
     sendOtp();
@@ -1120,6 +1145,7 @@ async function handleSignIn() {
     const { data, error } = await sb.auth.signInWithPassword({ email: pendingEmail, password: pw });
     if (error) throw new Error('Incorrect password. Try again.');
     currentUser = data.user;
+    currentUserEmail = currentUser.email;
     await updateSigninTracking('master_password', ip);
     await setupMasterScreen();
     showScreen('master-screen');
@@ -1188,10 +1214,11 @@ async function handleVerifyOtp() {
     const { data, error } = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
     if (error) throw new Error('Invalid or expired OTP.');
     currentUser = data.user;
+    currentUserEmail = currentUser.email;
     clearOtpTimer();
     await updateSigninTracking('otp', ip);
-    await setupMasterScreen();
-    showScreen('master-screen');
+    // Members skip master password screen — unwrap vault key directly
+    await unwrapVaultKeyForMember(err);
   } catch(e) {
     err.textContent = e.message || 'OTP verification failed.';
     handlingAuth = false;
@@ -1220,28 +1247,25 @@ async function handleCreateAccount() {
   handlingAuth = true;
   try {
     const ip = await fetchIp();
-    const { data, error } = await sb.auth.signUp({ email: pendingEmail, password: pw });
-    if (error) throw new Error(error.message || 'Registration failed.');
-    if (!data.session) {
-      // Email confirmation required (Supabase setting) — user must confirm first
-      err.style.color = 'var(--green)';
-      err.textContent = 'Account created! Check your email to confirm your account, then sign in.';
-      btn.textContent = 'Check your email';
-      handlingAuth = false;
-      return;
-    }
-    currentUser = data.user;
+    // Sign up
+    const { error: upErr } = await sb.auth.signUp({ email: pendingEmail, password: pw });
+    if (upErr) throw new Error(upErr.message || 'Registration failed.');
+    // Auto sign-in immediately (no email confirmation required)
+    const { data: siData, error: siErr } = await sb.auth.signInWithPassword({ email: pendingEmail, password: pw });
+    if (siErr) throw new Error('Account created but sign-in failed. Try signing in manually.');
+    currentUser = siData.user;
+    currentUserEmail = currentUser.email;
     // Insert user_settings row: salt + role + initial sign-in tracking
     const salt    = crypto.getRandomValues(new Uint8Array(16));
     const saltB64 = btoa(String.fromCharCode(...salt));
     const { error: insErr } = await sb.from('user_settings').insert({
-      user_id:        currentUser.id,
-      pbkdf2_salt:    saltB64,
-      role:           pendingRole,
-      signin_method:  'master_password',
-      last_signin_at: new Date().toISOString(),
-      signin_count:   1,
-      last_ip:        ip,
+      user_id:         currentUser.id,
+      pbkdf2_salt:     saltB64,
+      role:            pendingRole,
+      signin_method:   pendingRole === 'member' ? 'otp' : 'master_password',
+      last_signin_at:  new Date().toISOString(),
+      signin_count:    1,
+      last_ip:         ip,
       last_user_agent: navigator.userAgent,
     });
     if (insErr) throw new Error(insErr.message);
@@ -1249,8 +1273,15 @@ async function handleCreateAccount() {
     sb.functions.invoke('notify-admin', {
       body: { newUserEmail: pendingEmail, role: pendingRole, createdAt: new Date().toISOString() }
     }).catch(() => {});
-    await setupMasterScreen();
-    showScreen('master-screen');
+    // Route based on role
+    if (pendingRole === 'member') {
+      // Members skip master password — unwrap vault key directly
+      await unwrapVaultKeyForMember(err);
+    } else {
+      // Admin / manager — go to master vault key setup screen
+      await setupMasterScreen();
+      showScreen('master-screen');
+    }
   } catch(e) {
     err.style.color = 'var(--red)';
     err.textContent = e.message || 'Account creation failed.';
@@ -1259,7 +1290,56 @@ async function handleCreateAccount() {
   }
 }
 
-// ── Sign-in tracking ───────────────────────────────────────────────
+// ── Member vault key unwrap ────────────────────────────────────────
+// Fetches admin's wrapped vault key, decrypts it with the member access key,
+// and loads the vault directly — members never see the master password screen.
+async function unwrapVaultKeyForMember(errEl) {
+  try {
+    const { data: adminCfg, error } = await sb
+      .from('user_settings')
+      .select('member_access_key, wrapped_vault_key, wrapped_vault_key_iv')
+      .eq('is_admin_settings', true)
+      .single();
+    if (error || !adminCfg || !adminCfg.wrapped_vault_key) {
+      if (errEl) errEl.textContent = 'Vault has not been initialised yet. Ask your admin to sign in and set up the vault key first.';
+      handlingAuth = false;
+      return;
+    }
+    const fromB64 = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const memberAK = await crypto.subtle.importKey(
+      'raw', fromB64(adminCfg.member_access_key),
+      { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+    );
+    const rawVK = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: fromB64(adminCfg.wrapped_vault_key_iv) },
+      memberAK,
+      fromB64(adminCfg.wrapped_vault_key)
+    );
+    vaultKey = await crypto.subtle.importKey(
+      'raw', rawVK, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+    );
+    await loadVault();
+    await updateVaultMembersTracking('otp');
+    showScreen('vault-screen');
+  } catch(e) {
+    if (errEl) errEl.textContent = e.message || 'Failed to access vault. Contact your admin.';
+    handlingAuth = false;
+  }
+}
+
+// ── vault_members tracking (fires after vault opens) ───────────────
+async function updateVaultMembersTracking(method) {
+  const email = currentUserEmail || currentUser?.email;
+  if (!email) return;
+  try {
+    await sb.from('vault_members').update({
+      last_signin_at:     new Date().toISOString(),
+      last_signin_method: method,
+    }).eq('email', email);
+  } catch(_) { /* non-critical */ }
+}
+
+// ── user_settings sign-in tracking ────────────────────────────────
 async function updateSigninTracking(method, ip) {
   if (!currentUser) return;
   try {
@@ -1284,16 +1364,15 @@ async function signOut() {
   vaultKey = null; allEntries = []; entryMap.clear();
   clearOtpTimer();
   await sb.auth.signOut();
-  currentUser = null;
+  currentUser = null; currentUserEmail = '';
   pendingEmail = ''; pendingRole = '';
   authStep = 1; authMode = 'in';
   // Reset auth screen
   document.getElementById('tab-in').classList.add('active');
   document.getElementById('tab-up').classList.remove('active');
   document.getElementById('auth-step1').style.display = '';
-  document.getElementById('auth-step2-in').style.display = 'none';
-  document.getElementById('auth-step3-pw').style.display = 'none';
-  document.getElementById('auth-step3-otp').style.display = 'none';
+  document.getElementById('auth-step2-pw').style.display = 'none';
+  document.getElementById('auth-step2-otp').style.display = 'none';
   document.getElementById('auth-step2-up').style.display = 'none';
   document.getElementById('a-email').value = '';
   document.getElementById('si-pw').value = '';
@@ -1388,38 +1467,55 @@ async function handleMaster() {
       .single();
 
     if (!cfg || !cfg.verification_blob) {
-      // Create vault: derive key from existing salt (or generate if row missing entirely)
+      // ── Create vault (first setup) ────────────────────────────────
       let salt;
       if (cfg?.pbkdf2_salt) {
         salt = Uint8Array.from(atob(cfg.pbkdf2_salt), c => c.charCodeAt(0));
       } else {
         salt = crypto.getRandomValues(new Uint8Array(16));
       }
-      const key = await deriveKey(pw, salt);
-      const { iv: viv, ct: vblob } = await encryptField(key, 'billflow-vault-verified');
+
+      // Derive with extractable:true so we can export and wrap the key for members
+      const derivedKey = await deriveKeyExtractable(pw, salt);
+      const { iv: viv, ct: vblob } = await encryptField(derivedKey, 'billflow-vault-verified');
       const saltB64 = btoa(String.fromCharCode(...salt));
+
+      // Generate member access key, wrap the vault key with it
+      const memberAK   = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+      const rawVK      = await crypto.subtle.exportKey('raw', derivedKey);
+      const wrapIv     = crypto.getRandomValues(new Uint8Array(12));
+      const wrappedVK  = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: wrapIv }, memberAK, rawVK);
+      const rawMAK     = await crypto.subtle.exportKey('raw', memberAK);
+      const toB64      = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+
+      const role = pendingRole || 'admin';
+      const payload = {
+        pbkdf2_salt:          saltB64,
+        verification_blob:    vblob,
+        verification_iv:      viv,
+        member_access_key:    toB64(rawMAK),
+        wrapped_vault_key:    toB64(wrappedVK),
+        wrapped_vault_key_iv: toB64(wrapIv),
+      };
+      // is_admin_settings only on admin — members look for this row to get the wrapped key
+      if (role === 'admin') payload.is_admin_settings = true;
+
       if (cfg) {
-        // Row exists (from Create Account) — update with verification blob
-        const { error: updErr } = await sb.from('user_settings').update({
-          pbkdf2_salt:       saltB64,
-          verification_blob: vblob,
-          verification_iv:   viv,
-        }).eq('user_id', currentUser.id);
+        // Row exists (from Create Account) — update with vault key material
+        const { error: updErr } = await sb.from('user_settings').update(payload).eq('user_id', currentUser.id);
         if (updErr) throw new Error(updErr.message);
       } else {
-        // No row (admin first login via Sign In without Create Account) — insert
+        // No row (admin signed in directly without Create Account) — insert
         const { error: insErr } = await sb.from('user_settings').insert({
-          user_id:           currentUser.id,
-          pbkdf2_salt:       saltB64,
-          verification_blob: vblob,
-          verification_iv:   viv,
-          role:              'admin',
+          user_id: currentUser.id,
+          role,
+          ...payload,
         });
         if (insErr) throw new Error(insErr.message);
       }
-      vaultKey = key;
+      vaultKey = derivedKey;
     } else {
-      // Unlock: verify master password
+      // ── Unlock (returning user) ───────────────────────────────────
       const salt = Uint8Array.from(atob(cfg.pbkdf2_salt), c => c.charCodeAt(0));
       const key  = await deriveKey(pw, salt);
       const chk  = await decryptField(key, cfg.verification_iv, cfg.verification_blob);
@@ -1437,6 +1533,7 @@ async function handleMaster() {
       vaultKey = key;
     }
     await loadVault();
+    await updateVaultMembersTracking('master_password');
     showScreen('vault-screen');
   } catch(e) {
     if (!err.textContent) err.textContent = e.message || 'Failed to unlock vault.';
