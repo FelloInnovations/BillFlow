@@ -1381,33 +1381,40 @@ async function handleCreateAccount() {
     currentUser = siData.user;
     currentUserEmail = currentUser.email;
 
-    // Write user_settings row (no vault key yet — set on master-screen)
+    // Upsert user_settings row — handles both new users and repeat Create Account attempts
     const salt    = crypto.getRandomValues(new Uint8Array(16));
     const saltB64 = btoa(String.fromCharCode(...salt));
-    // Try full insert with tracking columns first; fall back to minimal insert
-    // if tracking columns haven't been migrated yet
-    let insErr;
-    ({ error: insErr } = await sb.from('user_settings').insert({
-      user_id:           currentUser.id,
-      pbkdf2_salt:       saltB64,
-      role:              pendingRole,
-      is_admin_settings: pendingRole === 'admin',
-      signin_method:     'master_password',
-      last_signin_at:    new Date().toISOString(),
-      signin_count:      1,
-      last_ip:           ip,
-      last_user_agent:   navigator.userAgent,
-    }));
-    if (insErr) {
-      // Fallback: insert only base columns (tracking columns not yet migrated)
+    // Check if row already exists (so we don't overwrite existing pbkdf2_salt)
+    const { data: existingRow } = await sb.from('user_settings')
+      .select('user_id, pbkdf2_salt')
+      .eq('user_id', currentUser.id)
+      .single();
+
+    if (!existingRow) {
+      // New user — insert base row (tracking columns attempted first, fallback to minimal)
+      let insErr;
       ({ error: insErr } = await sb.from('user_settings').insert({
         user_id:           currentUser.id,
         pbkdf2_salt:       saltB64,
         role:              pendingRole,
         is_admin_settings: pendingRole === 'admin',
+        signin_method:     'master_password',
+        last_signin_at:    new Date().toISOString(),
+        signin_count:      1,
+        last_ip:           ip,
+        last_user_agent:   navigator.userAgent,
       }));
-      if (insErr) throw new Error(insErr.message);
+      if (insErr) {
+        ({ error: insErr } = await sb.from('user_settings').insert({
+          user_id:           currentUser.id,
+          pbkdf2_salt:       saltB64,
+          role:              pendingRole,
+          is_admin_settings: pendingRole === 'admin',
+        }));
+        if (insErr) throw new Error(insErr.message);
+      }
     }
+    // If row already exists, skip insert — user will set/re-enter vault key on master-screen
 
     // Notify admin (fire-and-forget)
     sb.functions.invoke('notify-admin', {
