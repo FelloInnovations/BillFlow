@@ -10,6 +10,7 @@ import {
   FolderKanban,
   Wrench,
   BarChart3,
+  TrendingUp,
   Sun,
   Moon,
   Ticket,
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/records", label: "Financial Records", icon: FileText },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/tools", label: "Tools", icon: Wrench },
+  { href: "/forecasting", label: "Forecasting", icon: TrendingUp },
   { href: "/hubspot", label: "HubSpot Tickets", icon: Ticket },
 ];
 

@@ -6,6 +6,7 @@ import { KPICard } from "@/components/dashboard/KPICard";
 import { SpendRangeCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
 import { MonthlyTrendChart } from "@/components/dashboard/MonthlyTrendChart";
+import { SpendForecastSection } from "@/components/dashboard/SpendForecastSection";
 import { DashboardMetrics, FinancialRecord, FlaggedToolsData } from "@/types";
 import { formatCurrency, formatDate, cn, canonicalVendor } from "@/lib/utils";
 import { DashboardChat } from "@/components/dashboard/DashboardChat";
@@ -165,6 +166,9 @@ export function DashboardClient({ initial }: Props) {
           onClose={() => setShowFlaggedModal(false)}
         />
       )}
+
+      {/* Spend Forecast */}
+      <SpendForecastSection />
 
       {/* Charts */}
       <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-5 transition-opacity", loading && "opacity-60")}>

@@ -88,6 +88,22 @@ export interface FlaggedToolsData {
   neverUsed: NeverUsedVendor[];
 }
 
+export interface VendorForecast {
+  vendor: string;
+  forecastedAmount: number;
+  last3Months: { month: string; amount: number }[];
+  hasRecentActivity: boolean;
+  trend: "up" | "down" | "stable";
+}
+
+export interface ForecastResult {
+  forecasts: VendorForecast[];
+  inactiveVendors: VendorForecast[];
+  totalForecast: number;
+  nextMonthName: string;
+  computedAt: string;
+}
+
 export interface InvoiceFilters {
   vendor?: string;
   status?: string;

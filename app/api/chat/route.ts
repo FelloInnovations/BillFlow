@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { buildForecast } from "@/lib/forecast";
 
 type FinancialRow = {
   vendor_name: string | null;
@@ -57,13 +58,15 @@ async function buildFullContext(): Promise<string> {
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime());
 
-  // ── 2. Fetch projects, tools (for project mapping), and HubSpot in parallel ──
-  const [sheetsRes, toolsRes, hubspotRes] = await Promise.allSettled([
+  // ── 2. Fetch forecast + projects + tools + HubSpot in parallel ──
+  const [forecastResult, sheetsRes, toolsRes, hubspotRes] = await Promise.allSettled([
+    buildForecast(),
     fetch(`${base}/api/sheets`).then((r) => r.json()).catch(() => null),
     fetch(`${base}/api/tools`).then((r) => r.json()).catch(() => null),
     fetch(`${base}/api/hubspot`).then((r) => r.json()).catch(() => null),
   ]);
 
+  const forecast = forecastResult.status === "fulfilled" ? forecastResult.value : null;
   const sheets = sheetsRes.status === "fulfilled" ? sheetsRes.value : null;
   const tools  = toolsRes.status  === "fulfilled" ? toolsRes.value  : null;
   const hs     = hubspotRes.status === "fulfilled" ? hubspotRes.value : null;
@@ -92,6 +95,18 @@ async function buildFullContext(): Promise<string> {
   monthlyTrend.forEach(([month, b]) =>
     lines.push(`${month}: ${fmt(b.paid + b.unpaid)} total (paid ${fmt(b.paid)}, unpaid ${fmt(b.unpaid)})`)
   );
+
+  // ── Spend forecast ────────────────────────────────────────────────
+  if (forecast) {
+    lines.push(`\n=== SPEND FORECAST (next month projections based on 3-month average) ===`);
+    lines.push(`Total projected spend next month (${forecast.nextMonthName}): ${fmt(forecast.totalForecast)}`);
+    lines.push(`Vendors with recent activity: ${forecast.forecasts.length}`);
+    lines.push(`Inactive vendors (no invoices last 3 months): ${forecast.inactiveVendors.length}`);
+    forecast.forecasts.forEach((f) => {
+      const months = f.last3Months.map((m) => `${m.month}: ${fmt(m.amount)}`).join(", ");
+      lines.push(`${f.vendor}: ${fmt(f.forecastedAmount)} projected (${months}) — trend: ${f.trend}`);
+    });
+  }
 
   // ── Projects ──────────────────────────────────────────────────────
   if (sheets?.projects?.length) {
@@ -147,6 +162,7 @@ You have full visibility into:
 - Every project (name, status, LLMs used, services, total spend)
 - All tools and services with monthly breakdowns
 - HubSpot enrichment tickets (category, contacts, hit rate, status)
+- Spend forecast data: next month projections per vendor based on 3-month rolling average
 
 IMPORTANT — spend calculation rules:
 - The total_amount field is the definitive invoice amount (inclusive of tax). Always use total_amount for spend calculations, never subtotal or tax_amount.
@@ -155,6 +171,12 @@ IMPORTANT — spend calculation rules:
 - Unpaid/pending spend = sum of total_amount where payment_status != 'paid'.
 - Never exclude any records from the total unless the user explicitly asks to filter by status.
 - The grand total across all records is provided explicitly in the snapshot under "Grand total" — use that figure directly.
+
+IMPORTANT — forecast rules:
+- Forecast data is calculated as a simple average of the last 3 calendar months per vendor (both paid and pending invoices included).
+- The total projected spend for next month is provided explicitly — use that figure directly.
+- Trend: "up" = last month >10% higher than 3 months ago, "down" = >10% lower, "stable" = within 10%.
+- Inactive vendors (no invoices in last 3 months) are excluded from the forecast total.
 
 Current BillFlow snapshot:
 ${context}
