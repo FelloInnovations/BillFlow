@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { AlertCircle, TrendingUp, CalendarClock, RefreshCw, OctagonAlert, AlertTriangle, Ban } from "lucide-react";
+import Link from "next/link";
+import { AlertCircle, TrendingUp, CalendarClock, RefreshCw, OctagonAlert, AlertTriangle, ArrowRight } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { SpendRangeCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
 import { MonthlyTrendChart } from "@/components/dashboard/MonthlyTrendChart";
 import { SpendForecastSection } from "@/components/dashboard/SpendForecastSection";
 import { DashboardMetrics, FinancialRecord, FlaggedToolsData } from "@/types";
-import { formatCurrency, formatDate, cn, canonicalVendor } from "@/lib/utils";
+import { formatCurrency, cn, canonicalVendor } from "@/lib/utils";
 import { DashboardChat } from "@/components/dashboard/DashboardChat";
-import { FlaggedToolsModal } from "@/components/FlaggedToolsModal";
 
 interface Props {
   initial: DashboardMetrics;
@@ -22,7 +22,6 @@ export function DashboardClient({ initial }: Props) {
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [vendorProjects, setVendorProjects] = useState<Record<string, string[]>>({});
   const [flaggedData, setFlaggedData] = useState<FlaggedToolsData>({ billedInactive: [], neverUsed: [] });
-  const [showFlaggedModal, setShowFlaggedModal] = useState(false);
 
   useEffect(() => {
     fetch("/api/sheets")
@@ -64,6 +63,8 @@ export function DashboardClient({ initial }: Props) {
       setLoading(false);
     }
   }, []);
+
+  const totalFlagged = flaggedData.billedInactive.length + flaggedData.neverUsed.length;
 
   return (
     <div className="pt-10 px-7 pb-7 space-y-6 max-w-7xl">
@@ -119,62 +120,43 @@ export function DashboardClient({ initial }: Props) {
         />
       </div>
 
-      {/* Flagged tool cards — only shown when flags exist */}
-      {(flaggedData.billedInactive.length > 0 || flaggedData.neverUsed.length > 0) && (
-        <div className="grid grid-cols-2 gap-4">
-          {flaggedData.billedInactive.length > 0 && (
-            <button
-              onClick={() => setShowFlaggedModal(true)}
-              className="text-left rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 border-t-4 border-t-amber-400 p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Billed but Inactive</p>
-                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-500">
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                {flaggedData.billedInactive.length}
-              </p>
-              <p className="text-xs mt-1.5 text-slate-400 dark:text-slate-500">Paying but no active project</p>
-            </button>
-          )}
-          {flaggedData.neverUsed.length > 0 && (
-            <button
-              onClick={() => setShowFlaggedModal(true)}
-              className="text-left rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 border-t-4 border-t-red-400 p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tools Never Used</p>
-                <div className="p-2 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-500">
-                  <Ban className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                {flaggedData.neverUsed.length}
-              </p>
-              <p className="text-xs mt-1.5 text-slate-400 dark:text-slate-500">Never linked to any project</p>
-            </button>
-          )}
-        </div>
-      )}
-
-      {showFlaggedModal && (
-        <FlaggedToolsModal
-          billedInactive={flaggedData.billedInactive}
-          neverUsed={flaggedData.neverUsed}
-          onClose={() => setShowFlaggedModal(false)}
-        />
-      )}
-
-      {/* Spend Forecast */}
-      <SpendForecastSection />
-
       {/* Charts */}
       <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-5 transition-opacity", loading && "opacity-60")}>
         <SpendByVendorChart data={metrics.spendByVendor} vendorProjects={vendorProjects} />
         <MonthlyTrendChart data={metrics.monthlyTrend} />
       </div>
+
+      {/* Spend Forecast — compact strip */}
+      <SpendForecastSection />
+
+      {/* Flagged tools — slim warning strip */}
+      {totalFlagged > 0 && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-lg border-l-[3px] border-l-amber-400"
+          style={{ backgroundColor: "rgba(245, 166, 35, 0.05)", border: "1px solid rgba(245, 166, 35, 0.15)", borderLeftWidth: "3px", borderLeftColor: "#fbbf24" }}
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <p className="text-[13px] text-slate-500 dark:text-slate-400 min-w-0">
+            {flaggedData.billedInactive.length > 0 && (
+              <span>{flaggedData.billedInactive.length} vendor{flaggedData.billedInactive.length !== 1 ? "s" : ""} billed but inactive</span>
+            )}
+            {flaggedData.billedInactive.length > 0 && flaggedData.neverUsed.length > 0 && (
+              <span className="mx-2 text-slate-300 dark:text-slate-600">·</span>
+            )}
+            {flaggedData.neverUsed.length > 0 && (
+              <span>{flaggedData.neverUsed.length} tool{flaggedData.neverUsed.length !== 1 ? "s" : ""} never linked to a project</span>
+            )}
+          </p>
+          <span className="flex-1" />
+          <Link
+            href="/tools"
+            className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors whitespace-nowrap shrink-0"
+          >
+            Review
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
 
       {/* Upcoming due */}
       {metrics.upcomingDue.length > 0 && (

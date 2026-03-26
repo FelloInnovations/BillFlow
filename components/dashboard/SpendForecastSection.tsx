@@ -18,68 +18,57 @@ export function SpendForecastSection() {
 
   if (!data) return null;
 
-  const top5 = data.forecasts.slice(0, 5);
-  const max = top5[0]?.forecastedAmount || 1;
+  const top3 = data.forecasts.slice(0, 3);
+
+  const fmt = (n: number) =>
+    `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-            Spend Forecast — Next Month
-          </h3>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{data.nextMonthName}</p>
-        </div>
-        <Link
-          href="/forecasting"
-          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
-        >
-          View full forecast
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
+    <div className="flex items-center gap-4 px-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
+      {/* Label */}
+      <span className="text-xs font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
+        Forecast · {data.nextMonthName}
+      </span>
+
+      {/* Divider */}
+      <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 shrink-0" />
 
       {/* Projected total */}
-      <div className="rounded-xl bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-100 dark:border-cyan-900/40 px-5 py-4">
-        <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide mb-1">
-          Projected Total
-        </p>
-        <p className="text-3xl font-bold tracking-tight" style={{ color: "#00d4ff" }}>
-          {formatCurrency(data.totalForecast)}
-        </p>
-      </div>
+      <span className="text-[18px] font-bold tabular-nums shrink-0" style={{ color: "#00d4ff" }}>
+        {formatCurrency(data.totalForecast)}
+      </span>
 
-      {/* Top 5 vendor bars */}
-      {top5.length > 0 && (
-        <div className="space-y-2.5">
-          {top5.map((f) => (
-            <div key={f.vendor} className="flex items-center gap-3">
-              <span className="w-28 shrink-0 text-xs text-slate-600 dark:text-slate-400 truncate text-right">
-                {f.vendor}
+      {/* Vendor pills */}
+      {top3.length > 0 && (
+        <>
+          <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 shrink-0" />
+          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+            {top3.map((f, i) => (
+              <span key={f.vendor}>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-medium text-slate-600 dark:text-slate-300">{f.vendor}</span>
+                  {" "}{fmt(f.forecastedAmount)}
+                </span>
+                {i < top3.length - 1 && (
+                  <span className="text-slate-300 dark:text-slate-600 mx-1">·</span>
+                )}
               </span>
-              <div className="flex-1 h-3.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${(f.forecastedAmount / max) * 100}%`,
-                    backgroundColor: "#22d3ee",
-                    transition: "width 0.5s",
-                  }}
-                />
-              </div>
-              <span className="w-20 shrink-0 text-right text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums">
-                {formatCurrency(f.forecastedAmount)}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* Note */}
-      <p className="text-[11px] text-slate-400 dark:text-slate-500">
-        Based on average of last 3 months · includes paid and pending invoices
-      </p>
+      {/* Spacer */}
+      <span className="flex-1" />
+
+      {/* Link */}
+      <Link
+        href="/forecasting"
+        className="flex items-center gap-1 text-xs font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors whitespace-nowrap shrink-0"
+      >
+        View full forecast
+        <ArrowRight className="w-3 h-3" />
+      </Link>
     </div>
   );
 }
