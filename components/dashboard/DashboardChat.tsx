@@ -4,13 +4,12 @@ import { useState, useRef } from "react";
 import { Sparkles, Send, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardMetrics } from "@/types";
-import { formatCurrency } from "@/lib/utils";
 
 const STARTERS = [
   "Overview of this month's spend",
+  "Which projects are active and what do they cost?",
   "Which vendor costs the most?",
-  "How many invoices are overdue?",
-  "Avg monthly spend trend?",
+  "Summarise the HubSpot enrichment work",
 ];
 
 interface Message {
@@ -22,28 +21,8 @@ interface Props {
   metrics: DashboardMetrics;
 }
 
-function buildContext(metrics: DashboardMetrics): string {
-  const topVendors = metrics.spendByVendor
-    .slice(0, 5)
-    .map((v) => `${v.vendor}: ${formatCurrency(v.total)}`)
-    .join(", ");
 
-  const recentMonths = metrics.monthlyTrend
-    .slice(-3)
-    .map((m) => `${m.month}: ${formatCurrency(m.total)} (paid: ${formatCurrency(m.paid)}, unpaid: ${formatCurrency(m.unpaid)})`)
-    .join(" | ");
-
-  return [
-    `Unpaid invoices: ${metrics.unpaidCount} totalling ${formatCurrency(metrics.unpaidTotal)}`,
-    `Overdue invoices: ${metrics.overdueCount}`,
-    `Months of data tracked: ${metrics.monthlyTrend.length}`,
-    `Top vendors (last 12 months): ${topVendors}`,
-    `Recent monthly trend: ${recentMonths}`,
-    `Upcoming due invoices: ${metrics.upcomingDue.length}`,
-  ].join("\n");
-}
-
-export function DashboardChat({ metrics }: Props) {
+export function DashboardChat(_props: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -71,7 +50,6 @@ export function DashboardChat({ metrics }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
-          context: buildContext(metrics),
         }),
       });
 
