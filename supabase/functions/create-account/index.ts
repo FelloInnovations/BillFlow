@@ -45,6 +45,26 @@ serve(async (req) => {
     });
 
     if (createError) {
+      // If user already exists, update their password and return success
+      if (createError.message?.toLowerCase().includes('already') ||
+          createError.message?.toLowerCase().includes('exists')) {
+        const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers();
+        if (listErr) {
+          return new Response(
+            JSON.stringify({ success: false, error: listErr.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const existing = users.find(u => u.email === email);
+        if (existing) {
+          // Update password so the caller can sign in with the provided password
+          await supabase.auth.admin.updateUserById(existing.id, { password });
+          return new Response(
+            JSON.stringify({ success: true, userId: existing.id, role: member.role }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
       return new Response(
         JSON.stringify({ success: false, error: createError.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
