@@ -4,11 +4,16 @@ BILLFLOW VAULT — COMPLETE SCHEMA REFERENCE
 ════════════════════════════════════════════════════════════════════
 
 TABLE: public.vault_members
-  email               text  PRIMARY KEY
-  role                text  NOT NULL DEFAULT 'member'   -- 'admin' | 'manager' | 'member'
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid()
+  email               text NOT NULL UNIQUE
+  role                text NOT NULL DEFAULT 'member'   -- 'admin' | 'manager' | 'member'
   is_active           boolean NOT NULL DEFAULT true
   last_signin_at      timestamptz NULL
-  last_signin_method  text NULL                         -- 'master_password' | 'otp'
+  last_signin_method  text NULL                        -- 'master_password' | 'otp'
+  otp_hash            text NULL
+  otp_expires_at      timestamptz NULL
+  otp_used            boolean DEFAULT false
+  created_at          timestamptz DEFAULT now()
 
 TABLE: public.vault_entries
   id            uuid DEFAULT gen_random_uuid() PRIMARY KEY
@@ -84,6 +89,12 @@ RLS POLICIES:
     add column if not exists last_ip text null,
     add column if not exists last_user_agent text null;
 
+  -- 3b. Add OTP columns to vault_members (for custom OTP via Edge Functions)
+  alter table public.vault_members
+    add column if not exists otp_hash text null,
+    add column if not exists otp_expires_at timestamptz null,
+    add column if not exists otp_used boolean default false;
+
   -- 4. Seed admin (safe to re-run)
   insert into public.vault_members (email, role, is_active)
     values ('shailja.dwivedi@fello.ai', 'admin', true)
@@ -122,10 +133,23 @@ RLS POLICIES:
       exists (select 1 from public.user_settings where user_id = auth.uid() and role = 'admin')
     );
 
-  --    user_settings: each user sees only their own row
-  --    (skip if "own settings only" policy already exists)
-  create policy "own settings only" on public.user_settings
-    for all using (auth.uid() = user_id);
+  --    user_settings: own row for writes; own row OR is_admin_settings=true for SELECT
+  --    (members need to read admin's row to unwrap vault key via OTP sign-in)
+  --    Drop "own settings only" if it exists first, then create split policies:
+  -- drop policy if exists "own settings only" on public.user_settings;
+  alter table public.user_settings enable row level security;
+  create policy "user_settings_select" on public.user_settings
+    for select using (auth.uid() = user_id OR is_admin_settings = true);
+  create policy "user_settings_insert" on public.user_settings
+    for insert with check (auth.uid() = user_id);
+  create policy "user_settings_update" on public.user_settings
+    for update using (auth.uid() = user_id);
+  create policy "user_settings_delete" on public.user_settings
+    for delete using (auth.uid() = user_id);
+
+  --    vault_members: allow own-row update for last_signin tracking
+  create policy "vault_members_update_own" on public.vault_members
+    for update using (email = auth.email());
 
   --    vault_entries: each user sees only their own rows
   --    (skip if "own entries only" policy already exists)
@@ -683,11 +707,37 @@ RLS POLICIES:
       <div id="a-err" class="form-error"></div>
     </div>
 
-    <!-- Step 2: Password (admin / manager) -->
+    <!-- Step 2 (Sign In): Method selection — shown to ALL users -->
+    <div id="auth-step2-method" style="display:none">
+      <div class="step2-header">
+        <span class="step2-email" id="si-email-display-method"></span>
+        <button class="back-btn" onclick="goBackToStep1()">← Change</button>
+      </div>
+      <div class="method-cards">
+        <button class="method-card" onclick="selectMethod('password')">
+          <span class="method-card-icon">🔐</span>
+          <div class="method-card-body">
+            <div class="method-card-title">Master Password</div>
+            <div class="method-card-desc">Sign in with your vault password</div>
+          </div>
+          <span class="method-card-arrow">›</span>
+        </button>
+        <button class="method-card" onclick="selectMethod('otp')">
+          <span class="method-card-icon">📧</span>
+          <div class="method-card-body">
+            <div class="method-card-title">Email OTP</div>
+            <div class="method-card-desc">Get a one-time code sent to your email</div>
+          </div>
+          <span class="method-card-arrow">›</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3A: Account Password -->
     <div id="auth-step2-pw" style="display:none">
       <div class="step2-header">
         <span class="step2-email" id="si-email-display-pw"></span>
-        <button class="back-btn" onclick="goBackToStep1()">← Change</button>
+        <button class="back-btn" onclick="goBackToMethodSelect()">← Back</button>
       </div>
       <div class="form-group">
         <label class="form-label">Account Password</label>
@@ -701,11 +751,11 @@ RLS POLICIES:
       <div id="a-pw-err" class="form-error"></div>
     </div>
 
-    <!-- Step 2: OTP (member) -->
+    <!-- Step 3B: OTP (available to all users) -->
     <div id="auth-step2-otp" style="display:none">
       <div class="step2-header">
         <span class="step2-email" id="si-email-display-otp"></span>
-        <button class="back-btn" onclick="goBackToStep1()">← Change</button>
+        <button class="back-btn" onclick="goBackToMethodSelect()">← Back</button>
       </div>
       <p class="otp-sent-msg">A 6-digit code was sent to<br><strong id="otp-email-display"></strong></p>
       <div class="form-group">
@@ -784,10 +834,10 @@ RLS POLICIES:
 <div id="master-screen" class="screen">
   <div class="master-box">
     <div class="master-icon">🔐</div>
-    <div class="master-title" id="m-title">Enter Master Password</div>
-    <div class="master-sub" id="m-sub">Decrypt your vault. This password never leaves your browser.</div>
+    <div class="master-title" id="m-title">Enter Vault Key</div>
+    <div class="master-sub" id="m-sub">Decrypt your vault. This key never leaves your browser.</div>
     <div class="form-group">
-      <label class="form-label">Master Password</label>
+      <label class="form-label">Vault Key</label>
       <div class="input-wrap">
         <input type="password" id="m-pw" class="form-input" placeholder="••••••••"
           autocomplete="off" onkeydown="if(event.key==='Enter')handleMaster()">
@@ -795,7 +845,7 @@ RLS POLICIES:
       </div>
     </div>
     <div id="m-confirm-wrap" class="form-group" style="display:none">
-      <label class="form-label">Confirm Master Password</label>
+      <label class="form-label">Confirm Vault Key</label>
       <div class="input-wrap">
         <input type="password" id="m-confirm" class="form-input" placeholder="••••••••" autocomplete="off">
         <button class="eye-btn" onclick="toggleVis('m-confirm',this)">👁</button>
@@ -956,6 +1006,9 @@ RLS POLICIES:
 // ═══════════════════════════════════════════════════════════════════
 const SUPABASE_URL      = 'https://cqrfboirwwnlmpzfdbyl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxcmZib2lyd3dubG1wemZkYnlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxNTAwNTEsImV4cCI6MjA2NTcyNjA1MX0.BHTnxhXvGBlvsrxKmon7fqnUqISEXa43EjVJIk0pFIA';
+// System password used to create/authenticate OTP-only accounts in Supabase Auth.
+// This is NOT a vault key — it's just a placeholder so Supabase Auth has a valid password.
+const MEMBER_SYSTEM_PASSWORD = 'bf-vault-otp-8xmK2pL9qZ#2024!secure';
 // ═══════════════════════════════════════════════════════════════════
 
 const { createClient } = supabase;
@@ -1070,6 +1123,7 @@ function goBackToStep1() {
   authStep = 1;
   clearOtpTimer();
   document.getElementById('auth-step1').style.display = '';
+  document.getElementById('auth-step2-method').style.display = 'none';
   document.getElementById('auth-step2-pw').style.display = 'none';
   document.getElementById('auth-step2-otp').style.display = 'none';
   document.getElementById('auth-step2-up').style.display = 'none';
@@ -1081,6 +1135,17 @@ function goBackToStep1() {
   document.getElementById('si-otp').value = '';
   document.getElementById('ca-pw').value = '';
   document.getElementById('ca-confirm').value = '';
+}
+
+function goBackToMethodSelect() {
+  clearOtpTimer();
+  document.getElementById('auth-step2-method').style.display = '';
+  document.getElementById('auth-step2-pw').style.display = 'none';
+  document.getElementById('auth-step2-otp').style.display = 'none';
+  document.getElementById('a-pw-err').textContent = '';
+  document.getElementById('a-otp-err').textContent = '';
+  document.getElementById('si-pw').value = '';
+  document.getElementById('si-otp').value = '';
 }
 
 async function handleEmailCheck() {
@@ -1117,10 +1182,15 @@ async function handleEmailCheck() {
   }
 }
 
-// ── Auth: Step 2 — Role-based routing (no method selection) ────────
+// ── Auth: Step 2 — Method selection (shown to ALL users) ────────────
 function showSignInStep2() {
-  const isPassword = pendingRole === 'admin' || pendingRole === 'manager';
-  if (isPassword) {
+  document.getElementById('auth-step2-method').style.display = '';
+  document.getElementById('si-email-display-method').textContent = pendingEmail;
+}
+
+function selectMethod(method) {
+  document.getElementById('auth-step2-method').style.display = 'none';
+  if (method === 'password') {
     document.getElementById('auth-step2-pw').style.display = '';
     document.getElementById('si-email-display-pw').textContent = pendingEmail;
     setTimeout(() => document.getElementById('si-pw').focus(), 80);
@@ -1141,12 +1211,12 @@ async function handleSignIn() {
   btn.disabled = true; btn.textContent = '…';
   handlingAuth = true;
   try {
-    const ip = await fetchIp();
     const { data, error } = await sb.auth.signInWithPassword({ email: pendingEmail, password: pw });
     if (error) throw new Error('Incorrect password. Try again.');
     currentUser = data.user;
     currentUserEmail = currentUser.email;
-    await updateSigninTracking('master_password', ip);
+    // Tracking (signin_count, last_ip, last_signin_method) is written in handleMaster()
+    // after the vault key is successfully verified — not here.
     await setupMasterScreen();
     showScreen('master-screen');
   } catch(e) {
@@ -1157,18 +1227,19 @@ async function handleSignIn() {
   }
 }
 
-// ── Auth: OTP (member sign-in) ─────────────────────────────────────
+// ── Auth: OTP ─────────────────────────────────────────────────────
 async function sendOtp() {
   document.getElementById('a-otp-err').textContent = '';
-  const { error } = await sb.auth.signInWithOtp({
-    email: pendingEmail,
-    options: { shouldCreateUser: false }
-  });
-  if (error) {
-    document.getElementById('a-otp-err').textContent = error.message || 'Failed to send OTP. Ensure your account exists.';
-    return;
+  try {
+    const { data, error } = await sb.functions.invoke('send-otp', {
+      body: { email: pendingEmail }
+    });
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.error || 'Failed to send OTP.');
+    startOtpCountdown();
+  } catch(e) {
+    document.getElementById('a-otp-err').textContent = e.message || 'Failed to send OTP. Try again.';
   }
-  startOtpCountdown();
 }
 
 async function resendOtp() {
@@ -1211,13 +1282,68 @@ async function handleVerifyOtp() {
   handlingAuth = true;
   try {
     const ip = await fetchIp();
-    const { data, error } = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
-    if (error) throw new Error('Invalid or expired OTP.');
-    currentUser = data.user;
+
+    // Step 4B: Verify OTP via Edge Function
+    const { data: verifyData, error: verifyErr } = await sb.functions.invoke('verify-otp', {
+      body: { email: pendingEmail, otp: token }
+    });
+    if (verifyErr) throw verifyErr;
+    if (!verifyData?.success) throw new Error(verifyData?.error || 'Invalid or expired code.');
+
+    // Step 5B: Establish Supabase Auth session using system password
+    let signInData;
+    const { data: siData, error: siErr } = await sb.auth.signInWithPassword({
+      email: pendingEmail,
+      password: MEMBER_SYSTEM_PASSWORD
+    });
+
+    if (siErr) {
+      // User doesn't have a Supabase Auth account yet — create one via Edge Function
+      const { data: createData, error: createErr } = await sb.functions.invoke('create-account', {
+        body: { email: pendingEmail, password: MEMBER_SYSTEM_PASSWORD }
+      });
+      if (createErr) throw createErr;
+      if (!createData?.success) throw new Error(createData?.error || 'Failed to create account.');
+      // Sign in again after creation
+      const { data: retryData, error: retryErr } = await sb.auth.signInWithPassword({
+        email: pendingEmail,
+        password: MEMBER_SYSTEM_PASSWORD
+      });
+      if (retryErr) throw new Error('Failed to establish session. Try again.');
+      signInData = retryData;
+    } else {
+      signInData = siData;
+    }
+
+    currentUser = signInData.user;
     currentUserEmail = currentUser.email;
     clearOtpTimer();
-    await updateSigninTracking('otp', ip);
-    // Members skip master password screen — unwrap vault key directly
+
+    // Check if user_settings row exists; create if not
+    const { data: existingCfg } = await sb
+      .from('user_settings')
+      .select('user_id')
+      .eq('user_id', currentUser.id)
+      .single();
+
+    if (!existingCfg) {
+      const salt    = crypto.getRandomValues(new Uint8Array(16));
+      const saltB64 = btoa(String.fromCharCode(...salt));
+      await sb.from('user_settings').insert({
+        user_id:         currentUser.id,
+        pbkdf2_salt:     saltB64,
+        role:            pendingRole || 'member',
+        signin_method:   'otp',
+        last_signin_at:  new Date().toISOString(),
+        signin_count:    1,
+        last_ip:         ip,
+        last_user_agent: navigator.userAgent,
+      });
+    } else {
+      await updateSigninTracking('otp', ip);
+    }
+
+    // Step 6B: Unwrap admin's vault key and load vault
     await unwrapVaultKeyForMember(err);
   } catch(e) {
     err.textContent = e.message || 'OTP verification failed.';
@@ -1247,41 +1373,44 @@ async function handleCreateAccount() {
   handlingAuth = true;
   try {
     const ip = await fetchIp();
-    // Sign up
-    const { error: upErr } = await sb.auth.signUp({ email: pendingEmail, password: pw });
-    if (upErr) throw new Error(upErr.message || 'Registration failed.');
-    // Auto sign-in immediately (no email confirmation required)
+
+    // Create auth user via Edge Function (email_confirm:true — no confirmation email)
+    const { data: createData, error: createErr } = await sb.functions.invoke('create-account', {
+      body: { email: pendingEmail, password: pw }
+    });
+    if (createErr) throw createErr;
+    if (!createData?.success) throw new Error(createData?.error || 'Account creation failed.');
+
+    // Auto sign-in immediately
     const { data: siData, error: siErr } = await sb.auth.signInWithPassword({ email: pendingEmail, password: pw });
-    if (siErr) throw new Error('Account created but sign-in failed. Try signing in manually.');
+    if (siErr) throw new Error('Account created but sign-in failed. Try signing in.');
     currentUser = siData.user;
     currentUserEmail = currentUser.email;
-    // Insert user_settings row: salt + role + initial sign-in tracking
+
+    // Write user_settings row (no vault key yet — set on master-screen)
     const salt    = crypto.getRandomValues(new Uint8Array(16));
     const saltB64 = btoa(String.fromCharCode(...salt));
     const { error: insErr } = await sb.from('user_settings').insert({
-      user_id:         currentUser.id,
-      pbkdf2_salt:     saltB64,
-      role:            pendingRole,
-      signin_method:   pendingRole === 'member' ? 'otp' : 'master_password',
-      last_signin_at:  new Date().toISOString(),
-      signin_count:    1,
-      last_ip:         ip,
-      last_user_agent: navigator.userAgent,
+      user_id:          currentUser.id,
+      pbkdf2_salt:      saltB64,
+      role:             pendingRole,
+      is_admin_settings: pendingRole === 'admin',
+      signin_method:    'master_password',
+      last_signin_at:   new Date().toISOString(),
+      signin_count:     1,
+      last_ip:          ip,
+      last_user_agent:  navigator.userAgent,
     });
     if (insErr) throw new Error(insErr.message);
+
     // Notify admin (fire-and-forget)
     sb.functions.invoke('notify-admin', {
       body: { newUserEmail: pendingEmail, role: pendingRole, createdAt: new Date().toISOString() }
     }).catch(() => {});
-    // Route based on role
-    if (pendingRole === 'member') {
-      // Members skip master password — unwrap vault key directly
-      await unwrapVaultKeyForMember(err);
-    } else {
-      // Admin / manager — go to master vault key setup screen
-      await setupMasterScreen();
-      showScreen('master-screen');
-    }
+
+    // All roles go to master vault key setup screen
+    await setupMasterScreen();
+    showScreen('master-screen');
   } catch(e) {
     err.style.color = 'var(--red)';
     err.textContent = e.message || 'Account creation failed.';
@@ -1371,6 +1500,7 @@ async function signOut() {
   document.getElementById('tab-in').classList.add('active');
   document.getElementById('tab-up').classList.remove('active');
   document.getElementById('auth-step1').style.display = '';
+  document.getElementById('auth-step2-method').style.display = 'none';
   document.getElementById('auth-step2-pw').style.display = 'none';
   document.getElementById('auth-step2-otp').style.display = 'none';
   document.getElementById('auth-step2-up').style.display = 'none';
@@ -1435,10 +1565,10 @@ async function setupMasterScreen() {
   }
   const isNew = !cfg || !cfg.verification_blob;
   document.getElementById('m-btn').disabled = false;
-  document.getElementById('m-title').textContent = isNew ? 'Create Master Password' : 'Enter Master Password';
+  document.getElementById('m-title').textContent = isNew ? 'Create Vault Key' : 'Enter Vault Key';
   document.getElementById('m-sub').textContent = isNew
-    ? 'Set a master password to encrypt your vault. Store it safely — it cannot be recovered.'
-    : 'Decrypt your vault. This password never leaves your browser.';
+    ? 'Set a vault key to encrypt your credentials. Store it safely — it cannot be recovered.'
+    : 'Decrypt your vault. This key never leaves your browser.';
   document.getElementById('m-btn').textContent = isNew ? 'Create Vault' : 'Unlock Vault';
   document.getElementById('m-confirm-wrap').style.display = isNew ? 'block' : 'none';
   document.getElementById('m-pw').value = '';
@@ -1451,18 +1581,18 @@ async function handleMaster() {
   const err = document.getElementById('m-err');
   err.textContent = '';
   if (!currentUser) { err.textContent = 'Session expired. Please sign in again.'; showScreen('auth-screen'); return; }
-  if (!pw) { err.textContent = 'Enter your master password.'; return; }
+  if (!pw) { err.textContent = 'Enter your vault key.'; return; }
   const isCreating = document.getElementById('m-confirm-wrap').style.display !== 'none';
   if (isCreating) {
     const confirm = document.getElementById('m-confirm').value;
-    if (pw !== confirm) { err.textContent = 'Passwords do not match.'; return; }
-    if (pw.length < 10) { err.textContent = 'Master password must be at least 10 characters.'; return; }
+    if (pw !== confirm) { err.textContent = 'Vault keys do not match.'; return; }
+    if (pw.length < 10) { err.textContent = 'Vault key must be at least 10 characters.'; return; }
   }
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
   try {
     const { data: cfg } = await sb
       .from('user_settings')
-      .select('pbkdf2_salt, verification_blob, verification_iv')
+      .select('pbkdf2_salt, verification_blob, verification_iv, role')
       .eq('user_id', currentUser.id)
       .single();
 
@@ -1475,37 +1605,39 @@ async function handleMaster() {
         salt = crypto.getRandomValues(new Uint8Array(16));
       }
 
-      // Derive with extractable:true so we can export and wrap the key for members
+      const role = cfg?.role || pendingRole || 'admin';
+
+      // Derive with extractable:true so raw bytes can be exported (admin wraps for members)
       const derivedKey = await deriveKeyExtractable(pw, salt);
       const { iv: viv, ct: vblob } = await encryptField(derivedKey, 'billflow-vault-verified');
       const saltB64 = btoa(String.fromCharCode(...salt));
+      const toB64   = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
 
-      // Generate member access key, wrap the vault key with it
-      const memberAK   = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-      const rawVK      = await crypto.subtle.exportKey('raw', derivedKey);
-      const wrapIv     = crypto.getRandomValues(new Uint8Array(12));
-      const wrappedVK  = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: wrapIv }, memberAK, rawVK);
-      const rawMAK     = await crypto.subtle.exportKey('raw', memberAK);
-      const toB64      = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
-
-      const role = pendingRole || 'admin';
       const payload = {
-        pbkdf2_salt:          saltB64,
-        verification_blob:    vblob,
-        verification_iv:      viv,
-        member_access_key:    toB64(rawMAK),
-        wrapped_vault_key:    toB64(wrappedVK),
-        wrapped_vault_key_iv: toB64(wrapIv),
+        pbkdf2_salt:       saltB64,
+        verification_blob: vblob,
+        verification_iv:   viv,
       };
-      // is_admin_settings only on admin — members look for this row to get the wrapped key
-      if (role === 'admin') payload.is_admin_settings = true;
+
+      // Admin only: generate member access key and wrap vault key so members can unwrap it
+      if (role === 'admin') {
+        const memberAK  = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+        const rawVK     = await crypto.subtle.exportKey('raw', derivedKey);
+        const wrapIv    = crypto.getRandomValues(new Uint8Array(12));
+        const wrappedVK = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: wrapIv }, memberAK, rawVK);
+        const rawMAK    = await crypto.subtle.exportKey('raw', memberAK);
+        payload.is_admin_settings    = true;
+        payload.member_access_key    = toB64(rawMAK);
+        payload.wrapped_vault_key    = toB64(wrappedVK);
+        payload.wrapped_vault_key_iv = toB64(wrapIv);
+      }
 
       if (cfg) {
         // Row exists (from Create Account) — update with vault key material
         const { error: updErr } = await sb.from('user_settings').update(payload).eq('user_id', currentUser.id);
         if (updErr) throw new Error(updErr.message);
       } else {
-        // No row (admin signed in directly without Create Account) — insert
+        // No row (admin signed in without Create Account) — insert
         const { error: insErr } = await sb.from('user_settings').insert({
           user_id: currentUser.id,
           role,
@@ -1514,6 +1646,9 @@ async function handleMaster() {
         if (insErr) throw new Error(insErr.message);
       }
       vaultKey = derivedKey;
+      await loadVault();
+      await updateVaultMembersTracking('master_password');
+      showScreen('vault-screen');
     } else {
       // ── Unlock (returning user) ───────────────────────────────────
       const salt = Uint8Array.from(atob(cfg.pbkdf2_salt), c => c.charCodeAt(0));
@@ -1526,15 +1661,17 @@ async function handleMaster() {
           err.textContent = 'Too many failed attempts. Signing out.';
           setTimeout(() => signOut(), 1500);
         } else {
-          err.textContent = `Incorrect master password. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`;
+          err.textContent = `Incorrect vault key. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`;
         }
         return;
       }
       vaultKey = key;
+      const ip = await fetchIp();
+      await updateSigninTracking('master_password', ip);
+      await loadVault();
+      await updateVaultMembersTracking('master_password');
+      showScreen('vault-screen');
     }
-    await loadVault();
-    await updateVaultMembersTracking('master_password');
-    showScreen('vault-screen');
   } catch(e) {
     if (!err.textContent) err.textContent = e.message || 'Failed to unlock vault.';
   } finally {
