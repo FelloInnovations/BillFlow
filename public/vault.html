@@ -1234,8 +1234,8 @@ async function sendOtp() {
     const { data, error } = await sb.functions.invoke('send-otp', {
       body: { email: pendingEmail }
     });
-    if (error) throw error;
-    if (!data?.success) throw new Error(data?.error || 'Failed to send OTP.');
+    const msg = data?.error || error?.message;
+    if (!data?.success) throw new Error(msg || 'Failed to send OTP.');
     startOtpCountdown();
   } catch(e) {
     document.getElementById('a-otp-err').textContent = e.message || 'Failed to send OTP. Try again.';
@@ -1283,39 +1283,25 @@ async function handleVerifyOtp() {
   try {
     const ip = await fetchIp();
 
-    // Step 4B: Verify OTP via Edge Function
+    // Step 4B: Verify OTP via Edge Function — returns a magic-link token_hash
     const { data: verifyData, error: verifyErr } = await sb.functions.invoke('verify-otp', {
       body: { email: pendingEmail, otp: token }
     });
-    if (verifyErr) throw verifyErr;
-    if (!verifyData?.success) throw new Error(verifyData?.error || 'Invalid or expired code.');
-
-    // Step 5B: Establish Supabase Auth session using system password
-    let signInData;
-    const { data: siData, error: siErr } = await sb.auth.signInWithPassword({
-      email: pendingEmail,
-      password: MEMBER_SYSTEM_PASSWORD
-    });
-
-    if (siErr) {
-      // User doesn't have a Supabase Auth account yet — create one via Edge Function
-      const { data: createData, error: createErr } = await sb.functions.invoke('create-account', {
-        body: { email: pendingEmail, password: MEMBER_SYSTEM_PASSWORD }
-      });
-      if (createErr) throw createErr;
-      if (!createData?.success) throw new Error(createData?.error || 'Failed to create account.');
-      // Sign in again after creation
-      const { data: retryData, error: retryErr } = await sb.auth.signInWithPassword({
-        email: pendingEmail,
-        password: MEMBER_SYSTEM_PASSWORD
-      });
-      if (retryErr) throw new Error('Failed to establish session. Try again.');
-      signInData = retryData;
-    } else {
-      signInData = siData;
+    // Extract real error message even when EF returns non-2xx
+    if (verifyErr || !verifyData?.success) {
+      const msg = verifyData?.error || verifyErr?.message || 'OTP verification failed.';
+      throw new Error(msg);
     }
 
-    currentUser = signInData.user;
+    // Step 5B: Exchange magic-link token for a real Supabase session
+    // This works for ALL users (any password) without overwriting anything
+    const { data: sessionData, error: sessionErr } = await sb.auth.verifyOtp({
+      token_hash: verifyData.token_hash,
+      type: 'magiclink',
+    });
+    if (sessionErr) throw new Error(`Failed to establish session: ${sessionErr.message}`);
+
+    currentUser = sessionData.user;
     currentUserEmail = currentUser.email;
     clearOtpTimer();
 

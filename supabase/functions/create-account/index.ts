@@ -1,6 +1,5 @@
 // @ts-nocheck
 // Deploy: supabase functions deploy create-account
-// Secrets: SUPABASE_SERVICE_ROLE_KEY (Supabase → Project Settings → API → service_role)
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -9,20 +8,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ok  = (body: object) => new Response(JSON.stringify(body), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+const err = (msg: string)  => new Response(JSON.stringify({ success: false, error: msg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const { email, password } = await req.json();
+    if (!email || !password) return err('Missing email or password.');
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL'),
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Check vault_members first
+    // Check vault_members
     const { data: member, error: memberError } = await supabase
       .from('vault_members')
       .select('email, role, is_active')
@@ -30,56 +31,32 @@ serve(async (req) => {
       .eq('is_active', true)
       .single();
 
-    if (memberError || !member) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'You are not authorised to access BillFlow Vault.' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (memberError || !member) return err('You are not authorised to access BillFlow Vault.');
 
-    // Create user with email already confirmed — no confirmation email sent
+    // Try to create; if user exists, update password
     const { data: userData, error: createError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true
+      email_confirm: true,
     });
 
     if (createError) {
-      // If user already exists, update their password and return success
       if (createError.message?.toLowerCase().includes('already') ||
-          createError.message?.toLowerCase().includes('exists')) {
-        const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers();
-        if (listErr) {
-          return new Response(
-            JSON.stringify({ success: false, error: listErr.message }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        const existing = users.find(u => u.email === email);
-        if (existing) {
-          // Update password so the caller can sign in with the provided password
-          await supabase.auth.admin.updateUserById(existing.id, { password });
-          return new Response(
-            JSON.stringify({ success: true, userId: existing.id, role: member.role }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
+          createError.message?.toLowerCase().includes('exist')) {
+        // User exists — update their password and return their ID
+        const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+        if (listErr) return err(listErr.message);
+        const existing = users.find((u: any) => u.email === email);
+        if (!existing) return err('User not found.');
+        await supabase.auth.admin.updateUserById(existing.id, { password });
+        return ok({ success: true, userId: existing.id, role: member.role });
       }
-      return new Response(
-        JSON.stringify({ success: false, error: createError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return err(createError.message);
     }
 
-    return new Response(
-      JSON.stringify({ success: true, userId: userData.user.id, role: member.role }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return ok({ success: true, userId: userData.user.id, role: member.role });
 
-  } catch (err) {
-    return new Response(
-      JSON.stringify({ success: false, error: err.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (e) {
+    return err(e.message ?? 'Internal error.');
   }
 });

@@ -1,6 +1,5 @@
 // @ts-nocheck
 // Deploy: supabase functions deploy send-otp
-// Secrets: SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -9,17 +8,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ok  = (body: object) => new Response(JSON.stringify(body), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+const err = (msg: string)  => new Response(JSON.stringify({ success: false, error: msg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const { email } = await req.json();
+    if (!email) return err('Missing email.');
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL'),
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
     // Verify email is in vault_members
@@ -30,12 +31,7 @@ serve(async (req) => {
       .eq('is_active', true)
       .single();
 
-    if (memberError || !member) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Email not authorised.' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (memberError || !member) return err('Email not authorised.');
 
     // Generate cryptographically random 6-digit OTP
     const arr = new Uint32Array(1);
@@ -45,35 +41,24 @@ serve(async (req) => {
     // Hash OTP with SHA-256
     const encoder = new TextEncoder();
     const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(otpCode));
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const otpHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const otpHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
     // Set expiry 10 minutes from now
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    // Store hashed OTP in vault_members
     const { error: updateError } = await supabase
       .from('vault_members')
-      .update({
-        otp_hash: otpHash,
-        otp_expires_at: expiresAt,
-        otp_used: false
-      })
+      .update({ otp_hash: otpHash, otp_expires_at: expiresAt, otp_used: false })
       .eq('email', email);
 
-    if (updateError) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to store OTP.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (updateError) return err('Failed to store OTP.');
 
     // Send via Resend
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         from: 'onboarding@resend.dev',
@@ -89,29 +74,20 @@ serve(async (req) => {
             </div>
             <p style="color:#8a9ab5;font-size:13px;">This code expires in <strong style="color:#dce4f0;">10 minutes</strong>.</p>
             <p style="color:#8a9ab5;font-size:13px;">Do not share this code with anyone.</p>
-            <p style="color:#5c6b84;font-size:11px;margin-top:32px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">If you did not request this code, ignore this email. Your vault remains secure.</p>
+            <p style="color:#5c6b84;font-size:11px;margin-top:32px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">If you did not request this code, ignore this email.</p>
           </div>
-        `
-      })
+        `,
+      }),
     });
 
     if (!resendRes.ok) {
-      const resendError = await resendRes.json();
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to send email.', detail: resendError }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const resendBody = await resendRes.json();
+      return err(`Failed to send email: ${resendBody?.message ?? resendRes.status}`);
     }
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return ok({ success: true });
 
-  } catch (err) {
-    return new Response(
-      JSON.stringify({ success: false, error: err.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (e) {
+    return err(e.message ?? 'Internal error.');
   }
 });
