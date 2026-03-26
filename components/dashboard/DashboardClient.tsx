@@ -2,12 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { AlertCircle, TrendingUp, CalendarClock, RefreshCw, OctagonAlert, AlertTriangle, ArrowRight } from "lucide-react";
+import { AlertCircle, CalendarClock, RefreshCw, OctagonAlert, AlertTriangle, ArrowRight } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { SpendRangeCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
-import { MonthlyTrendChart } from "@/components/dashboard/MonthlyTrendChart";
-import { SpendForecastSection } from "@/components/dashboard/SpendForecastSection";
+import { TrendAndForecastCard } from "@/components/dashboard/TrendAndForecastCard";
 import { DashboardMetrics, FinancialRecord, FlaggedToolsData } from "@/types";
 import { formatCurrency, cn, canonicalVendor } from "@/lib/utils";
 import { DashboardChat } from "@/components/dashboard/DashboardChat";
@@ -64,8 +63,6 @@ export function DashboardClient({ initial }: Props) {
     }
   }, []);
 
-  const totalFlagged = flaggedData.billedInactive.length + flaggedData.neverUsed.length;
-
   return (
     <div className="pt-10 px-7 pb-7 space-y-6 max-w-7xl">
       {/* Header row */}
@@ -89,12 +86,12 @@ export function DashboardClient({ initial }: Props) {
         </div>
       </div>
 
-      {/* Orion AI */}
+      {/* Row 1 — Orion AI */}
       <div className="max-w-2xl mx-auto">
         <DashboardChat metrics={metrics} />
       </div>
 
-      {/* KPI Cards */}
+      {/* Row 2 — Stat cards */}
       <div className={cn("grid grid-cols-2 lg:grid-cols-4 gap-4 transition-opacity", loading && "opacity-60")}>
         <SpendRangeCard />
         <KPICard
@@ -111,52 +108,48 @@ export function DashboardClient({ initial }: Props) {
           icon={OctagonAlert}
           accent="rose"
         />
-        <KPICard
-          title="Months Tracked"
-          value={metrics.monthlyTrend.length}
-          sub="Months of spend data"
-          icon={TrendingUp}
-          accent="emerald"
-        />
+
+        {/* 4th card — Flagged Alert (replaces Months Tracked) */}
+        <div
+          className="rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow border border-amber-200/60 dark:border-amber-800/40 border-l-[3px] border-l-amber-400 flex flex-col"
+          style={{ backgroundColor: "rgba(245, 166, 35, 0.05)" }}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Flagged Vendors</p>
+            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-500">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex-1 space-y-1.5">
+            <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-snug">
+              <span className="text-[15px] font-medium text-amber-500 dark:text-amber-400">
+                {flaggedData.billedInactive.length}
+              </span>{" "}
+              vendors billed but inactive
+            </p>
+            <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-snug">
+              <span className="text-[15px] font-medium text-amber-500 dark:text-amber-400">
+                {flaggedData.neverUsed.length}
+              </span>{" "}
+              tools never linked to a project
+            </p>
+          </div>
+          <div className="flex justify-end mt-3">
+            <Link
+              href="/tools"
+              className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+            >
+              Review <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {/* Charts */}
+      {/* Row 3 — Charts: Vendor chart + Trend+Forecast unified card */}
       <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-5 transition-opacity", loading && "opacity-60")}>
         <SpendByVendorChart data={metrics.spendByVendor} vendorProjects={vendorProjects} />
-        <MonthlyTrendChart data={metrics.monthlyTrend} />
+        <TrendAndForecastCard data={metrics.monthlyTrend} />
       </div>
-
-      {/* Spend Forecast — compact strip */}
-      <SpendForecastSection />
-
-      {/* Flagged tools — slim warning strip */}
-      {totalFlagged > 0 && (
-        <div
-          className="flex items-center gap-3 px-4 py-3 rounded-lg border-l-[3px] border-l-amber-400"
-          style={{ backgroundColor: "rgba(245, 166, 35, 0.05)", border: "1px solid rgba(245, 166, 35, 0.15)", borderLeftWidth: "3px", borderLeftColor: "#fbbf24" }}
-        >
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          <p className="text-[13px] text-slate-500 dark:text-slate-400 min-w-0">
-            {flaggedData.billedInactive.length > 0 && (
-              <span>{flaggedData.billedInactive.length} vendor{flaggedData.billedInactive.length !== 1 ? "s" : ""} billed but inactive</span>
-            )}
-            {flaggedData.billedInactive.length > 0 && flaggedData.neverUsed.length > 0 && (
-              <span className="mx-2 text-slate-300 dark:text-slate-600">·</span>
-            )}
-            {flaggedData.neverUsed.length > 0 && (
-              <span>{flaggedData.neverUsed.length} tool{flaggedData.neverUsed.length !== 1 ? "s" : ""} never linked to a project</span>
-            )}
-          </p>
-          <span className="flex-1" />
-          <Link
-            href="/tools"
-            className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors whitespace-nowrap shrink-0"
-          >
-            Review
-            <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-      )}
 
       {/* Upcoming due */}
       {metrics.upcomingDue.length > 0 && (
