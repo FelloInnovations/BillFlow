@@ -11,7 +11,9 @@ import {
   ChevronDown,
   X,
   CheckCircle2,
+  Plus,
 } from "lucide-react";
+import { AddInvoiceModal } from "./AddInvoiceModal";
 
 interface Props {
   initial: PaginatedResult<FinancialRecord>;
@@ -101,6 +103,9 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
+  // ── Add invoice modal ──
+  const [showAddModal, setShowAddModal] = useState(false);
+
   // ── Selection state ──
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
@@ -188,6 +193,16 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
   function handleRefresh() {
     fetchVendors();
     fetchData(filters, selectedVendors);
+  }
+
+  function handleInvoiceSaved() {
+    setShowAddModal(false);
+    // Reset to page 1 so the new invoice (ordered by date desc) appears at top
+    const next = { ...filters, page: 1 };
+    setFilters(next);
+    fetchVendors();
+    fetchData(next, selectedVendors);
+    setToast({ msg: "Invoice added successfully", type: "success" });
   }
 
   // ── Local state update on paid ──
@@ -389,6 +404,13 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           >
             <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Invoice
           </button>
         </div>
       </div>
@@ -610,6 +632,14 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
         onClose={() => setSelected(null)}
         onMarkedPaid={handleMarkedPaid}
       />
+
+      {/* ── Add Invoice modal ── */}
+      {showAddModal && (
+        <AddInvoiceModal
+          onClose={() => setShowAddModal(false)}
+          onSaved={handleInvoiceSaved}
+        />
+      )}
     </div>
   );
 }

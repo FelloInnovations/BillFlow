@@ -1,6 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+
+  const { error, data } = await supabase
+    .from("financial_records")
+    .insert({
+      vendor_name:    body.vendor_name,
+      invoice_number: body.invoice_number   ?? null,
+      invoice_date:   body.invoice_date,
+      due_date:       body.due_date         ?? null,
+      subtotal:       body.subtotal,
+      tax_amount:     body.tax_amount       ?? 0,
+      total_amount:   body.total_amount,
+      currency:       body.currency         ?? "USD",
+      payment_status: body.payment_status   ?? "pending",
+      description:    body.description      ?? null,
+      email_id:       null,
+      email_subject:  null,
+      email_from:     null,
+      pdf_filename:   null,
+    })
+    .select("*")
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data, { status: 201 });
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const vendor = searchParams.get("vendor");
