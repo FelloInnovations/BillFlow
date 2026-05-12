@@ -42,6 +42,25 @@ export async function GET() {
     canonicalTotals.set(canonical, (canonicalTotals.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
 
+  // Add real-time OpenRouter API spend for current month
+  try {
+    const { data: orUsage, error: orError } = await supabase.functions.invoke('get-openrouter-usage');
+    console.log('[OpenRouter usage] invoke result:', JSON.stringify(orUsage), '| error:', orError);
+    if (orUsage?.success && orUsage.usage_monthly) {
+      const apiMonthly = Number(orUsage.usage_monthly);
+      for (const [key] of canonicalTotals) {
+        if (key.toLowerCase().includes('openrouter')) {
+          const invoiceTotal = canonicalTotals.get(key) ?? 0;
+          canonicalTotals.set(key, invoiceTotal + apiMonthly);
+          console.log(`[OpenRouter usage] added ${apiMonthly} to "${key}" (invoice: ${invoiceTotal} → combined: ${invoiceTotal + apiMonthly})`);
+          break;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[OpenRouter usage] invoke threw:', err);
+  }
+
   // canonical monthly trend
   const canonicalMonthly = new Map<string, Map<string, number>>();
   for (const r of trendRows ?? []) {
