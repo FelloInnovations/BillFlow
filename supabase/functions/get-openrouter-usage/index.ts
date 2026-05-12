@@ -11,7 +11,7 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/key', {
+    const response = await fetch('https://openrouter.ai/api/v1/credits', {
       headers: {
         'Authorization': `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
         'Content-Type': 'application/json'
@@ -25,7 +25,7 @@ serve(async (req) => {
     }
     const data = await response.json();
     return new Response(
-      JSON.stringify({ success: true, usage_monthly: data.data.usage_monthly, usage_total: data.data.usage }),
+      JSON.stringify({ success: true, usage_total: data.data.total_usage }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err) {
