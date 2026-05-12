@@ -59,7 +59,7 @@ export async function GET() {
   try {
     const { data: orData, error: orError } = await supabase.functions.invoke('get-openrouter-usage');
     console.log('[OpenRouter usage] invoke result:', JSON.stringify(orData), '| error:', orError);
-    const orUsage = (!orError && orData?.success) ? orData : null;
+    const orUsage = (!orError && orData?.success && orData.usage_total != null) ? orData : null;
 
     if (orUsage) {
       // Find existing OpenRouter key (case-insensitive)
@@ -67,14 +67,14 @@ export async function GET() {
 
       if (orKey) {
         const invoiceTotal = canonicalTotals.get(orKey) ?? 0;
-        console.log(`[OpenRouter usage] BEFORE — key: "${orKey}", invoiceTotal: ${invoiceTotal}, usage_total_30d: ${orUsage.usage_total_30d}`);
-        const combined = invoiceTotal + orUsage.usage_total_30d;
+        console.log(`[OpenRouter usage] BEFORE — key: "${orKey}", invoiceTotal: ${invoiceTotal}, usage_total: ${orUsage.usage_total}`);
+        const combined = invoiceTotal + orUsage.usage_total;
         canonicalTotals.set(orKey, combined);
         console.log(`[OpenRouter usage] AFTER  — combined: ${combined}`);
       } else {
         orKey = 'OpenRouter';
-        canonicalTotals.set(orKey, orUsage.usage_total_30d);
-        console.log(`[OpenRouter usage] created new entry "OpenRouter" with ${orUsage.usage_total_30d}`);
+        canonicalTotals.set(orKey, orUsage.usage_total);
+        console.log(`[OpenRouter usage] created new entry "OpenRouter" with ${orUsage.usage_total}`);
       }
 
       // Merge monthly data — convert YYYY-MM → "Mon YYYY" to match existing format

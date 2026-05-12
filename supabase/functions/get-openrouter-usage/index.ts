@@ -12,56 +12,51 @@ serve(async (req) => {
   }
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/activity', {
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    const headers = {
+      'Authorization': `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
+      'Content-Type': 'application/json'
+    };
 
-    if (!response.ok) {
-      const err = await response.text();
+    // Fetch both endpoints in parallel
+    const [creditsRes, activityRes] = await Promise.all([
+      fetch('https://openrouter.ai/api/v1/credits', { headers }),
+      fetch('https://openrouter.ai/api/v1/activity', { headers }),
+    ]);
+
+    if (!creditsRes.ok) {
+      const err = await creditsRes.text();
       return new Response(
-        JSON.stringify({ success: false, error: err }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: `credits: ${err}` }),
+        { status: creditsRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
-    const daily = data.data || [];
+    const creditsData = await creditsRes.json();
+    const usage_total = creditsData.data.total_usage;
 
-    console.log('[OpenRouter activity] first 3 raw entries:', JSON.stringify(daily.slice(0, 3)));
+    // Activity is best-effort — chart degrades gracefully if it fails
+    let monthly = {};
+    if (activityRes.ok) {
+      const activityData = await activityRes.json();
+      const daily = activityData.data || [];
 
-    // Group daily entries by month and sum cost
-    const monthly = {};
-    let total30d = 0;
+      console.log('[OpenRouter activity] first 3 raw entries:', JSON.stringify(daily.slice(0, 3)));
 
-    for (const entry of daily) {
-      const month = entry.date?.substring(0, 7); // 'YYYY-MM'
-      if (!month) continue;
-      // Try different possible cost field names
-      const cost = parseFloat(entry.cost ?? entry.total_cost ?? entry.spend ?? 0);
-      if (!monthly[month]) monthly[month] = 0;
-      monthly[month] += cost;
-      total30d += cost;
+      for (const entry of daily) {
+        const month = entry.date?.substring(0, 7); // 'YYYY-MM'
+        if (!month) continue;
+        const cost = parseFloat(entry.cost ?? entry.total_cost ?? entry.spend ?? 0);
+        if (!monthly[month]) monthly[month] = 0;
+        monthly[month] += cost;
+      }
+
+      for (const m in monthly) {
+        monthly[m] = Math.round(monthly[m] * 100) / 100;
+      }
     }
-
-    // Round all monthly values
-    for (const m in monthly) {
-      monthly[m] = Math.round(monthly[m] * 100) / 100;
-    }
-
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        monthly,
-        current_month: currentMonth,
-        usage_this_month: monthly[currentMonth] || 0,
-        usage_total_30d: Math.round(total30d * 100) / 100
-      }),
+      JSON.stringify({ success: true, usage_total, monthly }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
