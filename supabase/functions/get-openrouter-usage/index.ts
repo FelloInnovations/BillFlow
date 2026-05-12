@@ -45,7 +45,7 @@ serve(async (req) => {
       for (const entry of daily) {
         const month = entry.date?.substring(0, 7); // 'YYYY-MM'
         if (!month) continue;
-        const cost = parseFloat(entry.cost ?? entry.total_cost ?? entry.spend ?? 0);
+        const cost = parseFloat(entry.usage ?? 0);
         if (!monthly[month]) monthly[month] = 0;
         monthly[month] += cost;
       }
