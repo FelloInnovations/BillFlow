@@ -42,25 +42,6 @@ export async function GET() {
     canonicalTotals.set(canonical, (canonicalTotals.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
 
-  // Add real-time OpenRouter API spend for current month
-  try {
-    const { data: orUsage, error: orError } = await supabase.functions.invoke('get-openrouter-usage');
-    console.log('[OpenRouter usage] invoke result:', JSON.stringify(orUsage), '| error:', orError);
-    if (orUsage?.success && orUsage.usage_total) {
-      const apiTotal = Number(orUsage.usage_total);
-      for (const [key] of canonicalTotals) {
-        if (key.toLowerCase().includes('openrouter')) {
-          const invoiceTotal = canonicalTotals.get(key) ?? 0;
-          canonicalTotals.set(key, invoiceTotal + apiTotal);
-          console.log(`[OpenRouter usage] added usage_total ${apiTotal} to "${key}" (invoice: ${invoiceTotal} → combined: ${invoiceTotal + apiTotal})`);
-          break;
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[OpenRouter usage] invoke threw:', err);
-  }
-
   // canonical monthly trend
   const canonicalMonthly = new Map<string, Map<string, number>>();
   for (const r of trendRows ?? []) {
@@ -72,6 +53,42 @@ export async function GET() {
     const monthMap = canonicalMonthly.get(canonical) ?? new Map();
     monthMap.set(month, (monthMap.get(month) ?? 0) + Number(r.total_amount ?? 0));
     canonicalMonthly.set(canonical, monthMap);
+  }
+
+  // Merge real-time OpenRouter activity data into totals and monthly trend
+  try {
+    const { data: orData, error: orError } = await supabase.functions.invoke('get-openrouter-usage');
+    console.log('[OpenRouter usage] invoke result:', JSON.stringify(orData), '| error:', orError);
+    const orUsage = (!orError && orData?.success) ? orData : null;
+
+    if (orUsage) {
+      // Find existing OpenRouter key (case-insensitive)
+      let orKey = [...canonicalTotals.keys()].find(k => k.toLowerCase().includes('openrouter'));
+
+      if (orKey) {
+        const invoiceTotal = canonicalTotals.get(orKey) ?? 0;
+        const combined = invoiceTotal + orUsage.usage_total_30d;
+        canonicalTotals.set(orKey, combined);
+        console.log(`[OpenRouter usage] added usage_total_30d ${orUsage.usage_total_30d} to "${orKey}" (invoice: ${invoiceTotal} → combined: ${combined})`);
+      } else {
+        orKey = 'OpenRouter';
+        canonicalTotals.set(orKey, orUsage.usage_total_30d);
+        console.log(`[OpenRouter usage] created new entry "OpenRouter" with ${orUsage.usage_total_30d}`);
+      }
+
+      // Merge monthly data — convert YYYY-MM → "Mon YYYY" to match existing format
+      if (orUsage.monthly) {
+        const monthMap = canonicalMonthly.get(orKey) ?? new Map<string, number>();
+        for (const [yyyyMm, apiCost] of Object.entries(orUsage.monthly as Record<string, number>)) {
+          const [yr, mo] = yyyyMm.split('-');
+          const label = new Date(parseInt(yr), parseInt(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          monthMap.set(label, (monthMap.get(label) ?? 0) + (apiCost as number));
+        }
+        canonicalMonthly.set(orKey, monthMap);
+      }
+    }
+  } catch (err) {
+    console.error('[OpenRouter usage] invoke threw:', err);
   }
 
   const llmProviders = new Set(projects.flatMap((p) => p.llms.map((l) => l.provider)));
