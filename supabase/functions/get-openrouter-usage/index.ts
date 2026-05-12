@@ -30,6 +30,8 @@ serve(async (req) => {
     const data = await response.json();
     const daily = data.data || [];
 
+    console.log('[OpenRouter activity] first 3 raw entries:', JSON.stringify(daily.slice(0, 3)));
+
     // Group daily entries by month and sum cost
     const monthly = {};
     let total30d = 0;

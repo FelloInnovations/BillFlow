@@ -67,9 +67,10 @@ export async function GET() {
 
       if (orKey) {
         const invoiceTotal = canonicalTotals.get(orKey) ?? 0;
+        console.log(`[OpenRouter usage] BEFORE — key: "${orKey}", invoiceTotal: ${invoiceTotal}, usage_total_30d: ${orUsage.usage_total_30d}`);
         const combined = invoiceTotal + orUsage.usage_total_30d;
         canonicalTotals.set(orKey, combined);
-        console.log(`[OpenRouter usage] added usage_total_30d ${orUsage.usage_total_30d} to "${orKey}" (invoice: ${invoiceTotal} → combined: ${combined})`);
+        console.log(`[OpenRouter usage] AFTER  — combined: ${combined}`);
       } else {
         orKey = 'OpenRouter';
         canonicalTotals.set(orKey, orUsage.usage_total_30d);
