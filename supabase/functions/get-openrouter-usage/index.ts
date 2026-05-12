@@ -25,7 +25,7 @@ serve(async (req) => {
     }
     const data = await response.json();
     return new Response(
-      JSON.stringify({ success: true, usage_monthly: data.data.usage_monthly }),
+      JSON.stringify({ success: true, usage_monthly: data.data.usage_monthly, usage_total: data.data.usage }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err) {

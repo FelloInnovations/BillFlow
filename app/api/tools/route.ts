@@ -46,13 +46,13 @@ export async function GET() {
   try {
     const { data: orUsage, error: orError } = await supabase.functions.invoke('get-openrouter-usage');
     console.log('[OpenRouter usage] invoke result:', JSON.stringify(orUsage), '| error:', orError);
-    if (orUsage?.success && orUsage.usage_monthly) {
-      const apiMonthly = Number(orUsage.usage_monthly);
+    if (orUsage?.success && orUsage.usage_total) {
+      const apiTotal = Number(orUsage.usage_total);
       for (const [key] of canonicalTotals) {
         if (key.toLowerCase().includes('openrouter')) {
           const invoiceTotal = canonicalTotals.get(key) ?? 0;
-          canonicalTotals.set(key, invoiceTotal + apiMonthly);
-          console.log(`[OpenRouter usage] added ${apiMonthly} to "${key}" (invoice: ${invoiceTotal} → combined: ${invoiceTotal + apiMonthly})`);
+          canonicalTotals.set(key, invoiceTotal + apiTotal);
+          console.log(`[OpenRouter usage] added usage_total ${apiTotal} to "${key}" (invoice: ${invoiceTotal} → combined: ${invoiceTotal + apiTotal})`);
           break;
         }
       }
