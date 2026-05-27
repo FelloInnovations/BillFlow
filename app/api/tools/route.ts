@@ -92,6 +92,44 @@ export async function GET() {
     console.error('[OpenRouter usage] invoke threw:', err);
   }
 
+  // Per-key OpenRouter usage — one entry per unique key name
+  try {
+    const keyToProjects = new Map<string, string[]>();
+    for (const project of projects) {
+      if (!project.openrouter_api_key) continue;
+      const key = project.openrouter_api_key;
+      const arr = keyToProjects.get(key) ?? [];
+      if (!arr.includes(project.name)) arr.push(project.name);
+      keyToProjects.set(key, arr);
+    }
+
+    for (const [keyName, projectNames] of keyToProjects.entries()) {
+      const toolKey = `OpenRouter:${keyName}`;
+      vendorToProjects.set(toolKey, projectNames);
+
+      const { data: orData, error: orError } = await supabase.functions.invoke(
+        `get-openrouter-usage?key_name=${encodeURIComponent(keyName)}`
+      );
+      console.log(`[OpenRouter per-key] key="${keyName}" result:`, JSON.stringify(orData), '| error:', orError);
+
+      if (!orError && orData?.success) {
+        canonicalTotals.set(toolKey, orData.usage_total ?? 0);
+
+        if (orData.monthly && Object.keys(orData.monthly).length > 0) {
+          const monthMap = canonicalMonthly.get(toolKey) ?? new Map<string, number>();
+          for (const [yyyyMm, apiCost] of Object.entries(orData.monthly as Record<string, number>)) {
+            const [yr, mo] = yyyyMm.split('-');
+            const label = new Date(parseInt(yr), parseInt(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            monthMap.set(label, (monthMap.get(label) ?? 0) + (apiCost as number));
+          }
+          canonicalMonthly.set(toolKey, monthMap);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[OpenRouter per-key usage] threw:', err);
+  }
+
   const llmProviders = new Set(projects.flatMap((p) => p.llms.map((l) => l.provider)));
 
   const tools: Tool[] = [...canonicalTotals.entries()]

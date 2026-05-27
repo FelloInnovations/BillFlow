@@ -7,7 +7,7 @@ import { Project } from "@/types";
 async function getProjectsFromDB(): Promise<Project[]> {
   const { data, error } = await supabase
     .from("agents_portfolio")
-    .select("agents_projects, description, llms, llm_accounts, services_used, status")
+    .select("agents_projects, description, llms, llm_accounts, services_used, status, openrouter_api_key")
     .limit(500);
 
   if (error) {
@@ -44,6 +44,7 @@ async function getProjectsFromDB(): Promise<Project[]> {
       services,
       status: row.status ?? null,
       totalSpend: null,
+      openrouter_api_key: row.openrouter_api_key ?? null,
     };
   });
 }

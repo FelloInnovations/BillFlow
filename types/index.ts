@@ -54,6 +54,13 @@ export interface Project {
   services: string[];
   status: string | null;
   totalSpend: number | null; // null = TBD
+  openrouter_api_key: string | null;
+}
+
+export interface OpenRouterKeyUsage {
+  key_name: string;
+  usage_total: number;
+  monthly: Record<string, number>;
 }
 
 export interface LLMEntry {

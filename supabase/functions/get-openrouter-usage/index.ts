@@ -12,12 +12,39 @@ serve(async (req) => {
   }
 
   try {
+    const url = new URL(req.url);
+    const keyName = url.searchParams.get('key_name');
+
     const headers = {
       'Authorization': `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
 
-    // Fetch both endpoints in parallel
+    // Per-named-key path: fetch credits for a specific API key
+    if (keyName) {
+      const creditsRes = await fetch(
+        `https://openrouter.ai/api/v1/credits?key_name=${encodeURIComponent(keyName)}`,
+        { headers }
+      );
+
+      if (!creditsRes.ok) {
+        const err = await creditsRes.text();
+        return new Response(
+          JSON.stringify({ success: false, error: `credits: ${err}` }),
+          { status: creditsRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const creditsData = await creditsRes.json();
+      const usage_total = creditsData.data?.total_usage ?? 0;
+
+      return new Response(
+        JSON.stringify({ success: true, key_name: keyName, usage_total, monthly: {} }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Master-key fallback: fetch aggregate usage with the env-var key
     const [creditsRes, activityRes] = await Promise.all([
       fetch('https://openrouter.ai/api/v1/credits', { headers }),
       fetch('https://openrouter.ai/api/v1/activity', { headers }),
