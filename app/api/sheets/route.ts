@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { STATIC_PROJECTS } from "@/lib/sheets";
 import { supabase } from "@/lib/supabase";
 import { fetchOrKeySpend } from "@/lib/orKeySpend";
+import { getHiddenToolKeys, hiddenOrKeyNames } from "@/lib/hidden-tools";
 import { Project } from "@/types";
 
 async function getProjectsFromDB(): Promise<Project[]> {
@@ -46,10 +47,13 @@ async function getProjectsFromDB(): Promise<Project[]> {
 }
 
 export async function GET() {
-  const [projects, orKeySpend] = await Promise.all([
+  const [projects, orKeySpend, hiddenKeys] = await Promise.all([
     getProjectsFromDB(),
     fetchOrKeySpend(),
+    getHiddenToolKeys(),
   ]);
+  // Lowercase set of hidden OR key names for comparison against lowercased portfolio keys
+  const hiddenOrKeys = new Set([...hiddenOrKeyNames(hiddenKeys)].map((k) => k.toLowerCase()));
 
   // key (lowercase) → project names that reference it (to detect shared keys)
   const keyToProjects = new Map<string, string[]>();
@@ -73,6 +77,7 @@ export async function GET() {
     let anyShared = false;
 
     for (const k of keys) {
+      if (hiddenOrKeys.has(k)) continue;
       const spend = orKeySpend.get(k);
       if (spend !== undefined) {
         const shareCount = keyToProjects.get(k)?.length ?? 1;

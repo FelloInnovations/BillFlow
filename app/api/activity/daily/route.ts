@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getHiddenToolKeys, hiddenOrKeyNames } from "@/lib/hidden-tools";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -21,19 +22,24 @@ export async function GET(req: NextRequest) {
     "signalcards(boduu)","mirofish","scrrpy(code version)",
   ];
 
-  const { data } = await supabase
-    .from("api_invocation_logs")
-    .select("key_name, invoked_at, cost_usd")
-    .in("key_name", AUTHORIZED_KEYS)
-    .gte("invoked_at", `${cutoffStr}T00:00:00Z`)
-    .order("invoked_at", { ascending: true });
+  const [{ data }, hiddenKeys] = await Promise.all([
+    supabase
+      .from("api_invocation_logs")
+      .select("key_name, invoked_at, cost_usd")
+      .in("key_name", AUTHORIZED_KEYS)
+      .gte("invoked_at", `${cutoffStr}T00:00:00Z`)
+      .order("invoked_at", { ascending: true }),
+    getHiddenToolKeys(),
+  ]);
+  const hiddenOrKeys = hiddenOrKeyNames(hiddenKeys);
 
   const dayMap = new Map<string, Record<string, number>>();
   const keySet = new Set<string>();
 
   for (const row of data ?? []) {
-    const date = (row.invoked_at as string).substring(0, 10);
     const key  = row.key_name as string;
+    if (hiddenOrKeys.has(key)) continue;
+    const date = (row.invoked_at as string).substring(0, 10);
     keySet.add(key);
     if (!dayMap.has(date)) dayMap.set(date, {});
     const entry = dayMap.get(date)!;

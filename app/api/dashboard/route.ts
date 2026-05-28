@@ -56,10 +56,10 @@ export async function GET() {
       .not("vendor_name", "is", null)
       .not("vendor_name", "ilike", "%makemytrip%"),
 
-    // Last 12 months — monthly trend
+    // Last 12 months — monthly trend (vendor_name needed for hidden-tool filtering)
     supabase
       .from("financial_records")
-      .select("invoice_date, total_amount, payment_status, due_date")
+      .select("vendor_name, invoice_date, total_amount, payment_status, due_date")
       .gte("invoice_date", twelveMonthsAgo)
       .not("vendor_name", "ilike", "%makemytrip%"),
 
@@ -115,6 +115,7 @@ export async function GET() {
   const monthMap = new Map<string, MonthBucket>();
   for (const r of trendRes.data ?? []) {
     if (!r.invoice_date) continue;
+    if (r.vendor_name && hiddenKeys.has(canonicalVendor(r.vendor_name as string))) continue;
     const yyyyMm = (r.invoice_date as string).substring(0, 7);
     const [yr, mo] = yyyyMm.split("-");
     const label = new Date(parseInt(yr), parseInt(mo) - 1, 1).toLocaleDateString("en-US", {
@@ -142,6 +143,7 @@ export async function GET() {
     if (!r.vendor_name) continue;
     const canonical = canonicalVendor(r.vendor_name as string);
     if (canonical === "OpenRouter") continue;
+    if (hiddenKeys.has(canonical)) continue;
     infraMap.set(canonical, (infraMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
   const infraServices: SharedInfraService[] = [...infraMap.entries()]

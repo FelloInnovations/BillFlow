@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getHiddenToolKeys, hiddenOrKeyNames } from "@/lib/hidden-tools";
 
 export async function GET() {
-  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes] = await Promise.all([
+  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes, hiddenKeys] = await Promise.all([
     supabase
       .from("agents_portfolio")
       .select("agents_projects, openrouter_api_key, status")
@@ -26,6 +27,7 @@ export async function GET() {
       .select("invoked_at")
       .order("invoked_at", { ascending: false })
       .limit(1),
+    getHiddenToolKeys(),
   ]);
 
   const projects   = projectsRes.data  ?? [];
@@ -56,12 +58,15 @@ export async function GET() {
 
   // Authorized key set from portfolio (defense in depth — DB should already be clean after migration 15)
   const allowedKeyNames = new Set(Object.keys(keyToProject));
+  // Keys hidden via hidden_tools (stored as "OpenRouter:keyname")
+  const hiddenOrKeys = hiddenOrKeyNames(hiddenKeys);
 
-  // Group snapshots by exact key_name — skip any key not in the portfolio allowlist
+  // Group snapshots by exact key_name — skip keys not in portfolio allowlist or hidden
   const snapshotsByKey: Record<string, { month: string; usage_total: number }[]> = {};
   for (const snap of snapshots) {
     const k = snap.key_name as string;
     if (!allowedKeyNames.has(k)) continue;
+    if (hiddenOrKeys.has(k)) continue;
     if (!snapshotsByKey[k]) snapshotsByKey[k] = [];
     snapshotsByKey[k].push({ month: snap.month as string, usage_total: Number(snap.usage_total) });
   }
@@ -129,11 +134,18 @@ export async function GET() {
 
   const months = [...allMonthsSet].sort();
 
-  const all_projects = projects.map((p) => ({
-    project_name: p.agents_projects as string,
-    key_name:     p.openrouter_api_key as string | null,
-    status:       p.status as string | null,
-  }));
+  const all_projects = projects
+    .filter((p) => {
+      if (!p.openrouter_api_key) return true;
+      // Exclude projects whose every OR key is hidden
+      const keys = (p.openrouter_api_key as string).split(",").map((k: string) => k.trim()).filter(Boolean);
+      return !keys.every((k) => hiddenOrKeys.has(k));
+    })
+    .map((p) => ({
+      project_name: p.agents_projects as string,
+      key_name:     p.openrouter_api_key as string | null,
+      status:       p.status as string | null,
+    }));
 
   return NextResponse.json({ keys, months, all_projects, last_synced_at: lastSyncAt, latest_date: latestDate });
 }

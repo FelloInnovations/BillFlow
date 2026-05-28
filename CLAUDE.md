@@ -81,8 +81,12 @@ components/
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 NEXT_PUBLIC_BASE_URL=https://spendsync-production.up.railway.app
-OPENAI_API_KEY=      # required for DashboardChat (/api/chat)
+OPENAI_API_KEY=                  # can be removed once OPENROUTER_BILLFLOW_API_KEY is confirmed working
+OPENROUTER_BILLFLOW_API_KEY=     # required — routes Orion chat through OpenRouter so BillFlow costs are tracked
+OPENROUTER_PROVISIONING_KEY=     # required — used by snapshot-openrouter-usage edge function
 ```
+
+**Railway env vars to set:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_BILLFLOW_API_KEY`, `OPENROUTER_PROVISIONING_KEY`, `NEXT_PUBLIC_BASE_URL`. `OPENAI_API_KEY` is no longer needed once `OPENROUTER_BILLFLOW_API_KEY` is set.
 
 ## Deployment
 - Push to `main` on GitHub → Railway auto-deploys

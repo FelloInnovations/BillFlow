@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getHiddenToolKeys } from "@/lib/hidden-tools";
 
 export async function GET(
   _req: NextRequest,
@@ -24,6 +25,11 @@ export async function GET(
   ]);
 
   if (!AUTHORIZED_KEYS.has(keyName)) {
+    return NextResponse.json({ daily: [], models: [] });
+  }
+
+  const hiddenKeys = await getHiddenToolKeys();
+  if (hiddenKeys.has(`OpenRouter:${keyName}`)) {
     return NextResponse.json({ daily: [], models: [] });
   }
 
