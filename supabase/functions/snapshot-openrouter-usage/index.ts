@@ -39,7 +39,7 @@ serve(async (req) => {
     );
 
     // 1. List all named keys
-    const keysRes = await fetch('https://openrouter.ai/api/v1/auth/keys', {
+    const keysRes = await fetch('https://openrouter.ai/api/v1/keys', {
       headers: { Authorization: `Bearer ${provKey}` },
     });
     if (!keysRes.ok) throw new Error(`keys API ${keysRes.status}: ${await keysRes.text()}`);

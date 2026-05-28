@@ -40,7 +40,7 @@ serve(async (req) => {
       }
 
       // 1. Resolve key name → hash via provisioning API
-      const keysRes = await fetch('https://openrouter.ai/api/v1/auth/keys', {
+      const keysRes = await fetch('https://openrouter.ai/api/v1/keys', {
         headers: { Authorization: `Bearer ${provKey}` },
       });
       if (!keysRes.ok) {
