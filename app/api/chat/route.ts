@@ -149,7 +149,14 @@ async function buildFullContext(): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new OpenAI({
+    apiKey: process.env.OPENROUTER_BILLFLOW_API_KEY,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": process.env.NEXT_PUBLIC_BASE_URL ?? "https://spendsync-production.up.railway.app",
+      "X-Title": "BillFlow",
+    },
+  });
   const { messages } = await req.json();
 
   const context = await buildFullContext();
@@ -189,7 +196,7 @@ Guidelines:
 - Tone: professional but conversational`;
 
   const stream = await client.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "openai/gpt-4o-mini",
     max_tokens: 600,
     stream: true,
     messages: [
