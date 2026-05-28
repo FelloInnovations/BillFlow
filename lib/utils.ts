@@ -28,17 +28,23 @@ export function isOverdue(dueDate: string | null, status: string): boolean {
   return new Date(dueDate) < new Date();
 }
 
-// Normalise DB vendor_name to a canonical key for matching
+// Normalise DB vendor_name to a canonical key for matching.
+// Legacy LLM providers (Anthropic, xAI, OpenAI, etc.) are now routed via OpenRouter
+// and are grouped under the "OpenRouter" canonical name.
 export function canonicalVendor(name: string): string {
   const lower = name.toLowerCase();
-  if (lower.includes("anthropic")) return "Anthropic";
-  if (lower.includes("openai")) return "OpenAI";
-  if (lower.includes("perplexity")) return "Perplexity";
-  if (lower.includes("google") || lower.includes("gemini")) return "Google";
-  if (lower.includes("x.ai") || lower.includes("xai")) return "xAI";
+  // OpenRouter + legacy LLM providers now routed through it
+  if (lower.includes("openrouter")) return "OpenRouter";
+  if (lower.includes("anthropic")) return "OpenRouter";
+  if (lower.includes("openai")) return "OpenRouter";
+  if (lower.includes("perplexity")) return "OpenRouter";
+  if (lower.includes("google") || lower.includes("gemini")) return "OpenRouter";
+  if (lower.includes("x.ai") || lower.includes("xai")) return "OpenRouter";
+  // Services
   if (lower.includes("scraperapi") || lower.includes("scraper api") || lower.includes("scraper")) return "ScraperAPI";
   if (lower.includes("oxylabs")) return "Oxylabs";
   if (lower.includes("apify")) return "Apify";
+  if (lower.includes("elevenlabs") || lower.includes("eleven labs")) return "ElevenLabs";
   if (lower.includes("supabase")) return "Supabase";
   if (lower.includes("apollo")) return "Apollo";
   if (lower.includes("mention")) return "Mention";

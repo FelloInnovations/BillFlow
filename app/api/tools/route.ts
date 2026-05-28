@@ -1,16 +1,44 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { getProjects } from "@/lib/sheets";
 import { canonicalVendor } from "@/lib/utils";
 import { Tool } from "@/types";
 
+function yyyyMmToLabel(yyyyMm: string): string {
+  const [yr, mo] = yyyyMm.split("-");
+  return new Date(parseInt(yr), parseInt(mo) - 1, 1).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function sortedTrend(map: Map<string, number>) {
+  return [...map.entries()]
+    .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime())
+    .map(([month, total]) => ({ month, total }));
+}
+
 export async function GET() {
   const twelveMonthsAgo = new Date(
-    new Date().getFullYear() - 1, new Date().getMonth(), 1
-  ).toISOString().split("T")[0];
+    new Date().getFullYear() - 1,
+    new Date().getMonth(),
+    1
+  )
+    .toISOString()
+    .split("T")[0];
 
-  const [projects, { data: allRows }, { data: trendRows }] = await Promise.all([
-    getProjects(),
+  const currentMonth = new Date().toISOString().substring(0, 7); // 'YYYY-MM'
+
+  // All queries in parallel
+  const [
+    { data: portfolioRows },
+    { data: allRows },
+    { data: trendRows },
+    { data: snapshots },
+    { data: hiddenRows },
+  ] = await Promise.all([
+    supabase
+      .from("agents_portfolio")
+      .select("agents_projects, llms, services_used, openrouter_api_key"),
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount")
@@ -22,130 +50,166 @@ export async function GET() {
       .gte("invoice_date", twelveMonthsAgo)
       .not("vendor_name", "is", null)
       .not("vendor_name", "ilike", "%makemytrip%"),
+    supabase
+      .from("openrouter_usage_snapshots")
+      .select("key_name, month, usage_total"),
+    supabase.from("hidden_tools").select("tool_key"),
   ]);
 
-  // project → vendors map
+  const hiddenKeys = new Set((hiddenRows ?? []).map((r) => r.tool_key as string));
+
+  // ── Build project → vendor mapping from agents_portfolio ────────────────
+  // vendorToProjects: canonical vendor name → project names
+  // keyToProjects:    OR key_name          → project names
   const vendorToProjects = new Map<string, string[]>();
-  for (const project of projects) {
-    for (const vendor of [...project.llms.map((l) => l.provider), ...project.services]) {
-      const arr = vendorToProjects.get(vendor) ?? [];
-      if (!arr.includes(project.name)) arr.push(project.name);
-      vendorToProjects.set(vendor, arr);
+  const keyToProjects    = new Map<string, string[]>();
+
+  for (const row of portfolioRows ?? []) {
+    const project: string = row.agents_projects ?? "";
+    if (!project) continue;
+
+    // Parse llms column (comma-separated, e.g. "OpenRouter gpt-4o-mini, OpenRouter Grok")
+    if (row.llms) {
+      for (const raw of (row.llms as string).split(",")) {
+        const llm = raw.trim();
+        if (!llm || llm === "-") continue;
+        const canonical = llm.toLowerCase().startsWith("openrouter")
+          ? "OpenRouter"
+          : canonicalVendor(llm);
+        const arr = vendorToProjects.get(canonical) ?? [];
+        if (!arr.includes(project)) arr.push(project);
+        vendorToProjects.set(canonical, arr);
+      }
+    }
+
+    // Parse services_used column (comma-separated)
+    if (row.services_used) {
+      for (const raw of (row.services_used as string).split(",")) {
+        const svc = raw.trim();
+        if (!svc || svc === "-") continue;
+        const canonical = canonicalVendor(svc);
+        const arr = vendorToProjects.get(canonical) ?? [];
+        if (!arr.includes(project)) arr.push(project);
+        vendorToProjects.set(canonical, arr);
+      }
+    }
+
+    // OR named key → keyToProjects
+    if (row.openrouter_api_key) {
+      const key: string = row.openrouter_api_key;
+      const arr = keyToProjects.get(key) ?? [];
+      if (!arr.includes(project)) arr.push(project);
+      keyToProjects.set(key, arr);
     }
   }
 
-  // canonical totals
-  const canonicalTotals = new Map<string, number>();
+  // ── Invoice-based canonical totals (all-time) ────────────────────────────
+  const canonicalTotals  = new Map<string, number>();
   for (const r of allRows ?? []) {
     if (!r.vendor_name) continue;
-    const canonical = canonicalVendor(r.vendor_name);
+    const canonical = canonicalVendor(r.vendor_name as string);
     canonicalTotals.set(canonical, (canonicalTotals.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
 
-  // canonical monthly trend
+  // ── Invoice-based monthly trend (last 12 months) ─────────────────────────
   const canonicalMonthly = new Map<string, Map<string, number>>();
   for (const r of trendRows ?? []) {
     if (!r.vendor_name || !r.invoice_date) continue;
-    const canonical = canonicalVendor(r.vendor_name);
-    const month = new Date(r.invoice_date).toLocaleDateString("en-US", {
-      month: "short", year: "numeric",
+    const canonical = canonicalVendor(r.vendor_name as string);
+    const label = new Date(r.invoice_date as string).toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
     });
-    const monthMap = canonicalMonthly.get(canonical) ?? new Map();
-    monthMap.set(month, (monthMap.get(month) ?? 0) + Number(r.total_amount ?? 0));
+    const monthMap = canonicalMonthly.get(canonical) ?? new Map<string, number>();
+    monthMap.set(label, (monthMap.get(label) ?? 0) + Number(r.total_amount ?? 0));
     canonicalMonthly.set(canonical, monthMap);
   }
 
-  // Merge real-time OpenRouter activity data into totals and monthly trend
-  try {
-    const { data: orData, error: orError } = await supabase.functions.invoke('get-openrouter-usage');
-    console.log('[OpenRouter usage] invoke result:', JSON.stringify(orData), '| error:', orError);
-    const orUsage = (!orError && orData?.success && orData.usage_total != null) ? orData : null;
+  // ── OR per-key spend: snapshots (historical) + live current month ────────
+  const orKeyTotals  = new Map<string, number>();
+  const orKeyMonthly = new Map<string, Map<string, number>>();
 
-    if (orUsage) {
-      // Find existing OpenRouter key (case-insensitive)
-      let orKey = [...canonicalTotals.keys()].find(k => k.toLowerCase().includes('openrouter'));
-
-      if (orKey) {
-        const invoiceTotal = canonicalTotals.get(orKey) ?? 0;
-        console.log(`[OpenRouter usage] BEFORE — key: "${orKey}", invoiceTotal: ${invoiceTotal}, usage_total: ${orUsage.usage_total}`);
-        const combined = invoiceTotal + orUsage.usage_total;
-        canonicalTotals.set(orKey, combined);
-        console.log(`[OpenRouter usage] AFTER  — combined: ${combined}`);
-      } else {
-        orKey = 'OpenRouter';
-        canonicalTotals.set(orKey, orUsage.usage_total);
-        console.log(`[OpenRouter usage] created new entry "OpenRouter" with ${orUsage.usage_total}`);
-      }
-
-      // Merge monthly data — convert YYYY-MM → "Mon YYYY" to match existing format
-      if (orUsage.monthly) {
-        const monthMap = canonicalMonthly.get(orKey) ?? new Map<string, number>();
-        for (const [yyyyMm, apiCost] of Object.entries(orUsage.monthly as Record<string, number>)) {
-          const [yr, mo] = yyyyMm.split('-');
-          const label = new Date(parseInt(yr), parseInt(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          monthMap.set(label, (monthMap.get(label) ?? 0) + (apiCost as number));
-        }
-        canonicalMonthly.set(orKey, monthMap);
-      }
-    }
-  } catch (err) {
-    console.error('[OpenRouter usage] invoke threw:', err);
+  // Load historical snapshots
+  for (const snap of snapshots ?? []) {
+    const toolKey = `OpenRouter:${snap.key_name}`;
+    orKeyTotals.set(toolKey, (orKeyTotals.get(toolKey) ?? 0) + Number(snap.usage_total));
+    const monthMap = orKeyMonthly.get(toolKey) ?? new Map<string, number>();
+    const label = yyyyMmToLabel(snap.month as string);
+    monthMap.set(label, (monthMap.get(label) ?? 0) + Number(snap.usage_total));
+    orKeyMonthly.set(toolKey, monthMap);
   }
 
-  // Per-key OpenRouter usage — one entry per unique key name
-  try {
-    const keyToProjects = new Map<string, string[]>();
-    for (const project of projects) {
-      if (!project.openrouter_api_key) continue;
-      const key = project.openrouter_api_key;
-      const arr = keyToProjects.get(key) ?? [];
-      if (!arr.includes(project.name)) arr.push(project.name);
-      keyToProjects.set(key, arr);
-    }
-
-    for (const [keyName, projectNames] of keyToProjects.entries()) {
+  // Fetch live current-month usage for each OR key in parallel
+  await Promise.allSettled(
+    [...keyToProjects.keys()].map(async (keyName) => {
       const toolKey = `OpenRouter:${keyName}`;
-      vendorToProjects.set(toolKey, projectNames);
+      try {
+        const { data: orData, error: orErr } = await supabase.functions.invoke(
+          `get-openrouter-usage?key_name=${encodeURIComponent(keyName)}`
+        );
+        if (orErr || !orData?.success) return;
 
-      const { data: orData, error: orError } = await supabase.functions.invoke(
-        `get-openrouter-usage?key_name=${encodeURIComponent(keyName)}`
-      );
-      console.log(`[OpenRouter per-key] key="${keyName}" result:`, JSON.stringify(orData), '| error:', orError);
-
-      if (!orError && orData?.success) {
-        canonicalTotals.set(toolKey, orData.usage_total ?? 0);
-
-        if (orData.monthly && Object.keys(orData.monthly).length > 0) {
-          const monthMap = canonicalMonthly.get(toolKey) ?? new Map<string, number>();
-          for (const [yyyyMm, apiCost] of Object.entries(orData.monthly as Record<string, number>)) {
-            const [yr, mo] = yyyyMm.split('-');
-            const label = new Date(parseInt(yr), parseInt(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-            monthMap.set(label, (monthMap.get(label) ?? 0) + (apiCost as number));
-          }
-          canonicalMonthly.set(toolKey, monthMap);
+        // Add only current month (snapshots already cover past months)
+        const liveAmount: number = (orData.monthly as Record<string, number>)?.[currentMonth] ?? 0;
+        if (liveAmount > 0) {
+          orKeyTotals.set(toolKey, (orKeyTotals.get(toolKey) ?? 0) + liveAmount);
+          const monthMap = orKeyMonthly.get(toolKey) ?? new Map<string, number>();
+          const label = yyyyMmToLabel(currentMonth);
+          monthMap.set(label, (monthMap.get(label) ?? 0) + liveAmount);
+          orKeyMonthly.set(toolKey, monthMap);
         }
+      } catch {
+        // graceful degradation — snapshot data still available
       }
+    })
+  );
+
+  // ── Determine LLM vs service type ────────────────────────────────────────
+  // Any vendor referenced in the llms column (or OR per-key) is an LLM
+  const llmCanonicals = new Set<string>(["OpenRouter"]);
+  for (const row of portfolioRows ?? []) {
+    if (!row.llms) continue;
+    for (const raw of (row.llms as string).split(",")) {
+      const llm = raw.trim();
+      if (!llm || llm === "-") continue;
+      llmCanonicals.add(
+        llm.toLowerCase().startsWith("openrouter") ? "OpenRouter" : canonicalVendor(llm)
+      );
     }
-  } catch (err) {
-    console.error('[OpenRouter per-key usage] threw:', err);
   }
 
-  const llmProviders = new Set(projects.flatMap((p) => p.llms.map((l) => l.provider)));
+  // ── Assemble final tool list ─────────────────────────────────────────────
+  const tools: Tool[] = [];
 
-  const tools: Tool[] = [...canonicalTotals.entries()]
-    .map(([name, total]) => {
-      const monthMap = canonicalMonthly.get(name) ?? new Map();
-      return {
-        name,
-        type: llmProviders.has(name) ? "llm" : "service",
-        projects: vendorToProjects.get(name) ?? [],
-        totalSpend: total,
-        monthlyTrend: [...monthMap.entries()]
-          .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime())
-          .map(([month, t]) => ({ month, total: t })),
-      } satisfies Tool;
-    })
-    .sort((a, b) => b.totalSpend - a.totalSpend);
+  // 1. Invoice-based vendors (includes "OpenRouter" from mapped legacy LLM invoices)
+  for (const [canonical, total] of canonicalTotals.entries()) {
+    if (hiddenKeys.has(canonical)) continue;
+    tools.push({
+      name: canonical,
+      displayLabel: canonical,
+      type: llmCanonicals.has(canonical) ? "llm" : "service",
+      projects: vendorToProjects.get(canonical) ?? [],
+      totalSpend: total,
+      monthlyTrend: sortedTrend(canonicalMonthly.get(canonical) ?? new Map()),
+    });
+  }
+
+  // 2. OR per-key tools (API usage — separate from invoice data, no double-counting)
+  for (const [keyName, projectNames] of keyToProjects.entries()) {
+    const toolKey = `OpenRouter:${keyName}`;
+    if (hiddenKeys.has(toolKey)) continue;
+    tools.push({
+      name: toolKey,
+      displayLabel: `OpenRouter — ${projectNames.join(", ")}`,
+      rawKey: keyName,
+      type: "llm",
+      projects: projectNames,
+      totalSpend: orKeyTotals.get(toolKey) ?? 0,
+      monthlyTrend: sortedTrend(orKeyMonthly.get(toolKey) ?? new Map()),
+    });
+  }
+
+  tools.sort((a, b) => b.totalSpend - a.totalSpend);
 
   return NextResponse.json({ tools });
 }

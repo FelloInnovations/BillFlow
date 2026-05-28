@@ -58,7 +58,8 @@ export interface Project {
 }
 
 export interface OpenRouterKeyUsage {
-  key_name: string;
+  key_name: string | null;
+  key_hash: string | null;
   usage_total: number;
   monthly: Record<string, number>;
 }
@@ -70,11 +71,14 @@ export interface LLMEntry {
 }
 
 export interface Tool {
-  name: string; // vendor/service name
+  name: string;          // internal key: "OpenRouter", "OpenRouter:octo", "Supabase"
+  displayLabel: string;  // UI label: "OpenRouter", "OpenRouter — Octo, YoungTeam Octo"
+  rawKey?: string;       // for OR per-key entries only — raw key name shown in tooltip
   type: "llm" | "service";
   projects: string[];
   totalSpend: number;
   monthlyTrend: { month: string; total: number }[];
+  hidden?: boolean;
 }
 
 export interface FlaggedBilledVendor {

@@ -124,10 +124,11 @@ async function buildFullContext(): Promise<string> {
   // ── Tools / vendor detail ─────────────────────────────────────────
   if (tools?.tools?.length) {
     lines.push("\n=== TOOLS & SERVICES ===");
-    tools.tools.forEach((t: { name: string; type: string; projects: string[]; totalSpend: number; monthlyTrend?: { month: string; total: number }[] }) => {
+    tools.tools.forEach((t: { name: string; displayLabel?: string; type: string; projects: string[]; totalSpend: number; monthlyTrend?: { month: string; total: number }[] }) => {
+      const label = t.displayLabel ?? t.name;
       const proj = t.projects?.join(", ") || "none";
       const recent = t.monthlyTrend?.slice(-3).map((m: { month: string; total: number }) => `${m.month}: ${fmt(m.total)}`).join(", ") || "";
-      lines.push(`${t.name} (${t.type}) — total: ${fmt(t.totalSpend)} | projects: ${proj}${recent ? ` | recent: ${recent}` : ""}`);
+      lines.push(`${label} (${t.type}) — total: ${fmt(t.totalSpend)} | projects: ${proj}${recent ? ` | recent: ${recent}` : ""}`);
     });
   }
 
