@@ -33,7 +33,7 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("spend");
   const [guardrails, setGuardrails] = useState<Guardrail[]>(initialGuardrails);
-  const [monthRange, setMonthRange] = useState<3 | 6 | 12>(6);
+  const [monthRange, setMonthRange] = useState<1 | 3 | 6 | 12>(6);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult>(null);
   const [syncCooldownUntil, setSyncCooldownUntil] = useState(0);

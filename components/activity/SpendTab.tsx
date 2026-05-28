@@ -72,8 +72,8 @@ interface DayData {
 
 interface SpendTabProps {
   activity: ActivityData;
-  monthRange: 3 | 6 | 12;
-  setMonthRange: (n: 3 | 6 | 12) => void;
+  monthRange: 1 | 3 | 6 | 12;
+  setMonthRange: (n: 1 | 3 | 6 | 12) => void;
   onSync: () => Promise<void>;
   syncing: boolean;
   syncResult: SyncResult;
@@ -487,7 +487,7 @@ export function SpendTab({
       <div className="flex flex-wrap items-center gap-3">
         {/* Period */}
         <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-          {([3, 6, 12] as const).map(n => (
+          {([1, 3, 6, 12] as const).map(n => (
             <button key={n} onClick={() => setMonthRange(n)}
               className={cn("px-3 py-1 rounded-md text-xs font-semibold transition-all",
                 monthRange === n

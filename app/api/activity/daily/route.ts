@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const periodParam = searchParams.get("period") ?? "3m";
-  const months = periodParam === "12m" ? 12 : periodParam === "6m" ? 6 : 3;
+  const months = periodParam === "12m" ? 12 : periodParam === "6m" ? 6 : periodParam === "1m" ? 1 : 3;
 
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
