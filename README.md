@@ -2,7 +2,7 @@
 
 Internal dashboard for tracking AI agent infrastructure costs across projects and vendors at Fello Innovations.
 
-> UI branding: **BillFlow** · GitHub repo: **SpendSync** · Deployed at: `spendsync-production.up.railway.app`
+> Railway deployment URL is `spendsync-production.up.railway.app` (legacy name — the app is BillFlow). The GitHub repo is currently named **SpendSync** and must be renamed manually: GitHub → repository Settings → Repository name → rename to **BillFlow**, then update the remote URL in CLAUDE.md.
 
 ---
 

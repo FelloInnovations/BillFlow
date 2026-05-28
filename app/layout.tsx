@@ -8,7 +8,7 @@ import { VaultAuthRedirect } from "@/components/providers/VaultAuthRedirect";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Billflow",
+  title: "BillFlow",
   description: "Internal AI spend tracking",
 };
 

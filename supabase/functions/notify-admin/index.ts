@@ -14,11 +14,11 @@ serve(async (req) => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      from: 'BillFlow Vault <onboarding@resend.dev>',
+      from: 'BillFlow <onboarding@resend.dev>',
       to: 'shailja.dwivedi@fello.ai',
-      subject: `[BillFlow Vault] New account created — ${newUserEmail}`,
+      subject: `[BillFlow] New account created — ${newUserEmail}`,
       html: `
-        <h2>New BillFlow Vault Account</h2>
+        <h2>New BillFlow Account</h2>
         <p><strong>Email:</strong> ${newUserEmail}</p>
         <p><strong>Role:</strong> ${role}</p>
         <p><strong>Created at:</strong> ${createdAt}</p>

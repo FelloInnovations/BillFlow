@@ -61,12 +61,12 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'onboarding@resend.dev',
+        from: 'BillFlow <onboarding@resend.dev>',
         to: email,
-        subject: 'BillFlow Vault — your sign-in code',
+        subject: 'BillFlow — your sign-in code',
         html: `
           <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:32px;background:#080b10;color:#dce4f0;border-radius:12px;">
-            <h2 style="color:#00d4ff;margin:0 0 4px;">BillFlow Vault</h2>
+            <h2 style="color:#00d4ff;margin:0 0 4px;">BillFlow</h2>
             <p style="color:#8a9ab5;margin:0 0 32px;font-size:13px;">END-TO-END ENCRYPTED</p>
             <p style="color:#8a9ab5;margin:0 0 16px;font-size:14px;">Your one-time sign-in code:</p>
             <div style="font-size:42px;font-weight:700;letter-spacing:14px;color:#ffffff;text-align:center;padding:24px;background:#0e1219;border-radius:10px;margin-bottom:24px;border:1px solid rgba(255,255,255,0.07);">

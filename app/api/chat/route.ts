@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
 
   const context = await buildFullContext();
 
-  const systemPrompt = `You are Orion, an AI assistant embedded in Billflow — an internal dashboard for Fello Innovations that tracks AI infrastructure spend, projects, and vendors.
+  const systemPrompt = `You are Orion, an AI assistant embedded in BillFlow — an internal dashboard for Fello Innovations that tracks AI infrastructure spend, projects, and vendors.
 
 You have full visibility into:
 - Monthly spend KPIs, unpaid/overdue invoices, upcoming due dates

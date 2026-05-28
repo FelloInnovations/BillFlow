@@ -139,6 +139,22 @@ export interface ActivityKeyData {
   max: number;
   avg: number;
   current_month_spend: number;
+  models: string[];
+}
+
+export interface LogEntry {
+  id: string;
+  key_name: string;
+  project_name: string | null;
+  model: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  cost_usd: number | null;
+  invoked_at: string;
+  provider_name: string | null;
+  endpoint_id: string | null;
+  source: string;
 }
 
 export interface ActivityData {

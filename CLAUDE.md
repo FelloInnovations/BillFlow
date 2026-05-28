@@ -1,10 +1,10 @@
-# SpendSync — Claude Instructions
+# BillFlow — Claude Instructions
 
 ## Project Overview
 Internal web app for Fello Innovations to track AI agent costs across projects and vendors.
 No authentication required. Deployed on Railway.
 
-> Note: The UI branding is "Billflow" — the repo/GitHub name remains "SpendSync".
+> UI branding and package name: **BillFlow**. GitHub repo is currently named **SpendSync** (`FelloInnovations/SpendSync`) — rename to BillFlow manually via GitHub repo Settings. Railway URL `spendsync-production.up.railway.app` is the live deployment URL and cannot be changed in code.
 
 ## Tech Stack
 - **Framework**: Next.js (App Router), TypeScript
@@ -13,7 +13,7 @@ No authentication required. Deployed on Railway.
 - **Database**: Supabase (PostgreSQL) — `financial_records`, `agents_portfolio`, `hubspot_tickets` tables
 - **Static data**: `lib/sheets.ts` (projects fallback), `lib/hubspot.ts` (HubSpot fallback) — hardcoded from xlsx
 - **AI Chat**: OpenAI GPT-4o mini via `/api/chat` (streaming) — `@anthropic-ai/sdk` is installed but unused
-- **Deployment**: Railway (port 8080), GitHub repo: `FelloInnovations/SpendSync`
+- **Deployment**: Railway (port 8080), GitHub repo: `FelloInnovations/SpendSync` (pending rename to BillFlow)
 
 ## Key Conventions
 

@@ -9,7 +9,6 @@ import {
   FileText,
   FolderKanban,
   Wrench,
-  BarChart3,
   TrendingUp,
   Activity,
   Sun,
@@ -55,11 +54,11 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-5">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950">
-            <BarChart3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+            <span className="text-white text-xs font-black tracking-tighter leading-none">BF</span>
           </div>
           <div>
-            <span className="font-bold text-slate-900 dark:text-white text-sm tracking-tight">Billflow</span>
+            <span className="font-bold text-slate-900 dark:text-white text-sm tracking-tight">BillFlow</span>
             <p className="text-slate-400 dark:text-slate-600 text-[10px] font-medium tracking-widest uppercase">AI Cost Tracker</p>
           </div>
         </div>

@@ -120,7 +120,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'BillFlow Vault <onboarding@resend.dev>',
+            from: 'BillFlow <onboarding@resend.dev>',
             to: alertEmail,
             subject,
             html,
