@@ -9,14 +9,15 @@ import { formatCurrency } from "@/lib/utils";
 interface Props {
   initialProjects: Project[];
   initialMaxSpend: number;
-  initialTotalAssigned: number;
 }
 
-export function ProjectsClient({ initialProjects, initialMaxSpend, initialTotalAssigned }: Props) {
+export function ProjectsClient({ initialProjects, initialMaxSpend }: Props) {
   const [projects, setProjects] = useState(initialProjects);
   const [maxSpend, setMaxSpend] = useState(initialMaxSpend);
-  const [totalAssigned, setTotalAssigned] = useState(initialTotalAssigned);
   const [isPending, startTransition] = useTransition();
+
+  const totalActual    = projects.reduce((s, p) => s + (p.apiKeySpend    ?? 0), 0);
+  const totalEstimated = projects.reduce((s, p) => s + (p.estimatedServiceSpend ?? 0), 0);
 
   function refresh() {
     startTransition(async () => {
@@ -26,14 +27,42 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialTotalA
         const { projects: fresh }: { projects: Project[] } = await res.json();
         const sorted = [...fresh].sort((a, b) => (b.totalSpend ?? -1) - (a.totalSpend ?? -1));
         const newMax = Math.max(0, ...sorted.map((p) => p.totalSpend ?? 0));
-        const newTotal = sorted.reduce((s, p) => s + (p.totalSpend ?? 0), 0);
         setProjects(sorted);
         setMaxSpend(newMax);
-        setTotalAssigned(newTotal);
       } catch {
         // silently ignore
       }
     });
+  }
+
+  function headerSpend() {
+    if (totalActual > 0 && totalEstimated > 0) {
+      return (
+        <span>
+          <span className="text-slate-700 dark:text-slate-300 font-medium">{formatCurrency(totalActual)}</span>
+          <span className="text-slate-400"> actual · </span>
+          <span className="text-slate-500">~{formatCurrency(totalEstimated)}</span>
+          <span className="text-slate-400"> estimated</span>
+        </span>
+      );
+    }
+    if (totalActual > 0) {
+      return (
+        <span>
+          <span className="text-slate-700 dark:text-slate-300 font-medium">{formatCurrency(totalActual)}</span>
+          <span className="text-slate-400"> actual</span>
+        </span>
+      );
+    }
+    if (totalEstimated > 0) {
+      return (
+        <span>
+          <span className="text-slate-500">~{formatCurrency(totalEstimated)}</span>
+          <span className="text-slate-400"> estimated</span>
+        </span>
+      );
+    }
+    return null;
   }
 
   return (
@@ -42,7 +71,7 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialTotalA
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Projects</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {projects.length} projects · {formatCurrency(totalAssigned)} est. spend
+            {projects.length} projects · {headerSpend()}
           </p>
         </div>
         <button

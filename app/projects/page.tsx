@@ -4,44 +4,30 @@ import { ProjectsClient } from "@/components/projects/ProjectsClient";
 import { Project } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { canonicalVendor } from "@/lib/utils";
+import { fetchOrKeySpend } from "@/lib/orKeySpend";
 
 async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }> {
-  // Try with status column first, fall back without it if column doesn't exist yet
-  let portfolioRows: Record<string, string | null>[] | null = null;
-  let withStatus = true;
-
-  const { data: d1, error: e1 } = await supabase
+  const { data: portfolioData, error: portfolioErr } = await supabase
     .from("agents_portfolio")
     .select("agents_projects, description, llms, llm_accounts, services_used, status, openrouter_api_key")
     .limit(500);
 
-  if (e1) {
-    console.error("[projects] with-status error:", e1.message);
-    const { data: d2, error: e2 } = await supabase
-      .from("agents_portfolio")
-      .select("agents_projects, description, llms, llm_accounts, services_used")
-      .limit(500);
-    if (e2) console.error("[projects] fallback error:", e2.message);
-    portfolioRows = d2;
-    withStatus = false;
-  } else {
-    portfolioRows = d1;
-  }
+  if (portfolioErr) console.error("[projects] portfolio error:", portfolioErr.message);
 
-  const [{ data: invoiceRows }, { data: snapshots }] = await Promise.all([
+  const portfolioRows = portfolioData ?? [];
+
+  const [{ data: invoiceRows }, orKeySpend] = await Promise.all([
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount")
       .not("vendor_name", "is", null)
       .not("vendor_name", "ilike", "%makemytrip%"),
-    supabase
-      .from("openrouter_usage_snapshots")
-      .select("key_name, usage_total"),
+    fetchOrKeySpend(),
   ]);
 
-  // Deduplicate by project name (DB has duplicate rows)
+  // Deduplicate by project name
   const seenNames = new Set<string>();
-  const uniqueRows = (portfolioRows ?? []).filter((row) => {
+  const uniqueRows = portfolioRows.filter((row) => {
     const key = (row.agents_projects ?? "").trim().toLowerCase();
     if (seenNames.has(key)) return false;
     seenNames.add(key);
@@ -52,14 +38,12 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     name: row.agents_projects ?? "Untitled",
     description: row.description ?? "",
     timeline: null,
-    status: withStatus ? (row.status || null) : null,
+    status: row.status ?? null,
     llms: row.llms
       ? row.llms.split(",").map((s: string) => s.trim()).filter((s: string) => s && s.toLowerCase() !== "na")
           .map((entry: string) => {
             const parts = entry.trim().split(" ");
-            const provider = parts[0] ?? entry;
-            const model = parts.slice(1).join(" ");
-            return { provider, model, owner: row.llm_accounts ?? "" };
+            return { provider: parts[0] ?? entry, model: parts.slice(1).join(" "), owner: row.llm_accounts ?? "" };
           })
       : [],
     services: row.services_used
@@ -69,14 +53,18 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     openrouter_api_key: row.openrouter_api_key ?? null,
   }));
 
-  // Per-key total spend from OR snapshots (actual API usage)
-  const keySpend = new Map<string, number>();
-  for (const snap of snapshots ?? []) {
-    const key = (snap.key_name as string).toLowerCase();
-    keySpend.set(key, (keySpend.get(key) ?? 0) + Number(snap.usage_total ?? 0));
+  // keyName (lowercase) → project names sharing that key
+  const keyToProjects = new Map<string, string[]>();
+  for (const p of rawProjects) {
+    if (!p.openrouter_api_key) continue;
+    for (const k of (p.openrouter_api_key as string).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)) {
+      const arr = keyToProjects.get(k) ?? [];
+      if (!arr.includes(p.name)) arr.push(p.name);
+      keyToProjects.set(k, arr);
+    }
   }
 
-  // Service-only spend map (LLM spend comes from OR key snapshots, not invoices)
+  // Service invoice split pool (non-LLM vendors only)
   const serviceSpendMap = new Map<string, number>();
   for (const r of invoiceRows ?? []) {
     if (!r.vendor_name) continue;
@@ -86,7 +74,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     }
   }
 
-  // Count active projects per service for proportional split
+  // Count active projects per service
   const activeRaw = rawProjects.filter((p) => p.status !== "shut down");
   const serviceProjectCount = new Map<string, number>();
   for (const p of activeRaw) {
@@ -99,35 +87,50 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
   }
 
   const projects = rawProjects.map((p) => {
-    let total = 0;
-    let hasSpend = false;
-
-    // LLM spend: use per-key OR snapshot data only if the project has a named key
+    // Actual: OR per-key spend
+    let apiKeySpend: number | null = null;
     if (p.openrouter_api_key) {
-      for (const key of (p.openrouter_api_key as string)
-        .split(",")
-        .map((k) => k.trim().toLowerCase())
-        .filter(Boolean)) {
-        const spend = keySpend.get(key) ?? 0;
-        total += spend;
-        if (spend > 0) hasSpend = true;
+      let total = 0;
+      let anyResolved = false;
+      for (const k of (p.openrouter_api_key as string).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)) {
+        const spend = orKeySpend.get(k);
+        if (spend !== undefined) {
+          const shareCount = Math.max(1, keyToProjects.get(k)?.length ?? 1);
+          total += spend / shareCount;
+          anyResolved = true;
+        }
       }
+      if (anyResolved) apiKeySpend = Math.round(total * 100) / 100;
     }
 
-    // Service spend: proportional split among active projects using that service
+    // Estimated: proportional service split
+    let estimatedServiceSpend: number | null = null;
     if (p.status !== "shut down") {
+      let total = 0;
+      let hasService = false;
       for (const svc of p.services) {
         const canonical = canonicalVendor(svc);
         const spend = serviceSpendMap.get(canonical);
         const count = serviceProjectCount.get(canonical) ?? 1;
         if (spend !== undefined) {
           total += spend / count;
-          hasSpend = true;
+          hasService = true;
         }
       }
+      if (hasService) estimatedServiceSpend = Math.round(total * 100) / 100;
     }
 
-    return { ...p, totalSpend: hasSpend ? total : null };
+    const totalSpend =
+      apiKeySpend !== null || estimatedServiceSpend !== null
+        ? Math.round(((apiKeySpend ?? 0) + (estimatedServiceSpend ?? 0)) * 100) / 100
+        : null;
+
+    let spendBasis: "actual" | "estimated" | "mixed" | null = null;
+    if (apiKeySpend !== null && estimatedServiceSpend === null) spendBasis = "actual";
+    else if (apiKeySpend === null && estimatedServiceSpend !== null) spendBasis = "estimated";
+    else if (apiKeySpend !== null && estimatedServiceSpend !== null) spendBasis = "mixed";
+
+    return { ...p, apiKeySpend, estimatedServiceSpend, totalSpend, spendBasis };
   });
 
   const maxSpend = Math.max(0, ...projects.map((p) => p.totalSpend ?? 0));
@@ -136,14 +139,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
 
 export default async function ProjectsPage() {
   const { projects, maxSpend } = await getProjects();
-  const totalAssigned = projects.reduce((s, p) => s + (p.totalSpend ?? 0), 0);
   const sorted = [...projects].sort((a, b) => (b.totalSpend ?? -1) - (a.totalSpend ?? -1));
 
-  return (
-    <ProjectsClient
-      initialProjects={sorted}
-      initialMaxSpend={maxSpend}
-      initialTotalAssigned={totalAssigned}
-    />
-  );
+  return <ProjectsClient initialProjects={sorted} initialMaxSpend={maxSpend} />;
 }

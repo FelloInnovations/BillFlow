@@ -53,8 +53,11 @@ export interface Project {
   llms: LLMEntry[];
   services: string[];
   status: string | null;
-  totalSpend: number | null; // null = TBD
+  totalSpend: number | null;
   openrouter_api_key: string | null;
+  apiKeySpend?: number | null;           // precise: from OR per-key snapshot data
+  estimatedServiceSpend?: number | null; // assumed: even split across projects sharing the service
+  spendBasis?: "actual" | "estimated" | "mixed" | null;
 }
 
 export interface OpenRouterKeyUsage {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Project } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { Brain, Wrench, User, ChevronDown } from "lucide-react";
+import { Brain, Wrench, User, ChevronDown, Info } from "lucide-react";
 
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
@@ -24,6 +24,70 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </span>
   );
+}
+
+function SpendDisplay({ project }: { project: Project }) {
+  const { apiKeySpend, estimatedServiceSpend, spendBasis, totalSpend } = project;
+
+  if (spendBasis === "actual" && apiKeySpend != null) {
+    return (
+      <div className="text-right shrink-0">
+        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(apiKeySpend)}</p>
+        <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">actual</p>
+      </div>
+    );
+  }
+
+  if (spendBasis === "estimated" && estimatedServiceSpend != null) {
+    return (
+      <div className="text-right shrink-0">
+        <div className="flex items-center justify-end gap-1">
+          <p className="font-bold text-slate-500 dark:text-slate-400 text-sm">~{formatCurrency(estimatedServiceSpend)}</p>
+        </div>
+        <div className="flex items-center justify-end gap-1 mt-0.5">
+          <span
+            title="Even split of shared service invoices across all active projects using the same service. Not attributable to this project specifically."
+            className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 cursor-help"
+          >
+            <Info className="w-2 h-2" />
+            Estimated
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (spendBasis === "mixed" && apiKeySpend != null && estimatedServiceSpend != null) {
+    return (
+      <div className="text-right shrink-0 space-y-0.5">
+        <div>
+          <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(apiKeySpend)}</p>
+          <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400">actual</p>
+        </div>
+        <div>
+          <p className="font-semibold text-slate-400 dark:text-slate-500 text-xs">+~{formatCurrency(estimatedServiceSpend)}</p>
+          <p
+            title="Even split of shared service invoices — assumed, not attributable."
+            className="text-[9px] text-amber-500 dark:text-amber-400 cursor-help"
+          >
+            estimated
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Legacy fallback (no spendBasis field — old data)
+  if (totalSpend !== null) {
+    return (
+      <div className="text-right shrink-0">
+        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
+        <p className="text-[10px] text-slate-400 mt-0.5">est. spend</p>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 interface Props {
@@ -61,6 +125,13 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
 
   const llmAccounts = project.llms[0]?.owner || null;
 
+  // Bar color: indigo for actual, amber for estimated, split gradient for mixed
+  const barColor =
+    project.spendBasis === "actual"    ? "from-indigo-400 to-violet-400" :
+    project.spendBasis === "estimated" ? "from-amber-400 to-orange-400"  :
+    project.spendBasis === "mixed"     ? "from-indigo-400 to-amber-400"  :
+    "from-indigo-400 to-violet-400";
+
   return (
     <div
       ref={cardRef}
@@ -92,12 +163,7 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
               </div>
             )}
           </div>
-          {project.totalSpend !== null && (
-            <div className="text-right shrink-0">
-              <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(project.totalSpend)}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">est. spend</p>
-            </div>
-          )}
+          <SpendDisplay project={project} />
         </div>
 
         {/* LLMs */}
@@ -161,11 +227,11 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
         )}
       </div>
 
-      {/* Spend bar */}
+      {/* Spend bar — color-coded by basis */}
       {spendPct > 0 && (
         <div className="h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden rounded-b-2xl">
           <div
-            className="h-full bg-gradient-to-r from-indigo-400 to-violet-400"
+            className={`h-full bg-gradient-to-r ${barColor}`}
             style={{ width: `${barWidth}%`, transition: "width 0.8s cubic-bezier(0.22,1,0.36,1)" }}
           />
         </div>
