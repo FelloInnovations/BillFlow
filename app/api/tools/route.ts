@@ -35,6 +35,7 @@ export async function GET() {
     { data: trendRows },
     { data: snapshots },
     { data: hiddenRows },
+    { data: overrideRows },
   ] = await Promise.all([
     supabase
       .from("agents_portfolio")
@@ -54,6 +55,7 @@ export async function GET() {
       .from("openrouter_usage_snapshots")
       .select("key_name, month, usage_total"),
     supabase.from("hidden_tools").select("tool_key"),
+    supabase.from("tool_overrides").select("*"),
   ]);
 
   const hiddenKeys = new Set((hiddenRows ?? []).map((r) => r.tool_key as string));
@@ -234,6 +236,15 @@ export async function GET() {
       totalSpend: orKeyTotals.get(toolKey) ?? 0,
       monthlyTrend: sortedTrend(orKeyMonthly.get(toolKey) ?? new Map()),
     });
+  }
+
+  const overrideMap = new Map((overrideRows ?? []).map((o) => [o.tool_key as string, o]));
+  for (const tool of tools) {
+    const ov = overrideMap.get(tool.name);
+    if (!ov) continue;
+    if (ov.display_label) tool.displayLabel = ov.display_label as string;
+    if (ov.type === "llm" || ov.type === "service") tool.type = ov.type;
+    if (ov.notes) tool.notes = ov.notes as string;
   }
 
   tools.sort((a, b) => b.totalSpend - a.totalSpend);

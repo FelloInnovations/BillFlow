@@ -79,6 +79,7 @@ export interface Tool {
   totalSpend: number;
   monthlyTrend: { month: string; total: number }[];
   hidden?: boolean;
+  notes?: string;
 }
 
 export interface FlaggedBilledVendor {

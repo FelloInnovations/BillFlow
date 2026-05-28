@@ -5,7 +5,7 @@ import { ToolCard } from "@/components/tools/ToolCard";
 import { FlaggedToolsBanner } from "@/components/tools/FlaggedToolsBanner";
 import { Tool, FlaggedToolsData } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { AlertTriangle, Ban, Eye } from "lucide-react";
+import { AlertTriangle, Ban } from "lucide-react";
 
 async function fetchTools(): Promise<Tool[]> {
   try {
@@ -57,8 +57,16 @@ export default function ToolsPage() {
     });
   }, []);
 
-  function handleHide(toolKey: string) {
+  function handleDelete(toolKey: string) {
     setTools((prev) => prev.filter((t) => t.name !== toolKey));
+  }
+
+  function handleEdit(toolKey: string, updates: { displayLabel: string; type: "llm" | "service"; notes: string }) {
+    setTools((prev) =>
+      prev.map((t) =>
+        t.name === toolKey ? { ...t, displayLabel: updates.displayLabel, type: updates.type, notes: updates.notes } : t
+      )
+    );
   }
 
   const llms     = tools.filter((t) => t.type === "llm"     && !getToolFlags(t.name, flaggedData).length);
@@ -105,7 +113,7 @@ export default function ToolsPage() {
                 key={tool.name}
                 tool={tool}
                 flagTypes={getToolFlags(tool.name, flaggedData)}
-                onHide={handleHide}
+                onDelete={handleDelete} onEdit={handleEdit}
               />
             ))}
           </div>
@@ -124,7 +132,7 @@ export default function ToolsPage() {
                 key={tool.name}
                 tool={tool}
                 flagTypes={getToolFlags(tool.name, flaggedData)}
-                onHide={handleHide}
+                onDelete={handleDelete} onEdit={handleEdit}
               />
             ))}
           </div>
@@ -148,7 +156,7 @@ export default function ToolsPage() {
                 key={tool.name}
                 tool={tool}
                 flagTypes={getToolFlags(tool.name, flaggedData)}
-                onHide={handleHide}
+                onDelete={handleDelete} onEdit={handleEdit}
               />
             ))}
           </div>
@@ -205,17 +213,6 @@ export default function ToolsPage() {
         </p>
       )}
 
-      {/* Hidden tools restore hint */}
-      <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-600">
-        <Eye className="w-3.5 h-3.5" />
-        <span>
-          Hidden tools can be restored via{" "}
-          <a href="/api/tools/delete" className="underline hover:text-slate-600 dark:hover:text-slate-400">
-            the hidden_tools table in Supabase
-          </a>
-          .
-        </span>
-      </div>
     </div>
   );
 }
