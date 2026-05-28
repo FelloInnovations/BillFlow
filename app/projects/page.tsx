@@ -28,11 +28,16 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     portfolioRows = d1;
   }
 
-  const { data: invoiceRows } = await supabase
-    .from("financial_records")
-    .select("vendor_name, total_amount")
-    .not("vendor_name", "is", null)
-    .not("vendor_name", "ilike", "%makemytrip%");
+  const [{ data: invoiceRows }, { data: snapshots }] = await Promise.all([
+    supabase
+      .from("financial_records")
+      .select("vendor_name, total_amount")
+      .not("vendor_name", "is", null)
+      .not("vendor_name", "ilike", "%makemytrip%"),
+    supabase
+      .from("openrouter_usage_snapshots")
+      .select("key_name, usage_total"),
+  ]);
 
   // Deduplicate by project name (DB has duplicate rows)
   const seenNames = new Set<string>();
@@ -64,33 +69,64 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     openrouter_api_key: row.openrouter_api_key ?? null,
   }));
 
-  // Build spend map
-  const spendMap = new Map<string, number>();
-  for (const r of invoiceRows ?? []) {
-    if (!r.vendor_name) continue;
-    const canonical = canonicalVendor(r.vendor_name);
-    spendMap.set(canonical, (spendMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
+  // Per-key total spend from OR snapshots (actual API usage)
+  const keySpend = new Map<string, number>();
+  for (const snap of snapshots ?? []) {
+    const key = (snap.key_name as string).toLowerCase();
+    keySpend.set(key, (keySpend.get(key) ?? 0) + Number(snap.usage_total ?? 0));
   }
 
-  const vendorProjectCount = new Map<string, number>();
-  for (const p of rawProjects) {
-    const vendors = new Set([...p.llms.map((l) => l.provider), ...p.services]);
-    for (const v of vendors) {
-      if (spendMap.has(v)) vendorProjectCount.set(v, (vendorProjectCount.get(v) ?? 0) + 1);
+  // Service-only spend map (LLM spend comes from OR key snapshots, not invoices)
+  const serviceSpendMap = new Map<string, number>();
+  for (const r of invoiceRows ?? []) {
+    if (!r.vendor_name) continue;
+    const canonical = canonicalVendor(r.vendor_name as string);
+    if (canonical !== "OpenRouter") {
+      serviceSpendMap.set(canonical, (serviceSpendMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
+    }
+  }
+
+  // Count active projects per service for proportional split
+  const activeRaw = rawProjects.filter((p) => p.status !== "shut down");
+  const serviceProjectCount = new Map<string, number>();
+  for (const p of activeRaw) {
+    for (const svc of p.services) {
+      const canonical = canonicalVendor(svc);
+      if (serviceSpendMap.has(canonical)) {
+        serviceProjectCount.set(canonical, (serviceProjectCount.get(canonical) ?? 0) + 1);
+      }
     }
   }
 
   const projects = rawProjects.map((p) => {
-    const vendors = new Set([...p.llms.map((l) => l.provider), ...p.services]);
     let total = 0;
     let hasSpend = false;
-    for (const v of vendors) {
-      const spend = spendMap.get(v);
-      if (spend !== undefined) {
-        total += spend / (vendorProjectCount.get(v) ?? 1);
-        hasSpend = true;
+
+    // LLM spend: use per-key OR snapshot data only if the project has a named key
+    if (p.openrouter_api_key) {
+      for (const key of (p.openrouter_api_key as string)
+        .split(",")
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean)) {
+        const spend = keySpend.get(key) ?? 0;
+        total += spend;
+        if (spend > 0) hasSpend = true;
       }
     }
+
+    // Service spend: proportional split among active projects using that service
+    if (p.status !== "shut down") {
+      for (const svc of p.services) {
+        const canonical = canonicalVendor(svc);
+        const spend = serviceSpendMap.get(canonical);
+        const count = serviceProjectCount.get(canonical) ?? 1;
+        if (spend !== undefined) {
+          total += spend / count;
+          hasSpend = true;
+        }
+      }
+    }
+
     return { ...p, totalSpend: hasSpend ? total : null };
   });
 

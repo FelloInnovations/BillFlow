@@ -1,57 +1,66 @@
 import { supabase } from "@/lib/supabase";
 import { ForecastResult, VendorForecast } from "@/types";
+import { canonicalVendor } from "@/lib/utils";
 
 function formatMonthKey(monthKey: string): string {
   const [year, month] = monthKey.split("-");
-  const d = new Date(parseInt(year), parseInt(month) - 1, 1);
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export async function buildForecast(): Promise<ForecastResult> {
   const { data: records } = await supabase
     .from("financial_records")
-    .select("vendor_name, total_amount, invoice_date, payment_status")
+    .select("vendor_name, total_amount, invoice_date")
     .not("vendor_name", "ilike", "%makemytrip%")
+    .not("vendor_name", "is", null)
     .order("invoice_date", { ascending: false });
 
-  // Group by vendor and month
-  const vendorMonthly: Record<string, Record<string, number>> = {};
+  // Anchor all windows to the latest invoice in the DB, not the wall clock.
+  // Prevents empty forecasts if ingestion stalls for several months.
+  const latestDateStr = (records?.[0]?.invoice_date as string | null) ?? null;
+  const anchor = latestDateStr ? new Date(latestDateStr + "T00:00:00") : new Date();
+  const anchorYear = anchor.getFullYear();
+  const anchorMonth = anchor.getMonth(); // 0-indexed
 
-  for (const record of records || []) {
-    const vendor = (record.vendor_name as string | null)?.trim();
-    if (!vendor || !record.total_amount) continue;
-
-    const date = new Date(record.invoice_date as string);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-
-    if (!vendorMonthly[vendor]) vendorMonthly[vendor] = {};
-    if (!vendorMonthly[vendor][monthKey]) vendorMonthly[vendor][monthKey] = 0;
-    vendorMonthly[vendor][monthKey] += parseFloat(String(record.total_amount));
-  }
-
-  // Last 3 month keys, most recent first: [last month, 2 months ago, 3 months ago]
-  const now = new Date();
-  const last3MonthKeys = [-1, -2, -3].map((offset) => {
-    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  // Last 3 months: anchor month (index 0), then 1 and 2 months prior
+  const last3MonthKeys = [0, -1, -2].map((offset) => {
+    const d = new Date(anchorYear, anchorMonth + offset, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  // Next month name
-  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const nextMonthDate = new Date(anchorYear, anchorMonth + 1, 1);
   const nextMonthName = nextMonthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  // Group by canonical vendor and month.
+  // Use substring(0,7) on invoice_date to avoid UTC/local timezone shifts when extracting month.
+  const vendorMonthly: Record<string, Record<string, number>> = {};
+
+  for (const record of records ?? []) {
+    const vendor = (record.vendor_name as string | null)?.trim();
+    if (!vendor || !record.total_amount || !record.invoice_date) continue;
+
+    const canonical = canonicalVendor(vendor);
+    const monthKey = (record.invoice_date as string).substring(0, 7); // "YYYY-MM"
+
+    if (!vendorMonthly[canonical]) vendorMonthly[canonical] = {};
+    vendorMonthly[canonical][monthKey] = (vendorMonthly[canonical][monthKey] ?? 0) +
+      parseFloat(String(record.total_amount));
+  }
 
   const forecasts: VendorForecast[] = [];
   const inactiveVendors: VendorForecast[] = [];
 
   for (const [vendor, monthly] of Object.entries(vendorMonthly)) {
-    // monthValues[0] = last month, [1] = 2 months ago, [2] = 3 months ago
-    const monthValues = last3MonthKeys.map((m) => monthly[m] || 0);
+    // monthValues[0] = anchor month (most recent), [1] = 1 prior, [2] = 2 prior
+    const monthValues = last3MonthKeys.map((m) => monthly[m] ?? 0);
     const hasRecentActivity = monthValues.some((v) => v > 0);
 
-    // Store oldest → newest for display (reverse of monthValues)
     const last3Data = last3MonthKeys.map((m) => ({
       month: formatMonthKey(m),
-      amount: monthly[m] || 0,
+      amount: monthly[m] ?? 0,
     }));
 
     if (!hasRecentActivity) {
@@ -67,7 +76,7 @@ export async function buildForecast(): Promise<ForecastResult> {
 
     const avg = monthValues.reduce((a, b) => a + b, 0) / last3MonthKeys.length;
 
-    // Trend: compare last month (index 0) vs 3 months ago (index 2)
+    // Trend: compare anchor month vs 2 months prior
     const oldest = monthValues[2];
     const latest = monthValues[0];
     let trend: "up" | "down" | "stable" = "stable";
@@ -99,6 +108,7 @@ export async function buildForecast(): Promise<ForecastResult> {
     inactiveVendors,
     totalForecast,
     nextMonthName,
+    anchorDate: anchor.toISOString().split("T")[0],
     computedAt: new Date().toISOString(),
   };
 }

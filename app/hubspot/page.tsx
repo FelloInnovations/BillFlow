@@ -29,10 +29,15 @@ export default function HubspotPage() {
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const res = await fetch("/api/hubspot", { cache: "no-store" });
+      const res = await fetch("/api/hubspot", { cache: "no-store", signal: controller.signal });
       if (res.ok) setTickets(await res.json());
+    } catch {
+      // timeout or network error — leave empty state, loading clears via finally
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }, []);

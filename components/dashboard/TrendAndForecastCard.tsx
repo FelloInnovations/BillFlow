@@ -13,6 +13,14 @@ interface Props {
   data: { month: string; total: number }[];
 }
 
+const EMPTY_FORECAST: ForecastResult = {
+  forecasts: [],
+  inactiveVendors: [],
+  totalForecast: 0,
+  nextMonthName: "—",
+  computedAt: "",
+};
+
 const CustomTooltip = ({
   active,
   payload,
@@ -39,8 +47,8 @@ export function TrendAndForecastCard({ data }: Props) {
   useEffect(() => {
     fetch("/api/forecast")
       .then((r) => (r.ok ? r.json() : null))
-      .then((json) => { if (json) setForecast(json); })
-      .catch(() => {});
+      .then((json) => setForecast(json ?? EMPTY_FORECAST))
+      .catch(() => setForecast(EMPTY_FORECAST));
   }, []);
 
   const top3 = forecast?.forecasts.slice(0, 3) ?? [];

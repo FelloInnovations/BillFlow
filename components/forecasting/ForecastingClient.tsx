@@ -151,12 +151,13 @@ export function ForecastingClient({ initial }: Props) {
     ? new Date(data.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "—";
 
-  // Column headers — oldest to newest (for display: 3 months ago → last month)
-  const now = new Date();
-  const monthColLabels = [-3, -2, -1].map((offset) => {
-    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-  });
+  // Column headers derived from actual data months (oldest→newest order).
+  // Uses the first forecast's last3Months labels so headers always match the rows,
+  // even when the anchor date is behind the wall clock.
+  const anyForecast = data.forecasts[0] ?? data.inactiveVendors[0];
+  const monthColLabels = anyForecast
+    ? [anyForecast.last3Months[2].month, anyForecast.last3Months[1].month, anyForecast.last3Months[0].month]
+    : ["3mo ago", "2mo ago", "Last month"];
 
   // Display rows with months in oldest→newest order
   const displayMonths = (f: VendorForecast) => [f.last3Months[2], f.last3Months[1], f.last3Months[0]];

@@ -112,6 +112,7 @@ export interface ForecastResult {
   inactiveVendors: VendorForecast[];
   totalForecast: number;
   nextMonthName: string;
+  anchorDate?: string;
   computedAt: string;
 }
 
