@@ -1,24 +1,43 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-export async function GET() {
-  const { data, error } = await supabase
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const periodParam = searchParams.get("period") ?? "3m";
+  const months = periodParam === "12m" ? 12 : periodParam === "6m" ? 6 : 3;
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const cutoffStr = cutoff.toISOString().substring(0, 10);
+
+  const { data } = await supabase
     .from("api_invocation_logs")
-    .select("invoked_at, cost_usd")
-    .not("cost_usd", "is", null)
+    .select("key_name, invoked_at, cost_usd")
+    .gte("invoked_at", `${cutoffStr}T00:00:00Z`)
     .order("invoked_at", { ascending: true });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const dayMap = new Map<string, Record<string, number>>();
+  const keySet = new Set<string>();
 
-  const byDate: Record<string, number> = {};
   for (const row of data ?? []) {
     const date = (row.invoked_at as string).substring(0, 10);
-    byDate[date] = (byDate[date] ?? 0) + Number(row.cost_usd ?? 0);
+    const key  = row.key_name as string;
+    keySet.add(key);
+    if (!dayMap.has(date)) dayMap.set(date, {});
+    const entry = dayMap.get(date)!;
+    entry[key] = (entry[key] ?? 0) + (Number(row.cost_usd) || 0);
   }
 
-  const daily = Object.entries(byDate)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, total]) => ({ date, total }));
+  const keyNames = [...keySet];
 
-  return NextResponse.json(daily);
+  // Fill zeros so every date has every key (required for stacked bar chart)
+  const days = [...dayMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, vals]) => {
+      const entry: Record<string, number | string> = { date };
+      for (const k of keyNames) entry[k] = vals[k] ?? 0;
+      return entry;
+    });
+
+  return NextResponse.json({ days, key_names: keyNames });
 }

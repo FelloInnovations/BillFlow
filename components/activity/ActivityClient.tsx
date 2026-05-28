@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, ComponentType } from "react";
+import { useState, useCallback, useEffect, ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import { BarChart2, ShieldAlert, List } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,14 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult>(null);
   const [syncCooldownUntil, setSyncCooldownUntil] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(
+    initialActivity.last_synced_at ?? null
+  );
+
+  useEffect(() => {
+    const stored = localStorage.getItem("billflow_last_sync");
+    if (stored) setLastSyncAt(stored);
+  }, []);
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
@@ -50,6 +58,9 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
         errors: json.errors ?? [],
       });
       setSyncCooldownUntil(Date.now() + 60_000);
+      const now = new Date().toISOString();
+      setLastSyncAt(now);
+      localStorage.setItem("billflow_last_sync", now);
       router.refresh();
     } catch {
       setSyncResult({ synced_keys: 0, total_log_rows_written: 0, errors: ["Request failed"] });
@@ -124,6 +135,7 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
           syncing={syncing}
           syncResult={syncResult}
           syncDisabled={Date.now() < syncCooldownUntil}
+          lastSyncAt={lastSyncAt}
         />
       </div>
 

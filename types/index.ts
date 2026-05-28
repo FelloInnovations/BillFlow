@@ -138,6 +138,7 @@ export interface ActivityKeyData {
   min: number;
   max: number;
   avg: number;
+  trend: "up" | "down" | "stable" | null;
   current_month_spend: number;
   models: string[];
 }
@@ -161,6 +162,7 @@ export interface ActivityData {
   keys: ActivityKeyData[];
   months: string[];
   all_projects: { project_name: string; key_name: string | null; status: string | null }[];
+  last_synced_at: string | null;
 }
 
 export interface Guardrail {
