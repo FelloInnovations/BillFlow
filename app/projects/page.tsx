@@ -12,7 +12,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
 
   const { data: d1, error: e1 } = await supabase
     .from("agents_portfolio")
-    .select("agents_projects, description, llms, llm_accounts, services_used, status")
+    .select("agents_projects, description, llms, llm_accounts, services_used, status, openrouter_api_key")
     .limit(500);
 
   if (e1) {
@@ -61,6 +61,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
       ? row.services_used.split(",").map((s: string) => s.trim()).filter(Boolean)
       : [],
     totalSpend: null,
+    openrouter_api_key: row.openrouter_api_key ?? null,
   }));
 
   // Build spend map
