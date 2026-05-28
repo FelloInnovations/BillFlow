@@ -13,7 +13,6 @@ import {
   TrendingUp,
   Sun,
   Moon,
-  Ticket,
   Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,7 +23,6 @@ const NAV = [
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/tools", label: "Tools", icon: Wrench },
   { href: "/forecasting", label: "Forecasting", icon: TrendingUp },
-  { href: "/hubspot", label: "HubSpot Tickets", icon: Ticket },
 ];
 
 function ThemeToggle() {

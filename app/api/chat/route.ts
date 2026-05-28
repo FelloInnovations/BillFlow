@@ -58,18 +58,16 @@ async function buildFullContext(): Promise<string> {
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime());
 
-  // ── 2. Fetch forecast + projects + tools + HubSpot in parallel ──
-  const [forecastResult, sheetsRes, toolsRes, hubspotRes] = await Promise.allSettled([
+  // ── 2. Fetch forecast + projects + tools in parallel ──
+  const [forecastResult, sheetsRes, toolsRes] = await Promise.allSettled([
     buildForecast(),
     fetch(`${base}/api/sheets`).then((r) => r.json()).catch(() => null),
     fetch(`${base}/api/tools`).then((r) => r.json()).catch(() => null),
-    fetch(`${base}/api/hubspot`).then((r) => r.json()).catch(() => null),
   ]);
 
   const forecast = forecastResult.status === "fulfilled" ? forecastResult.value : null;
   const sheets = sheetsRes.status === "fulfilled" ? sheetsRes.value : null;
   const tools  = toolsRes.status  === "fulfilled" ? toolsRes.value  : null;
-  const hs     = hubspotRes.status === "fulfilled" ? hubspotRes.value : null;
 
   const fmt = (n: number) =>
     `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -132,20 +130,6 @@ async function buildFullContext(): Promise<string> {
     });
   }
 
-  // ── HubSpot enrichment tickets ────────────────────────────────────
-  if (Array.isArray(hs) && hs.length) {
-    lines.push("\n=== HUBSPOT ENRICHMENT TICKETS ===");
-    lines.push(`Total tickets: ${hs.length}`);
-    const done     = hs.filter((t: { enrichment_status?: string }) => t.enrichment_status === "Done").length;
-    const hitRates = hs.filter((t: { hit_rate?: number }) => t.hit_rate != null).map((t: { hit_rate: number }) => t.hit_rate);
-    const avgHit   = hitRates.length ? (hitRates.reduce((a: number, b: number) => a + b, 0) / hitRates.length * 100).toFixed(1) : "N/A";
-    lines.push(`Completed: ${done}/${hs.length} | Avg hit rate: ${avgHit}%`);
-    hs.slice(0, 15).forEach((t: { category?: string; list_detail?: string; contacts_to_enrich?: number; valid_enriched?: number; hit_rate?: number; enrichment_status?: string; owner?: string }) => {
-      const hr = t.hit_rate != null ? ` | ${(t.hit_rate * 100).toFixed(0)}% hit` : "";
-      lines.push(`• [${t.category ?? "—"}] ${t.list_detail ?? ""} (${t.contacts_to_enrich ?? 0} contacts, ${t.valid_enriched ?? 0} enriched${hr}) — ${t.enrichment_status ?? "unknown"} | ${t.owner ?? "—"}`);
-    });
-  }
-
   return lines.join("\n");
 }
 
@@ -162,14 +146,13 @@ export async function POST(req: NextRequest) {
 
   const context = await buildFullContext();
 
-  const systemPrompt = `You are Orion, an AI assistant embedded in Billflow — an internal dashboard for Fello Innovations that tracks AI infrastructure spend, projects, vendors, and HubSpot enrichment work.
+  const systemPrompt = `You are Orion, an AI assistant embedded in Billflow — an internal dashboard for Fello Innovations that tracks AI infrastructure spend, projects, and vendors.
 
 You have full visibility into:
 - Monthly spend KPIs, unpaid/overdue invoices, upcoming due dates
 - All vendors and their all-time spend totals
 - Every project (name, status, LLMs used, services, total spend)
 - All tools and services with monthly breakdowns
-- HubSpot enrichment tickets (category, contacts, hit rate, status)
 - Spend forecast data: next month projections per vendor based on 3-month rolling average
 
 IMPORTANT — spend calculation rules:

@@ -11,12 +11,17 @@ function formatMonthKey(monthKey: string): string {
 }
 
 export async function buildForecast(): Promise<ForecastResult> {
-  const { data: records } = await supabase
-    .from("financial_records")
-    .select("vendor_name, total_amount, invoice_date")
-    .not("vendor_name", "ilike", "%makemytrip%")
-    .not("vendor_name", "is", null)
-    .order("invoice_date", { ascending: false });
+  const [{ data: records }, { data: hiddenRows }] = await Promise.all([
+    supabase
+      .from("financial_records")
+      .select("vendor_name, total_amount, invoice_date")
+      .not("vendor_name", "ilike", "%makemytrip%")
+      .not("vendor_name", "is", null)
+      .order("invoice_date", { ascending: false }),
+    supabase.from("hidden_tools").select("tool_key"),
+  ]);
+
+  const hiddenKeys = new Set((hiddenRows ?? []).map((r) => r.tool_key as string));
 
   // Anchor all windows to the latest invoice in the DB, not the wall clock.
   // Prevents empty forecasts if ingestion stalls for several months.
@@ -43,6 +48,7 @@ export async function buildForecast(): Promise<ForecastResult> {
     if (!vendor || !record.total_amount || !record.invoice_date) continue;
 
     const canonical = canonicalVendor(vendor);
+    if (hiddenKeys.has(canonical)) continue;
     const monthKey = (record.invoice_date as string).substring(0, 7); // "YYYY-MM"
 
     if (!vendorMonthly[canonical]) vendorMonthly[canonical] = {};

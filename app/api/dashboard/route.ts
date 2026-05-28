@@ -31,7 +31,7 @@ export async function GET() {
   const today = new Date().toISOString().split("T")[0];
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes] = await Promise.all([
+  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes] = await Promise.all([
     // Last complete month paid spend (anchor month - 1)
     supabase
       .from("financial_records")
@@ -73,7 +73,11 @@ export async function GET() {
       .not("vendor_name", "ilike", "%makemytrip%")
       .order("due_date")
       .limit(5),
+
+    supabase.from("hidden_tools").select("tool_key"),
   ]);
+
+  const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
 
   const totalMonthlySpend = (monthlyRes.data ?? []).reduce(
     (s, r) => s + Number(r.total_amount ?? 0),
@@ -90,6 +94,7 @@ export async function GET() {
   for (const r of vendorRes.data ?? []) {
     if (!r.vendor_name) continue;
     const canonical = canonicalVendor(r.vendor_name as string);
+    if (hiddenKeys.has(canonical)) continue;
     vendorMap.set(canonical, (vendorMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
 

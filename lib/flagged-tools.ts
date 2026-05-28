@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { FlaggedToolsData, FlaggedBilledVendor, NeverUsedVendor } from "@/types";
+import { canonicalVendor } from "@/lib/utils";
 
 // Shared computation used by both /api/flagged-tools and /api/dashboard.
 // Keeping logic in one place guarantees both pages show the same counts.
@@ -8,7 +9,7 @@ export async function computeFlaggedTools(): Promise<FlaggedToolsData> {
     .toISOString()
     .split("T")[0];
 
-  const [projectsRes, billedRes, allRecordsRes] = await Promise.all([
+  const [projectsRes, billedRes, allRecordsRes, hiddenRes] = await Promise.all([
     supabase
       .from("agents_portfolio")
       .select("llms, llm_accounts, services_used, status"),
@@ -23,7 +24,10 @@ export async function computeFlaggedTools(): Promise<FlaggedToolsData> {
       .select("vendor_name, total_amount")
       .not("vendor_name", "is", null)
       .not("vendor_name", "ilike", "%makemytrip%"),
+    supabase.from("hidden_tools").select("tool_key"),
   ]);
+
+  const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
 
   const allProjects = projectsRes.data ?? [];
   const activeProjects = allProjects.filter((p: { status?: string | null }) => p.status !== "shut down");
@@ -77,6 +81,7 @@ export async function computeFlaggedTools(): Promise<FlaggedToolsData> {
 
   const billedInactive: FlaggedBilledVendor[] = [];
   for (const [key, entry] of vendorMap.entries()) {
+    if (hiddenKeys.has(canonicalVendor(entry.vendor_name as string))) continue;
     if (!fuzzyMatch(key, toolsInActiveProjects)) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { _key, ...vendor } = entry;
@@ -93,6 +98,7 @@ export async function computeFlaggedTools(): Promise<FlaggedToolsData> {
 
   const neverUsed: NeverUsedVendor[] = [];
   for (const [key, entry] of allVendorMap.entries()) {
+    if (hiddenKeys.has(canonicalVendor(entry.vendor_name as string))) continue;
     if (!fuzzyMatch(key, toolsInAnyProject)) neverUsed.push(entry);
   }
 

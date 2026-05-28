@@ -9,7 +9,7 @@ const STARTERS = [
   "Overview of this month's spend",
   "Which projects are active and what do they cost?",
   "Which vendor costs the most?",
-  "Summarise the HubSpot enrichment work",
+  "What's the forecast for next month?",
 ];
 
 interface Message {
