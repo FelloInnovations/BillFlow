@@ -8,7 +8,7 @@ import { fetchOrKeySpend } from "@/lib/orKeySpend";
 async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }> {
   const { data: portfolioData, error: portfolioErr } = await supabase
     .from("agents_portfolio")
-    .select("agents_projects, description, llms, llm_accounts, services_used, status, openrouter_api_key")
+    .select("agents_projects, description, llms, llm_accounts, status, openrouter_api_key")
     .limit(500);
 
   if (portfolioErr) console.error("[projects] portfolio error:", portfolioErr.message);
@@ -38,9 +38,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
             return { provider: parts[0] ?? entry, model: parts.slice(1).join(" "), owner: row.llm_accounts ?? "" };
           })
       : [],
-    services: row.services_used
-      ? row.services_used.split(",").map((s: string) => s.trim()).filter(Boolean)
-      : [],
+    services: [],
     totalSpend: null,
     openrouter_api_key: row.openrouter_api_key ?? null,
   }));

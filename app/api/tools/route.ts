@@ -37,9 +37,13 @@ export async function GET() {
     { data: hiddenRows },
     { data: overrideRows },
   ] = await Promise.all([
+    // Project↔tool links are established only via OpenRouter API key mappings (LLM spend)
+    // or future explicit manual links. Shared infrastructure services (Supabase, Oxylabs,
+    // ScraperAPI, etc.) are org-wide costs — never attributed to specific projects.
+    // Any tool with type:"service" will always have projects:[].
     supabase
       .from("agents_portfolio")
-      .select("agents_projects, llms, services_used, openrouter_api_key"),
+      .select("agents_projects, llms, openrouter_api_key"),
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount")

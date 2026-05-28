@@ -228,8 +228,10 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit }: Props) {
               <p className="text-xs text-slate-400 mt-0.5">
                 <span className="font-semibold text-slate-500">{isLLM ? "LLM" : "Service"}</span>
                 {isPerKey ? " · API usage" : " · invoices"}
-                {" · "}
-                {tool.projects.length > 0 ? `${tool.projects.length} project${tool.projects.length > 1 ? "s" : ""}` : "No projects linked"}
+                {isLLM && " · "}
+                {isLLM && (tool.projects.length > 0
+                  ? `${tool.projects.length} project${tool.projects.length > 1 ? "s" : ""}`
+                  : "No projects linked")}
               </p>
             </div>
           </div>
@@ -264,7 +266,7 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit }: Props) {
                 <p className="text-xs text-slate-600 dark:text-slate-300">{tool.notes}</p>
               </div>
             )}
-            {tool.projects.length > 0 && (
+            {isLLM && tool.projects.length > 0 && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Linked Projects</p>
                 <div className="flex flex-wrap gap-1.5">

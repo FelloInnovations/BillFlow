@@ -30,10 +30,7 @@ export function DashboardClient({ initial }: Props) {
         if (!json?.projects) return;
         const map: Record<string, string[]> = {};
         for (const project of json.projects) {
-          const vendors = [
-            ...(project.llms ?? []).map((l: { provider: string }) => l.provider),
-            ...(project.services ?? []),
-          ];
+          const vendors = (project.llms ?? []).map((l: { provider: string }) => l.provider);
           for (const v of vendors) {
             const key = canonicalVendor(v).toLowerCase();
             if (!map[key]) map[key] = [];

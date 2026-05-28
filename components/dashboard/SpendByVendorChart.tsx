@@ -52,7 +52,7 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
         Spend by Vendor{" "}
         <span className="text-slate-400 dark:text-slate-500 font-normal">(last 12 months)</span>
       </h3>
-      <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{sorted.length} vendors · hover to see projects</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{sorted.length} vendors</p>
 
       <div
         className="overflow-y-auto max-h-72 space-y-2.5 pr-2"
@@ -110,7 +110,7 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           <p className="text-xs font-bold mb-1.5">{tooltip.vendor}</p>
-          {tooltip.projects.length > 0 ? (
+          {tooltip.projects.length > 0 && (
             <>
               <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Used in</p>
               <ul className="space-y-0.5">
@@ -122,8 +122,6 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
                 ))}
               </ul>
             </>
-          ) : (
-            <p className="text-[10px] text-slate-400">No project mapping found</p>
           )}
         </div>
       )}

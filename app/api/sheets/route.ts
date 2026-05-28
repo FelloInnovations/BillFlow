@@ -7,7 +7,7 @@ import { Project } from "@/types";
 async function getProjectsFromDB(): Promise<Project[]> {
   const { data, error } = await supabase
     .from("agents_portfolio")
-    .select("agents_projects, description, llms, llm_accounts, services_used, status, openrouter_api_key")
+    .select("agents_projects, description, llms, llm_accounts, status, openrouter_api_key")
     .limit(500);
 
   if (error) {
@@ -28,9 +28,6 @@ async function getProjectsFromDB(): Promise<Project[]> {
     const llmNames = row.llms
       ? row.llms.split(",").map((s: string) => s.trim()).filter((s: string) => s && s.toLowerCase() !== "na")
       : [];
-    const services = row.services_used
-      ? row.services_used.split(",").map((s: string) => s.trim()).filter(Boolean)
-      : [];
 
     return {
       name: row.agents_projects ?? "",
@@ -40,7 +37,7 @@ async function getProjectsFromDB(): Promise<Project[]> {
         const parts = entry.split(" ");
         return { provider: parts[0], model: parts.slice(1).join(" "), owner: row.llm_accounts ?? "" };
       }),
-      services,
+      services: [],
       status: row.status ?? null,
       totalSpend: null,
       openrouter_api_key: row.openrouter_api_key ?? null,
