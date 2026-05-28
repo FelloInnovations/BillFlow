@@ -189,7 +189,7 @@ export const STATIC_PROJECTS: Project[] = [
     openrouter_api_key: null,
   },
   {
-    name: "PROSPECTOR",
+    name: "Pipeline Monitor",
     description: "Mega Agent Dashboard — enriching US Real Estate professionals and teams",
     timeline: null,
     llms: [],
@@ -197,6 +197,16 @@ export const STATIC_PROJECTS: Project[] = [
     status: "production",
     totalSpend: null,
     openrouter_api_key: "mad (adarsh)",
+  },
+  {
+    name: "SignalCards",
+    description: "",
+    timeline: null,
+    llms: [{ provider: "OpenRouter", model: "", owner: "" }],
+    services: [],
+    status: "r&d",
+    totalSpend: null,
+    openrouter_api_key: "signalcards(boduu)",
   },
   {
     name: "Data Pilot",

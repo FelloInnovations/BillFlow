@@ -2,12 +2,12 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { AlertCircle, CalendarClock, RefreshCw, OctagonAlert, AlertTriangle, ArrowRight } from "lucide-react";
+import { AlertCircle, CalendarClock, RefreshCw, OctagonAlert } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { SpendRangeCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
 import { TrendAndForecastCard } from "@/components/dashboard/TrendAndForecastCard";
-import { DashboardMetrics, FinancialRecord, FlaggedToolsData } from "@/types";
+import { DashboardMetrics, FinancialRecord } from "@/types";
 import { formatCurrency, cn, canonicalVendor } from "@/lib/utils";
 import { DashboardChat } from "@/components/dashboard/DashboardChat";
 import { SharedInfraCard } from "@/components/dashboard/SharedInfraCard";
@@ -21,7 +21,6 @@ export function DashboardClient({ initial }: Props) {
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [vendorProjects, setVendorProjects] = useState<Record<string, string[]>>({});
-  const [flaggedData, setFlaggedData] = useState<FlaggedToolsData>({ billedInactive: [], neverUsed: [] });
 
   useEffect(() => {
     fetch("/api/sheets")
@@ -39,11 +38,6 @@ export function DashboardClient({ initial }: Props) {
         }
         setVendorProjects(map);
       })
-      .catch(() => {});
-
-    fetch("/api/flagged-tools")
-      .then((r) => r.ok ? r.json() : null)
-      .then((json) => { if (json) setFlaggedData(json); })
       .catch(() => {});
   }, []);
 
@@ -90,57 +84,26 @@ export function DashboardClient({ initial }: Props) {
       </div>
 
       {/* Row 2 — Stat cards */}
-      <div className={cn("grid grid-cols-2 lg:grid-cols-4 gap-4 transition-opacity", loading && "opacity-60")}>
+      <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-4 transition-opacity", loading && "opacity-60")}>
         <SpendRangeCard />
-        <KPICard
-          title="Unpaid Invoices"
-          value={metrics.unpaidCount}
-          sub={`${formatCurrency(metrics.unpaidTotal)} outstanding`}
-          icon={AlertCircle}
-          accent="amber"
-        />
-        <KPICard
-          title="Overdue"
-          value={metrics.overdueCount}
-          sub="Past due date"
-          icon={OctagonAlert}
-          accent="rose"
-        />
-
-        {/* 4th card — Flagged Alert (replaces Months Tracked) */}
-        <div
-          className="rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow border border-amber-200/60 dark:border-amber-800/40 border-l-[3px] border-l-amber-400 flex flex-col"
-          style={{ backgroundColor: "rgba(245, 166, 35, 0.05)" }}
-        >
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Flagged Vendors</p>
-            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-500">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-snug">
-              <span className="text-[15px] font-medium text-amber-500 dark:text-amber-400">
-                {flaggedData.billedInactive.length}
-              </span>{" "}
-              vendors billed but inactive
-            </p>
-            <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-snug">
-              <span className="text-[15px] font-medium text-amber-500 dark:text-amber-400">
-                {flaggedData.neverUsed.length}
-              </span>{" "}
-              tools never linked to a project
-            </p>
-          </div>
-          <div className="flex justify-end mt-3">
-            <Link
-              href="/tools"
-              className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
-            >
-              Review <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-        </div>
+        <Link href="/records?status=unpaid" className="block">
+          <KPICard
+            title="Unpaid Invoices"
+            value={metrics.unpaidCount}
+            sub={`${formatCurrency(metrics.unpaidTotal)} outstanding`}
+            icon={AlertCircle}
+            accent="amber"
+          />
+        </Link>
+        <Link href="/records?status=overdue" className="block">
+          <KPICard
+            title="Overdue"
+            value={metrics.overdueCount}
+            sub="Past due date"
+            icon={OctagonAlert}
+            accent="rose"
+          />
+        </Link>
       </div>
 
       {/* Row 3 — Charts: Vendor chart + Trend+Forecast unified card */}

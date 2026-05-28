@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { FinancialRecord, PaginatedResult } from "@/types";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { InvoiceDrawer } from "./InvoiceDrawer";
@@ -20,7 +21,7 @@ interface Props {
   vendors: string[];
 }
 
-const STATUS_OPTIONS = ["", "pending", "paid", "overdue"];
+const STATUS_OPTIONS = ["", "unpaid", "pending", "paid", "overdue"];
 
 // ── Checkbox ──────────────────────────────────────────────────────────────────
 function Checkbox({
@@ -88,13 +89,16 @@ function Toast({
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function RecordsTable({ initial, vendors: initialVendors }: Props) {
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") ?? "";
+
   const [data, setData] = useState(initial);
   const [vendors, setVendors] = useState<string[]>(initialVendors);
   const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
   const [vendorOpen, setVendorOpen] = useState(false);
   const vendorRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState({
-    status: "",
+    status: initialStatus,
     dateFrom: "",
     dateTo: "",
     page: 1,
@@ -124,6 +128,14 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
     const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Apply URL-provided status filter on mount (server data is unfiltered)
+  useEffect(() => {
+    if (initialStatus) {
+      fetchData({ status: initialStatus, dateFrom: "", dateTo: "", page: 1 }, []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Close vendor dropdown on outside click
   useEffect(() => {
