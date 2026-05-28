@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Clock, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Clock, ChevronDown, ChevronLeft, ChevronRight, X, RefreshCw } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { LogEntry, PaginatedResult } from "@/types";
+import type { SyncResult } from "./ActivityClient";
 
 interface LogsTabProps {
   allKeyNames: string[];
   initialData: PaginatedResult<LogEntry>;
+  onSync: () => Promise<void>;
+  syncing: boolean;
+  syncResult: SyncResult;
+  syncDisabled: boolean;
 }
 
 const PAGE_SIZE = 50;
@@ -19,7 +24,7 @@ function formatTimestamp(iso: string): string {
     d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {
+export function LogsTab({ allKeyNames, initialData, onSync, syncing, syncResult, syncDisabled }: LogsTabProps) {
   const [data, setData] = useState<PaginatedResult<LogEntry>>(initialData);
   const [page, setPage] = useState(1);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -186,6 +191,28 @@ export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {
                 Clear
               </button>
             )}
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            {syncResult && (
+              <span className={cn(
+                "text-xs font-medium",
+                syncResult.errors.length > 0 ? "text-amber-500 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+              )}>
+                {syncResult.errors.length > 0
+                  ? `${syncResult.synced_keys} keys synced, ${syncResult.errors.length} error(s)`
+                  : `Synced ${syncResult.synced_keys} keys · ${syncResult.total_log_rows_written} rows`
+                }
+              </span>
+            )}
+            <button
+              onClick={onSync}
+              disabled={syncing || syncDisabled}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw className={cn("w-3 h-3", syncing && "animate-spin")} />
+              {syncing ? "Syncing…" : "Sync Now"}
+            </button>
           </div>
         </div>
       </div>

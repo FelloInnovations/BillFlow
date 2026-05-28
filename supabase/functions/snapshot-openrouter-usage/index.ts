@@ -1,10 +1,7 @@
 // @ts-nocheck
-// Scheduled edge function — runs monthly to snapshot per-key OpenRouter usage.
-// Uses key.usage from the provisioning keys list (NOT the activity endpoint,
-// which ignores key_hash and returns account-level data for every key).
-// Each snapshot row stores the CUMULATIVE all-time usage for that key at that
-// point in time. Monthly spending is derived as deltas between consecutive rows.
-// Also syncs account-level activity records to api_invocation_logs.
+// Scheduled edge function — syncs per-key activity from OpenRouter to Supabase.
+// Uses provisioning key to list all keys, then fetches activity per key_hash.
+// Writes attributed rows to api_invocation_logs and monthly sums to openrouter_usage_snapshots.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -30,102 +27,142 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // ── 1. Snapshot per-key cumulative usage ─────────────────────────────────
+    // Optional body: { key_names: string[] } to sync only specific keys
+    let filterKeyNames: string[] | null = null;
+    try {
+      const body = await req.json();
+      if (Array.isArray(body?.key_names) && body.key_names.length > 0) {
+        filterKeyNames = body.key_names;
+      }
+    } catch {
+      // No body or not JSON — sync all keys
+    }
+
+    // ── 1. Fetch all keys from OpenRouter ────────────────────────────────────
     const keysRes = await fetch('https://openrouter.ai/api/v1/keys', {
       headers: { Authorization: `Bearer ${provKey}` },
     });
     if (!keysRes.ok) throw new Error(`keys API ${keysRes.status}: ${await keysRes.text()}`);
 
-    const keys: Array<{ name?: string; hash?: string; usage?: number }> = (await keysRes.json()).data ?? [];
+    const allKeys: Array<{ name?: string; hash?: string; usage?: number }> = (await keysRes.json()).data ?? [];
+    const keys = allKeys.filter(k => k.name && k.hash && (
+      filterKeyNames === null || filterKeyNames.includes(k.name)
+    ));
 
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    const snapshotRows = keys
-      .filter((k) => k.name)
-      .map((k) => ({
-        key_name: k.name!,
-        month: currentMonth,
-        usage_total: k.usage ?? 0,
-        snapshot_at: new Date().toISOString(),
-      }));
-
-    if (snapshotRows.length > 0) {
-      const { error } = await db
-        .from('openrouter_usage_snapshots')
-        .upsert(snapshotRows, { onConflict: 'key_name,month' });
-      if (error) throw new Error(error.message);
+    // ── 2. Fetch project_name mapping from agents_portfolio ──────────────────
+    const { data: portfolioRows } = await db
+      .from('agents_portfolio')
+      .select('project_name, openrouter_key_name');
+    const keyToProject = new Map<string, string>();
+    for (const row of (portfolioRows ?? [])) {
+      if (row.openrouter_key_name && row.project_name) {
+        keyToProject.set(row.openrouter_key_name, row.project_name);
+      }
     }
 
-    // ── 2. Sync account-level activity to api_invocation_logs ────────────────
-    // Note: OR's key_hash filter on /activity is ignored; this is account-level.
-    let activitySynced = 0;
-    try {
-      const activityRes = await fetch('https://openrouter.ai/api/v1/activity', {
-        headers: { Authorization: `Bearer ${provKey}` },
-      });
-      if (activityRes.ok) {
-        const activityJson = await activityRes.json();
+    // ── 3. Per-key activity sync ─────────────────────────────────────────────
+    let totalLogRowsWritten = 0;
+    const errors: string[] = [];
+    const syncedKeys: string[] = [];
+
+    for (const key of keys) {
+      try {
+        const actRes = await fetch(
+          `https://openrouter.ai/api/v1/activity?api_key_hash=${encodeURIComponent(key.hash!)}`,
+          { headers: { Authorization: `Bearer ${provKey}` } }
+        );
+        if (!actRes.ok) {
+          errors.push(`${key.name}: activity API ${actRes.status}`);
+          continue;
+        }
+
+        const actJson = await actRes.json();
         const records: Array<{
-          id?: string;
           date?: string;
           model?: string;
+          endpoint_id?: string;
           usage?: number;
           requests?: number;
           prompt_tokens?: number;
           completion_tokens?: number;
-          endpoint_id?: string;
-        }> = activityJson.data ?? [];
+          provider_name?: string;
+        }> = actJson.data ?? [];
 
-        const withId    = records.filter(r => r.id || r.endpoint_id).map(r => ({
-          key_name:          '_account_',
-          project_name:      null,
+        if (records.length === 0) {
+          syncedKeys.push(key.name!);
+          continue;
+        }
+
+        const projectName = keyToProject.get(key.name!) ?? null;
+
+        // Build log rows — one per activity record
+        const logRows = records.map(r => ({
+          key_name:          key.name!,
+          project_name:      projectName,
           model:             r.model ?? null,
           prompt_tokens:     r.prompt_tokens ?? null,
           completion_tokens: r.completion_tokens ?? null,
-          total_tokens:      r.prompt_tokens && r.completion_tokens
-            ? r.prompt_tokens + r.completion_tokens : null,
+          total_tokens:      (r.prompt_tokens != null && r.completion_tokens != null)
+            ? r.prompt_tokens + r.completion_tokens
+            : null,
           cost_usd:          r.usage ?? null,
-          invoked_at:        r.date ?? new Date().toISOString(),
-          provider_name:     null,
-          endpoint_id:       r.id ?? r.endpoint_id ?? null,
+          invoked_at:        r.date ? `${r.date.substring(0, 10)}T00:00:00Z` : new Date().toISOString(),
+          provider_name:     r.provider_name ?? null,
+          endpoint_id:       r.endpoint_id ?? null,
           source:            'openrouter_activity_sync',
         }));
 
-        const withoutId = records.filter(r => !r.id && !r.endpoint_id).map(r => ({
-          key_name:          '_account_',
-          project_name:      null,
-          model:             r.model ?? null,
-          prompt_tokens:     r.prompt_tokens ?? null,
-          completion_tokens: r.completion_tokens ?? null,
-          total_tokens:      r.prompt_tokens && r.completion_tokens
-            ? r.prompt_tokens + r.completion_tokens : null,
-          cost_usd:          r.usage ?? null,
-          invoked_at:        r.date ?? new Date().toISOString(),
-          provider_name:     null,
-          endpoint_id:       null,
-          source:            'openrouter_activity_sync',
+        const { error: upsertErr, count } = await db
+          .from('api_invocation_logs')
+          .upsert(logRows, {
+            onConflict: 'key_name,endpoint_id,invoked_at',
+            ignoreDuplicates: false,
+          })
+          .select('id');
+
+        if (upsertErr) {
+          errors.push(`${key.name}: upsert error — ${upsertErr.message}`);
+          continue;
+        }
+
+        // Build monthly sums from activity data for openrouter_usage_snapshots
+        const monthMap = new Map<string, number>();
+        for (const r of records) {
+          if (!r.date) continue;
+          const month = r.date.substring(0, 7); // 'YYYY-MM' (works for both "2026-05-27" and "2026-05-27 00:00:00")
+          monthMap.set(month, (monthMap.get(month) ?? 0) + (r.usage ?? 0));
+        }
+
+        const snapshotRows = [...monthMap.entries()].map(([month, usage_total]) => ({
+          key_name:    key.name!,
+          month,
+          usage_total,
+          snapshot_at: new Date().toISOString(),
         }));
 
-        if (withId.length > 0) {
-          await db.from('api_invocation_logs')
-            .upsert(withId, { onConflict: 'key_name,endpoint_id', ignoreDuplicates: true });
-        }
-        if (withoutId.length > 0) {
-          await db.from('api_invocation_logs').insert(withoutId);
+        if (snapshotRows.length > 0) {
+          const { error: snapErr } = await db
+            .from('openrouter_usage_snapshots')
+            .upsert(snapshotRows, { onConflict: 'key_name,month' });
+          if (snapErr) {
+            errors.push(`${key.name}: snapshot upsert — ${snapErr.message}`);
+          }
         }
 
-        activitySynced = records.length;
+        totalLogRowsWritten += logRows.length;
+        syncedKeys.push(key.name!);
+      } catch (e: any) {
+        errors.push(`${key.name}: ${e.message}`);
       }
-    } catch {
-      // Activity sync is best-effort; don't fail the whole snapshot
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        current_month: currentMonth,
-        keys_snapshotted: snapshotRows.length,
-        activity_synced: activitySynced,
-        results: keys.filter(k => k.name).map(k => ({ key: k.name!, usage_total: k.usage ?? 0 })),
+        synced_keys: syncedKeys.length,
+        key_names: syncedKeys,
+        total_log_rows_written: totalLogRowsWritten,
+        errors,
       }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } }
     );

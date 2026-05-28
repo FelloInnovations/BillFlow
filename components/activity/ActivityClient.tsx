@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, ComponentType } from "react";
+import { useState, useCallback, ComponentType } from "react";
+import { useRouter } from "next/navigation";
 import { BarChart2, ShieldAlert, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ActivityData, Guardrail, LogEntry, PaginatedResult } from "@/types";
@@ -22,10 +23,40 @@ const TABS: { id: Tab; label: string; Icon: ComponentType<{ className?: string }
   { id: "logs",       label: "Logs",       Icon: List },
 ];
 
+export type SyncResult = {
+  synced_keys: number;
+  total_log_rows_written: number;
+  errors: string[];
+} | null;
+
 export function ActivityClient({ initialActivity, initialGuardrails, initialLogs }: Props) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("spend");
   const [guardrails, setGuardrails] = useState<Guardrail[]>(initialGuardrails);
   const [monthRange, setMonthRange] = useState<3 | 6 | 12>(6);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncResult>(null);
+  const [syncCooldownUntil, setSyncCooldownUntil] = useState(0);
+
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/activity/sync", { method: "POST" });
+      const json = await res.json();
+      setSyncResult({
+        synced_keys: json.synced_keys ?? 0,
+        total_log_rows_written: json.total_log_rows_written ?? 0,
+        errors: json.errors ?? [],
+      });
+      setSyncCooldownUntil(Date.now() + 60_000);
+      router.refresh();
+    } catch {
+      setSyncResult({ synced_keys: 0, total_log_rows_written: 0, errors: ["Request failed"] });
+    } finally {
+      setSyncing(false);
+    }
+  }, [router]);
 
   async function handleSave(projectName: string, budget: number, threshold: number) {
     const res = await fetch("/api/guardrails", {
@@ -89,6 +120,10 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
           activity={initialActivity}
           monthRange={monthRange}
           setMonthRange={setMonthRange}
+          onSync={handleSync}
+          syncing={syncing}
+          syncResult={syncResult}
+          syncDisabled={Date.now() < syncCooldownUntil}
         />
       </div>
 
@@ -105,6 +140,10 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
         <LogsTab
           allKeyNames={allKeyNames}
           initialData={initialLogs}
+          onSync={handleSync}
+          syncing={syncing}
+          syncResult={syncResult}
+          syncDisabled={Date.now() < syncCooldownUntil}
         />
       </div>
     </div>

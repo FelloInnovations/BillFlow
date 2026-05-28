@@ -73,6 +73,47 @@ App runs at `http://localhost:3000`.
 
 ---
 
+## Scheduled Jobs
+
+### snapshot-openrouter-usage (daily sync)
+
+This Supabase Edge Function fetches per-key activity from OpenRouter and writes to:
+- `api_invocation_logs` — one row per activity record per key (model, tokens, cost, date)
+- `openrouter_usage_snapshots` — monthly spend totals per key (used by Tools page)
+
+**Trigger manually**: Use the **Sync Now** button on the Activity page (Spend or Logs tab).
+
+**Schedule with pg_cron** (run once in Supabase SQL editor):
+
+```sql
+select cron.schedule(
+  'snapshot-openrouter-usage-daily',
+  '0 2 * * *',           -- 2 AM UTC every day
+  $$
+  select net.http_post(
+    url := current_setting('app.supabase_url') || '/functions/v1/snapshot-openrouter-usage',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.supabase_anon_key')
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+Or use the pg_cron approach already deployed (see `supabase/migrations/20260528000010_guardrail_check_cron.sql` for pattern).
+
+**Required Edge Function secrets** (set via `supabase secrets set`):
+```
+OPENROUTER_PROVISIONING_KEY=sk-or-v1-prov-...   # management key (lists keys + activity)
+OPENROUTER_API_KEY=sk-or-v1-...                  # completion key (credits endpoint)
+```
+
+**Deduplication**: The `api_invocation_logs` table has a unique constraint on `(key_name, endpoint_id, invoked_at)`. Rerunning the sync is safe — existing rows are updated (cost_usd, total_tokens) rather than duplicated.
+
+---
+
 ## Changelog
 
 ### v2 — March 2026

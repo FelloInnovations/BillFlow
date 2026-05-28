@@ -10,9 +10,10 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, RefreshCw } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { ActivityData, ActivityKeyData } from "@/types";
+import type { SyncResult } from "./ActivityClient";
 
 const KEY_COLORS = [
   "#6366f1", "#f59e0b", "#10b981", "#f43f5e",
@@ -55,12 +56,16 @@ interface SpendTabProps {
   activity: ActivityData;
   monthRange: 3 | 6 | 12;
   setMonthRange: (n: 3 | 6 | 12) => void;
+  onSync: () => Promise<void>;
+  syncing: boolean;
+  syncResult: SyncResult;
+  syncDisabled: boolean;
 }
 
 type SortCol = "project" | "thisMonth" | "pctTotal" | "avgMonth" | "total";
 type SortDir = "asc" | "desc";
 
-export function SpendTab({ activity, monthRange, setMonthRange }: SpendTabProps) {
+export function SpendTab({ activity, monthRange, setMonthRange, onSync, syncing, syncResult, syncDisabled }: SpendTabProps) {
   const [chartView, setChartView] = useState<"key" | "day">("key");
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [showInactive, setShowInactive] = useState(false);
@@ -411,6 +416,28 @@ export function SpendTab({ activity, monthRange, setMonthRange }: SpendTabProps)
           />
           Show inactive
         </label>
+
+        <div className="ml-auto flex items-center gap-2">
+          {syncResult && (
+            <span className={cn(
+              "text-xs font-medium",
+              syncResult.errors.length > 0 ? "text-amber-500 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+            )}>
+              {syncResult.errors.length > 0
+                ? `${syncResult.synced_keys} keys synced, ${syncResult.errors.length} error(s)`
+                : `Synced ${syncResult.synced_keys} keys · ${syncResult.total_log_rows_written} rows`
+              }
+            </span>
+          )}
+          <button
+            onClick={onSync}
+            disabled={syncing || syncDisabled}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={cn("w-3 h-3", syncing && "animate-spin")} />
+            {syncing ? "Syncing…" : "Sync Now"}
+          </button>
+        </div>
       </div>
 
       {/* Chart card */}

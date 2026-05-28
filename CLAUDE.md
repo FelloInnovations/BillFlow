@@ -90,6 +90,24 @@ OPENAI_API_KEY=      # required for DashboardChat (/api/chat)
 - Start command: `next start -p 8080` (set in both `package.json` and `railway.json`)
 - Port 8080 is hardcoded (Railway assigns 8080)
 
+## Scheduled Jobs
+
+### snapshot-openrouter-usage
+- **Purpose**: Per-key activity sync from OpenRouter → `api_invocation_logs` + `openrouter_usage_snapshots`
+- **Trigger**: pg_cron daily at 2 AM UTC, or via Sync Now button → `POST /api/activity/sync`
+- **Auth**: Uses `OPENROUTER_PROVISIONING_KEY` to list keys and fetch `/api/v1/activity?api_key_hash=<hash>`
+- **Dedup**: Unique constraint on `api_invocation_logs(key_name, endpoint_id, invoked_at)` — safe to rerun
+- **Selective sync**: POST body `{ key_names: ["key-foo"] }` syncs only those keys
+
+### get-openrouter-usage
+- **Per-key path** (`?key_name=`): reads monthly totals from `openrouter_usage_snapshots` (no live OR call)
+- **Account-level** (no param): calls `/api/v1/credits` with `OPENROUTER_API_KEY`
+
+### New API route
+| Route | Purpose |
+|---|---|
+| `POST /api/activity/sync` | Triggers `snapshot-openrouter-usage` edge function, returns sync summary |
+
 ## Feature Log
 <!-- Append new features here as they are added -->
 
