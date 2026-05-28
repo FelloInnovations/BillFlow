@@ -36,6 +36,7 @@ export async function GET() {
     { data: snapshots },
     { data: hiddenRows },
     { data: overrideRows },
+    { data: projectOverrideRows },
   ] = await Promise.all([
     // Project↔tool links are established only via OpenRouter API key mappings (LLM spend)
     // or future explicit manual links. Shared infrastructure services (Supabase, Oxylabs,
@@ -60,6 +61,7 @@ export async function GET() {
       .select("key_name, month, usage_total"),
     supabase.from("hidden_tools").select("tool_key"),
     supabase.from("tool_overrides").select("*"),
+    supabase.from("tool_project_overrides").select("vendor_name, project_names, notes"),
   ]);
 
   const hiddenKeys = new Set((hiddenRows ?? []).map((r) => r.tool_key as string));
@@ -210,6 +212,9 @@ export async function GET() {
       displayLabel: canonical,
       type: llmCanonicals.has(canonical) ? "llm" : "service",
       projects: vendorToProjects.get(canonical) ?? [],
+      autoProjects: [],
+      manualProjects: [],
+      hasManualOverride: false,
       totalSpend: total,
       monthlyTrend: sortedTrend(canonicalMonthly.get(canonical) ?? new Map()),
     });
@@ -225,6 +230,9 @@ export async function GET() {
       rawKey: keyName,
       type: "llm",
       projects: projectNames,
+      autoProjects: [],
+      manualProjects: [],
+      hasManualOverride: false,
       totalSpend: orKeyTotals.get(toolKey) ?? 0,
       monthlyTrend: sortedTrend(orKeyMonthly.get(toolKey) ?? new Map()),
     });
@@ -239,7 +247,26 @@ export async function GET() {
     if (ov.notes) tool.notes = ov.notes as string;
   }
 
+  // Merge manual project attributions
+  const projectOverrideMap = new Map(
+    (projectOverrideRows ?? []).map(o => [o.vendor_name as string, o.project_names as string[]])
+  );
+  const allProjectNames = [...new Set(
+    (portfolioRows ?? []).map(r => r.agents_projects as string).filter(Boolean)
+  )].sort();
+
+  for (const tool of tools) {
+    const autoProjects = [...tool.projects];
+    const manualProjects = projectOverrideMap.get(tool.name) ?? [];
+    tool.autoProjects = autoProjects;
+    tool.manualProjects = manualProjects;
+    tool.hasManualOverride = manualProjects.length > 0;
+    if (manualProjects.length > 0) {
+      tool.projects = [...new Set([...autoProjects, ...manualProjects])];
+    }
+  }
+
   tools.sort((a, b) => b.totalSpend - a.totalSpend);
 
-  return NextResponse.json({ tools });
+  return NextResponse.json({ tools, allProjectNames });
 }

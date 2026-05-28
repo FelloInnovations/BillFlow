@@ -244,7 +244,12 @@ export function LogsTab({ allKeyNames, initialData, onSync, syncing, syncResult,
                   {data.data.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono">
-                        {formatTimestamp(log.invoked_at)}
+                        <span>{formatTimestamp(log.invoked_at)}</span>
+                        {log.source === "live_today" && (
+                          <span className="ml-1.5 text-[9px] font-bold px-1 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 uppercase tracking-wider align-middle">
+                            live
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-600 dark:text-slate-300 max-w-[140px] truncate">
                         {log.project_name ?? <span className="text-slate-300 dark:text-slate-600">—</span>}

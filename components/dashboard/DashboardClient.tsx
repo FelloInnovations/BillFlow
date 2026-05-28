@@ -23,22 +23,29 @@ export function DashboardClient({ initial }: Props) {
   const [vendorProjects, setVendorProjects] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    fetch("/api/sheets")
-      .then((r) => r.ok ? r.json() : null)
-      .then((json) => {
-        if (!json?.projects) return;
-        const map: Record<string, string[]> = {};
-        for (const project of json.projects) {
-          const vendors = (project.llms ?? []).map((l: { provider: string }) => l.provider);
-          for (const v of vendors) {
-            const key = canonicalVendor(v).toLowerCase();
-            if (!map[key]) map[key] = [];
-            if (!map[key].includes(project.name)) map[key].push(project.name);
-          }
+    Promise.all([
+      fetch("/api/sheets").then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch("/api/tools/attribute").then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([sheetsJson, attrJson]) => {
+      const map: Record<string, string[]> = {};
+      for (const project of sheetsJson?.projects ?? []) {
+        const vendors = (project.llms ?? []).map((l: { provider: string }) => l.provider);
+        for (const v of vendors) {
+          const key = canonicalVendor(v).toLowerCase();
+          if (!map[key]) map[key] = [];
+          if (!map[key].includes(project.name)) map[key].push(project.name);
         }
-        setVendorProjects(map);
-      })
-      .catch(() => {});
+      }
+      // Merge manually attributed project links
+      for (const ov of attrJson?.overrides ?? []) {
+        const key = (ov.vendor_name as string).toLowerCase();
+        if (!map[key]) map[key] = [];
+        for (const p of ov.project_names as string[]) {
+          if (!map[key].includes(p)) map[key].push(p);
+        }
+      }
+      setVendorProjects(map);
+    });
   }, []);
 
   const refresh = useCallback(async () => {

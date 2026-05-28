@@ -3,7 +3,9 @@ import { supabase } from "@/lib/supabase";
 import { getHiddenToolKeys, hiddenOrKeyNames } from "@/lib/hidden-tools";
 
 export async function GET() {
-  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes, hiddenKeys] = await Promise.all([
+  const todayUtc = new Date().toISOString().substring(0, 10);
+
+  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes, hiddenKeys, liveTodayRes] = await Promise.all([
     supabase
       .from("agents_portfolio")
       .select("agents_projects, openrouter_api_key, status")
@@ -28,15 +30,27 @@ export async function GET() {
       .order("invoked_at", { ascending: false })
       .limit(1),
     getHiddenToolKeys(),
+    // Live-today rows: partial spend for the current UTC day
+    supabase
+      .from("api_invocation_logs")
+      .select("key_name, cost_usd")
+      .eq("source", "live_today")
+      .gte("invoked_at", `${todayUtc}T00:00:00Z`),
   ]);
 
   const projects   = projectsRes.data  ?? [];
   const snapshots  = snapshotsRes.data ?? [];
   const lastSyncAt = lastSyncRes.data?.[0]?.snapshot_at ?? null;
-  // latest_date: the most recent day for which OR has returned activity (never today — OR lags by 1 day)
   const latestDate = latestLogRes.data?.[0]?.invoked_at
     ? (latestLogRes.data[0].invoked_at as string).substring(0, 10)
     : null;
+
+  // Per-key sum of live-today rows (partial spend for current UTC day)
+  const liveTodayByKey: Record<string, number> = {};
+  for (const row of liveTodayRes.data ?? []) {
+    const k = row.key_name as string;
+    liveTodayByKey[k] = (liveTodayByKey[k] ?? 0) + (Number(row.cost_usd) || 0);
+  }
 
   // Per-key distinct models from logs
   const modelsByKey: Record<string, Set<string>> = {};
@@ -127,7 +141,8 @@ export async function GET() {
       max:   completedSpends.length ? Math.max(...completedSpends) : 0,
       avg,
       trend,
-      current_month_spend: monthly.find((m) => m.month === currentMonth)?.spend ?? 0,
+      // Snapshots cover through yesterday; add live_today rows for today's partial data
+      current_month_spend: (monthly.find((m) => m.month === currentMonth)?.spend ?? 0) + (liveTodayByKey[keyName] ?? 0),
       models: [...(modelsByKey[keyName] ?? new Set<string>())],
     };
   });

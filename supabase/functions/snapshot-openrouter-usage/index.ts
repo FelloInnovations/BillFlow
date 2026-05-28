@@ -170,12 +170,62 @@ serve(async (req) => {
       }
     }
 
+    // ── 4. Live today layer ─────────────────────────────────────────────────────
+    // OR /api/v1/activity returns only completed UTC days. Use ?date=<today> to
+    // get partial data for the current day and upsert it as source='live_today'.
+    // Re-syncing always refreshes these rows via ON CONFLICT DO UPDATE.
+    const todayDate = new Date().toISOString().split('T')[0];
+    let liveRowsWritten = 0;
+
+    for (const key of keys) {
+      try {
+        const liveRes = await fetch(
+          `https://openrouter.ai/api/v1/activity?api_key_hash=${encodeURIComponent(key.hash!)}&date=${todayDate}`,
+          { headers: { Authorization: `Bearer ${provKey}` } }
+        );
+        if (!liveRes.ok) continue;
+
+        const liveJson = await liveRes.json();
+        const liveRecords: Array<{
+          date?: string; model?: string; endpoint_id?: string;
+          usage?: number; requests?: number; prompt_tokens?: number;
+          completion_tokens?: number; provider_name?: string;
+        }> = liveJson.data ?? [];
+        if (liveRecords.length === 0) continue;
+
+        const projectName = keyToProject.get(key.name!) ?? null;
+        const liveRows = liveRecords.map(r => ({
+          key_name:          key.name!,
+          project_name:      projectName,
+          model:             r.model ?? null,
+          prompt_tokens:     r.prompt_tokens ?? null,
+          completion_tokens: r.completion_tokens ?? null,
+          total_tokens:      (r.prompt_tokens != null && r.completion_tokens != null)
+            ? r.prompt_tokens + r.completion_tokens : null,
+          cost_usd:          r.usage ?? null,
+          invoked_at:        `${todayDate}T00:00:00Z`,
+          provider_name:     r.provider_name ?? null,
+          endpoint_id:       r.endpoint_id ?? null,
+          source:            'live_today',
+        }));
+
+        const { error: liveErr } = await db
+          .from('api_invocation_logs')
+          .upsert(liveRows, { onConflict: 'key_name,endpoint_id,invoked_at', ignoreDuplicates: false });
+
+        if (!liveErr) liveRowsWritten += liveRows.length;
+      } catch {
+        // graceful degradation — completed-day data is already synced
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         synced_keys: syncedKeys.length,
         key_names: syncedKeys,
         total_log_rows_written: totalLogRowsWritten,
+        live_rows_written: liveRowsWritten,
         unauthorized_keys_ignored: unauthorizedCount,
         errors,
       }),

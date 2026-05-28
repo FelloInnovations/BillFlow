@@ -101,6 +101,7 @@ export function SpendTab({
   const [keyDetailLoading, setKeyDetailLoading] = useState<Record<string, boolean>>({});
 
   const currentMonth = useMemo(() => new Date().toISOString().substring(0, 7), []);
+  const todayUtc     = useMemo(() => new Date().toISOString().substring(0, 10), []);
 
   const cutoffMonth = useMemo(() => {
     const d = new Date();
@@ -537,7 +538,10 @@ export function SpendTab({
                 </span>
                 {activity.latest_date && (
                   <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-0.5">
-                    · data through {formatDateShort(activity.latest_date)} · today&apos;s spend available tomorrow
+                    {activity.latest_date === todayUtc
+                      ? "· data through today (live) · updates on each sync"
+                      : `· data through ${formatDateShort(activity.latest_date)} · today's spend available tomorrow`
+                    }
                   </p>
                 )}
               </div>

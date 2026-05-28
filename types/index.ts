@@ -87,7 +87,10 @@ export interface Tool {
   displayLabel: string;  // UI label: "OpenRouter", "OpenRouter — Octo, YoungTeam Octo"
   rawKey?: string;       // for OR per-key entries only — raw key name shown in tooltip
   type: "llm" | "service";
-  projects: string[];
+  projects: string[];          // union of auto + manual
+  autoProjects: string[];      // from OpenRouter key matching
+  manualProjects: string[];    // from tool_project_overrides
+  hasManualOverride: boolean;
   totalSpend: number;
   monthlyTrend: { month: string; total: number }[];
   hidden?: boolean;

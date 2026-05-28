@@ -5,14 +5,14 @@ import { ToolCard } from "@/components/tools/ToolCard";
 import { Tool } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
-async function fetchTools(): Promise<Tool[]> {
+async function fetchTools(): Promise<{ tools: Tool[]; allProjectNames: string[] }> {
   try {
     const res = await fetch("/api/tools", { cache: "no-store" });
-    if (!res.ok) return [];
+    if (!res.ok) return { tools: [], allProjectNames: [] };
     const json = await res.json();
-    return json.tools ?? [];
+    return { tools: json.tools ?? [], allProjectNames: json.allProjectNames ?? [] };
   } catch {
-    return [];
+    return { tools: [], allProjectNames: [] };
   }
 }
 
@@ -28,11 +28,13 @@ function hasRecentActivity(tool: Tool): boolean {
 
 export default function ToolsPage() {
   const [tools, setTools] = useState<Tool[]>([]);
+  const [allProjectNames, setAllProjectNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchTools().then((t) => {
+    fetchTools().then(({ tools: t, allProjectNames: p }) => {
       setTools(t);
+      setAllProjectNames(p);
       setLoading(false);
     });
   }, []);
@@ -46,6 +48,16 @@ export default function ToolsPage() {
       prev.map((t) =>
         t.name === toolKey ? { ...t, ...updates } : t
       )
+    );
+  }
+
+  function handleAttributeChange(toolKey: string, manualProjects: string[]) {
+    setTools((prev) =>
+      prev.map((t) => {
+        if (t.name !== toolKey) return t;
+        const merged = [...new Set([...(t.autoProjects ?? []), ...manualProjects])];
+        return { ...t, manualProjects, hasManualOverride: manualProjects.length > 0, projects: merged };
+      })
     );
   }
 
@@ -85,7 +97,7 @@ export default function ToolsPage() {
           </h2>
           <div className="space-y-2">
             {llms.map((tool) => (
-              <ToolCard key={tool.name} tool={tool} onDelete={handleDelete} onEdit={handleEdit} />
+              <ToolCard key={tool.name} tool={tool} onDelete={handleDelete} onEdit={handleEdit} allProjectNames={allProjectNames} onAttributeChange={handleAttributeChange} />
             ))}
           </div>
         </section>
@@ -102,7 +114,7 @@ export default function ToolsPage() {
           </div>
           <div className="space-y-2">
             {services.map((tool) => (
-              <ToolCard key={tool.name} tool={tool} onDelete={handleDelete} onEdit={handleEdit} />
+              <ToolCard key={tool.name} tool={tool} onDelete={handleDelete} onEdit={handleEdit} allProjectNames={allProjectNames} onAttributeChange={handleAttributeChange} />
             ))}
           </div>
         </section>
