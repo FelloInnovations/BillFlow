@@ -94,12 +94,13 @@ export async function GET() {
       }
     }
 
-    // OR named key → keyToProjects
+    // OR named key(s) — comma-separated when a project uses multiple keys
     if (row.openrouter_api_key) {
-      const key: string = row.openrouter_api_key;
-      const arr = keyToProjects.get(key) ?? [];
-      if (!arr.includes(project)) arr.push(project);
-      keyToProjects.set(key, arr);
+      for (const key of (row.openrouter_api_key as string).split(",").map((k: string) => k.trim()).filter(Boolean)) {
+        const arr = keyToProjects.get(key) ?? [];
+        if (!arr.includes(project)) arr.push(project);
+        keyToProjects.set(key, arr);
+      }
     }
   }
 
