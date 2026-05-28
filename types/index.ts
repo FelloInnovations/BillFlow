@@ -129,6 +129,35 @@ export interface ForecastResult {
   computedAt: string;
 }
 
+export interface ActivityKeyData {
+  key_name: string;
+  project_name: string;
+  project_status: string | null;
+  monthly: { month: string; spend: number }[];
+  total: number;
+  min: number;
+  max: number;
+  avg: number;
+  current_month_spend: number;
+}
+
+export interface ActivityData {
+  keys: ActivityKeyData[];
+  months: string[];
+  all_projects: { project_name: string; key_name: string | null; status: string | null }[];
+}
+
+export interface Guardrail {
+  id: string;
+  project_name: string;
+  monthly_budget_usd: number | null;
+  warning_threshold_pct: number;
+  recommended_budget_usd: number | null;
+  last_warned_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface InvoiceFilters {
   vendor?: string;
   status?: string;
