@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 export async function GET() {
-  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes] = await Promise.all([
+  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes] = await Promise.all([
     supabase
       .from("agents_portfolio")
       .select("agents_projects, openrouter_api_key, status")
@@ -21,11 +21,20 @@ export async function GET() {
       .select("snapshot_at")
       .order("snapshot_at", { ascending: false })
       .limit(1),
+    supabase
+      .from("api_invocation_logs")
+      .select("invoked_at")
+      .order("invoked_at", { ascending: false })
+      .limit(1),
   ]);
 
   const projects   = projectsRes.data  ?? [];
   const snapshots  = snapshotsRes.data ?? [];
   const lastSyncAt = lastSyncRes.data?.[0]?.snapshot_at ?? null;
+  // latest_date: the most recent day for which OR has returned activity (never today — OR lags by 1 day)
+  const latestDate = latestLogRes.data?.[0]?.invoked_at
+    ? (latestLogRes.data[0].invoked_at as string).substring(0, 10)
+    : null;
 
   // Per-key distinct models from logs
   const modelsByKey: Record<string, Set<string>> = {};
@@ -126,5 +135,5 @@ export async function GET() {
     status:       p.status as string | null,
   }));
 
-  return NextResponse.json({ keys, months, all_projects, last_synced_at: lastSyncAt });
+  return NextResponse.json({ keys, months, all_projects, last_synced_at: lastSyncAt, latest_date: latestDate });
 }

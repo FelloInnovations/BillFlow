@@ -163,6 +163,7 @@ export interface ActivityData {
   months: string[];
   all_projects: { project_name: string; key_name: string | null; status: string | null }[];
   last_synced_at: string | null;
+  latest_date: string | null;
 }
 
 export interface Guardrail {

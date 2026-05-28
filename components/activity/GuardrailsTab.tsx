@@ -157,6 +157,8 @@ export function GuardrailsTab({ activity, guardrails, onSave, onDelete }: Guardr
     );
   }
 
+  const noGuardrailsSet = protectedProjects.length === 0;
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -164,8 +166,18 @@ export function GuardrailsTab({ activity, guardrails, onSave, onDelete }: Guardr
         Current spend = live OR usage minus last month&apos;s snapshot baseline.
       </p>
 
-      {/* Org-wide summary card */}
-      {guardrails.some(g => g.monthly_budget_usd) && (
+      {/* Empty state when no budgets configured */}
+      {noGuardrailsSet && unprotectedProjects.length > 0 && (
+        <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 p-5">
+          <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300 mb-0.5">No budgets set yet</p>
+          <p className="text-xs text-indigo-600 dark:text-indigo-400">
+            Add a monthly budget to any project below to enable spend alerts.
+          </p>
+        </div>
+      )}
+
+      {/* Org-wide summary card — only when at least one guardrail exists */}
+      {!noGuardrailsSet && guardrails.some(g => g.monthly_budget_usd) && (
         <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div>
@@ -312,53 +324,106 @@ export function GuardrailsTab({ activity, guardrails, onSave, onDelete }: Guardr
 
       {/* Unprotected section */}
       {unprotectedProjects.length > 0 && (
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-          <button
-            onClick={() => setUnprotectedExpanded(e => !e)}
-            className="w-full flex items-center gap-2 px-5 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-          >
-            {unprotectedExpanded
-              ? <ChevronDown className="w-3.5 h-3.5" />
-              : <ChevronRight className="w-3.5 h-3.5" />
-            }
-            Unprotected Projects ({unprotectedProjects.length})
-          </button>
-          {unprotectedExpanded && (
-            <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/60">
+        noGuardrailsSet ? (
+          /* Compact table — shown auto-expanded when no guardrails exist */
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                All Projects ({unprotectedProjects.length})
+              </h3>
+            </div>
+            <div className="divide-y divide-slate-50 dark:divide-slate-800/60">
               {unprotectedProjects.map(proj => {
                 const spend = currentSpendByProject[proj.project_name] ?? 0;
                 const keyData = keyByProject[proj.project_name];
                 const recBudget = keyData ? recommendedBudget(keyData, currentMonth) : null;
                 const isEditing = editing === proj.project_name;
                 return (
-                  <div key={proj.project_name} className="px-5 py-3.5">
+                  <div key={proj.project_name} className="px-5 py-3">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div>
-                        <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{proj.project_name}</span>
-                        {proj.key_name && (
-                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{proj.key_name}</p>
-                        )}
-                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                          This month: <span className="font-medium text-slate-600 dark:text-slate-300">{formatCurrency(spend)}</span>
-                        </p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="min-w-0">
+                          <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{proj.project_name}</span>
+                          {proj.status && (
+                            <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 uppercase">{proj.status}</span>
+                          )}
+                          {proj.key_name && (
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono truncate">{proj.key_name}</p>
+                          )}
+                        </div>
                       </div>
-                      {!isEditing && (
-                        <button
-                          onClick={() => startEdit(proj.project_name)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shrink-0"
-                        >
-                          <Pencil className="w-3 h-3" />
-                          Set budget
-                        </button>
-                      )}
+                      <div className="flex items-center gap-4 shrink-0">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {spend > 0 ? <span className="font-semibold text-indigo-600 dark:text-indigo-400">{formatCurrency(spend)}</span> : <span className="text-slate-300 dark:text-slate-600">$0.00</span>}
+                          <span className="text-slate-300 dark:text-slate-600 ml-1">this month</span>
+                        </span>
+                        {!isEditing && (
+                          <button
+                            onClick={() => startEdit(proj.project_name)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            + Set budget
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {isEditing && <EditForm projectName={proj.project_name} recBudget={recBudget} />}
                   </div>
                 );
               })}
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          /* Accordion — shown when some projects are already protected */
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setUnprotectedExpanded(e => !e)}
+              className="w-full flex items-center gap-2 px-5 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+            >
+              {unprotectedExpanded
+                ? <ChevronDown className="w-3.5 h-3.5" />
+                : <ChevronRight className="w-3.5 h-3.5" />
+              }
+              Unprotected Projects ({unprotectedProjects.length})
+            </button>
+            {unprotectedExpanded && (
+              <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/60">
+                {unprotectedProjects.map(proj => {
+                  const spend = currentSpendByProject[proj.project_name] ?? 0;
+                  const keyData = keyByProject[proj.project_name];
+                  const recBudget = keyData ? recommendedBudget(keyData, currentMonth) : null;
+                  const isEditing = editing === proj.project_name;
+                  return (
+                    <div key={proj.project_name} className="px-5 py-3.5">
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                          <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{proj.project_name}</span>
+                          {proj.key_name && (
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{proj.key_name}</p>
+                          )}
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                            This month: <span className="font-medium text-slate-600 dark:text-slate-300">{formatCurrency(spend)}</span>
+                          </p>
+                        </div>
+                        {!isEditing && (
+                          <button
+                            onClick={() => startEdit(proj.project_name)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shrink-0"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Set budget
+                          </button>
+                        )}
+                      </div>
+                      {isEditing && <EditForm projectName={proj.project_name} recBudget={recBudget} />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )
       )}
     </div>
   );

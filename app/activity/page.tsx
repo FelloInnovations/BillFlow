@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { ActivityClient } from "@/components/activity/ActivityClient";
 import { ActivityData, Guardrail, LogEntry, PaginatedResult } from "@/types";
 
-const EMPTY_ACTIVITY: ActivityData       = { keys: [], months: [], all_projects: [], last_synced_at: null };
+const EMPTY_ACTIVITY: ActivityData       = { keys: [], months: [], all_projects: [], last_synced_at: null, latest_date: null };
 const EMPTY_LOGS: PaginatedResult<LogEntry> = { data: [], total: 0, page: 1, pageSize: 50, totalPages: 0 };
 
 async function getData(): Promise<{

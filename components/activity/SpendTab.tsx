@@ -28,6 +28,12 @@ function formatDay(d: string) {
   return `${names[parseInt(mo) - 1]} ${parseInt(dd)}`;
 }
 
+function formatDateShort(d: string) {
+  const [, mo, dd] = d.split("-");
+  const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${names[parseInt(mo) - 1]} ${parseInt(dd)}`;
+}
+
 function formatLastSync(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -36,7 +42,14 @@ function formatLastSync(iso: string | null): string {
 }
 
 function TrendBadge({ trend }: { trend: "up" | "down" | "stable" | null }) {
-  if (!trend) return <span className="text-slate-300 dark:text-slate-600 text-sm">—</span>;
+  if (!trend) return (
+    <span
+      title="Trend available after 2 months of data"
+      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-help"
+    >
+      New
+    </span>
+  );
   if (trend === "up")
     return <span className="text-emerald-500 dark:text-emerald-400 font-bold text-base">↑</span>;
   if (trend === "down")
@@ -128,9 +141,12 @@ export function SpendTab({
     for (const k of activity.keys) {
       const inRange = k.monthly.filter(m => m.month >= cutoffMonth);
       const total = inRange.reduce((s, m) => s + m.spend, 0);
-      const activeMonths = inRange.filter(m => m.spend > 0 && m.month < currentMonth).length;
-      const avg = activeMonths > 0 ? total / activeMonths : 0;
-      map.set(k.key_name, { total, activeMonths, avg });
+      // snapshotMonths: completed months (< currentMonth) that had actual spend
+      const snapshotMonths = inRange.filter(m => m.spend > 0 && m.month < currentMonth).length;
+      // If no completed months yet, treat current partial month as 1 month to avoid $0.00 avg
+      const effectiveMonths = snapshotMonths > 0 ? snapshotMonths : (total > 0 ? 1 : 0);
+      const avg = effectiveMonths > 0 ? total / effectiveMonths : 0;
+      map.set(k.key_name, { total, activeMonths: snapshotMonths, avg });
     }
     return map;
   }, [activity.keys, cutoffMonth, currentMonth]);
@@ -145,10 +161,13 @@ export function SpendTab({
     [activity.months, cutoffMonth]
   );
 
+  // Fix 1 + 7: start from cutoffMonth (reflects period selection), end at actual latest DB date
   const periodLabel = useMemo(() => {
-    if (!visibleMonths.length) return "";
-    return `${formatMonth(visibleMonths[0])} – ${formatMonth(visibleMonths[visibleMonths.length - 1])}`;
-  }, [visibleMonths]);
+    const end = activity.latest_date
+      ? formatDateShort(activity.latest_date)
+      : visibleMonths.length > 0 ? formatMonth(visibleMonths[visibleMonths.length - 1]) : "";
+    return end ? `${formatMonth(cutoffMonth)} – ${end}` : "";
+  }, [cutoffMonth, activity.latest_date, visibleMonths]);
 
   const periodTotal = useMemo(
     () => [...periodStats.values()].reduce((s, v) => s + v.total, 0),
@@ -512,9 +531,16 @@ export function SpendTab({
               </span>
             )}
             {lastSyncAt && (
-              <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                Last synced: {formatLastSync(lastSyncAt)}
-              </span>
+              <div className="text-right">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                  Last synced: {formatLastSync(lastSyncAt)}
+                </span>
+                {activity.latest_date && (
+                  <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-0.5">
+                    · data through {formatDateShort(activity.latest_date)} · today&apos;s spend available tomorrow
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <button
@@ -542,11 +568,11 @@ export function SpendTab({
         </div>
 
         {chartView === "day" ? (
-          dayLoading ? (
+          (dayLoading || dayData === null) ? (
             <div className="flex items-center justify-center h-40 gap-2 text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading daily data…
             </div>
-          ) : !dayData || dayData.days.length === 0 ? (
+          ) : dayData.days.length === 0 ? (
             <div className="flex items-center justify-center h-40">
               <p className="text-sm text-slate-400 dark:text-slate-500 text-center max-w-sm">
                 No daily data for this period. Run Sync Now to populate.
@@ -704,10 +730,16 @@ export function SpendTab({
           <div className="border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={() => setInactiveExpanded(e => !e)}
-              className="w-full flex items-center gap-2 px-5 py-3 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+              className="w-full flex items-center gap-2 px-5 py-3 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
             >
-              {inactiveExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-              Inactive this month ({tableInactiveKeys.length})
+              {inactiveExpanded ? <ChevronUp className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+              <span>
+                Inactive this month:{" "}
+                {tableInactiveKeys.slice(0, 3).map(k => k.project_name).join(", ")}
+                {tableInactiveKeys.length > 3
+                  ? ` … (${tableInactiveKeys.length} total)`
+                  : ` (${tableInactiveKeys.length})`}
+              </span>
             </button>
             {inactiveExpanded && (
               <table className="w-full text-sm">
