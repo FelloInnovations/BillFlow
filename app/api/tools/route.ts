@@ -126,21 +126,41 @@ export async function GET() {
     canonicalMonthly.set(canonical, monthMap);
   }
 
-  // ── OR per-key spend: snapshots (historical) + live current month ────────
+  // ── OR per-key spend: cumulative snapshots + live refresh ───────────────
+  // Snapshots store CUMULATIVE all-time usage per key per month.
+  // Total  = latest snapshot's usage_total for that key.
+  // Trend  = deltas between consecutive monthly snapshots.
+  // Live   = get-openrouter-usage returns key.usage (cumulative) for the
+  //          current key; current-month delta = liveTotal - latestSnapshot.
+
+  // Group and sort snapshots by key → sorted by month ascending
+  const keySnaps = new Map<string, { month: string; cumulative: number }[]>();
+  for (const snap of snapshots ?? []) {
+    const k = snap.key_name as string;
+    if (!keySnaps.has(k)) keySnaps.set(k, []);
+    keySnaps.get(k)!.push({ month: snap.month as string, cumulative: Number(snap.usage_total) });
+  }
+  for (const snaps of keySnaps.values()) snaps.sort((a, b) => a.month.localeCompare(b.month));
+
   const orKeyTotals  = new Map<string, number>();
   const orKeyMonthly = new Map<string, Map<string, number>>();
 
-  // Load historical snapshots
-  for (const snap of snapshots ?? []) {
-    const toolKey = `OpenRouter:${snap.key_name}`;
-    orKeyTotals.set(toolKey, (orKeyTotals.get(toolKey) ?? 0) + Number(snap.usage_total));
-    const monthMap = orKeyMonthly.get(toolKey) ?? new Map<string, number>();
-    const label = yyyyMmToLabel(snap.month as string);
-    monthMap.set(label, (monthMap.get(label) ?? 0) + Number(snap.usage_total));
+  // Build totals and monthly deltas from snapshot history
+  for (const [keyName, snaps] of keySnaps.entries()) {
+    const toolKey = `OpenRouter:${keyName}`;
+    // Total = most recent cumulative value
+    orKeyTotals.set(toolKey, snaps[snaps.length - 1].cumulative);
+    // Monthly trend = deltas between consecutive cumulative snapshots
+    const monthMap = new Map<string, number>();
+    for (let i = 0; i < snaps.length; i++) {
+      const delta = i === 0 ? snaps[i].cumulative : snaps[i].cumulative - snaps[i - 1].cumulative;
+      if (delta > 0) monthMap.set(yyyyMmToLabel(snaps[i].month), delta);
+    }
     orKeyMonthly.set(toolKey, monthMap);
   }
 
-  // Fetch live current-month usage for each OR key in parallel
+  // Live refresh: call get-openrouter-usage (now uses key.usage, not activity API)
+  // Updates the current total and adds a current-month delta entry if usage increased.
   await Promise.allSettled(
     [...keyToProjects.keys()].map(async (keyName) => {
       const toolKey = `OpenRouter:${keyName}`;
@@ -150,17 +170,23 @@ export async function GET() {
         );
         if (orErr || !orData?.success) return;
 
-        // Add only current month (snapshots already cover past months)
-        const liveAmount: number = (orData.monthly as Record<string, number>)?.[currentMonth] ?? 0;
-        if (liveAmount > 0) {
-          orKeyTotals.set(toolKey, (orKeyTotals.get(toolKey) ?? 0) + liveAmount);
+        const liveTotal: number = orData.usage_total ?? 0;
+        if (liveTotal <= 0) return;
+
+        // Update total with fresh data
+        orKeyTotals.set(toolKey, liveTotal);
+
+        // Current-month delta = liveTotal minus the latest stored cumulative
+        const snaps = keySnaps.get(keyName) ?? [];
+        const prevCumulative = snaps.length > 0 ? snaps[snaps.length - 1].cumulative : 0;
+        const delta = Math.max(0, liveTotal - prevCumulative);
+        if (delta > 0) {
           const monthMap = orKeyMonthly.get(toolKey) ?? new Map<string, number>();
-          const label = yyyyMmToLabel(currentMonth);
-          monthMap.set(label, (monthMap.get(label) ?? 0) + liveAmount);
+          monthMap.set(yyyyMmToLabel(currentMonth), delta);
           orKeyMonthly.set(toolKey, monthMap);
         }
       } catch {
-        // graceful degradation — snapshot data still available
+        // graceful degradation — snapshot totals still available
       }
     })
   );
