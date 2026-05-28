@@ -52,11 +52,14 @@ serve(async (req) => {
     // ── 2. Fetch project_name mapping from agents_portfolio ──────────────────
     const { data: portfolioRows } = await db
       .from('agents_portfolio')
-      .select('project_name, openrouter_key_name');
+      .select('agents_projects, openrouter_api_key');
     const keyToProject = new Map<string, string>();
     for (const row of (portfolioRows ?? [])) {
-      if (row.openrouter_key_name && row.project_name) {
-        keyToProject.set(row.openrouter_key_name, row.project_name);
+      if (!row.openrouter_api_key || !row.agents_projects) continue;
+      // Handle comma-separated keys (e.g. "Fello_Academy_Main, Fello_Academy_Backup")
+      for (const k of row.openrouter_api_key.split(',')) {
+        const key = k.trim();
+        if (key) keyToProject.set(key, row.agents_projects);
       }
     }
 
