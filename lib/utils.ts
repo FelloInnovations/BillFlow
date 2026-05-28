@@ -41,7 +41,7 @@ export function canonicalVendor(name: string): string {
   if (lower.includes("google") || lower.includes("gemini")) return "OpenRouter";
   if (lower.includes("x.ai") || lower.includes("xai")) return "OpenRouter";
   // Services
-  if (lower.includes("scraperapi") || lower.includes("scraper api") || lower.includes("scraper")) return "ScraperAPI";
+  if (lower.includes("scraperapi") || lower.includes("scraper api") || lower.includes("scraper") || lower.includes("saas.group")) return "ScraperAPI";
   if (lower.includes("oxylabs")) return "Oxylabs";
   if (lower.includes("apify")) return "Apify";
   if (lower.includes("elevenlabs") || lower.includes("eleven labs")) return "ElevenLabs";
@@ -52,7 +52,6 @@ export function canonicalVendor(name: string): string {
   if (lower.includes("ngrok")) return "ngrok";
   if (lower.includes("railway")) return "Railway";
   if (lower.includes("profound")) return "Profound";
-  if (lower.includes("saas.group")) return "saas.group";
   if (lower.includes("transmedia")) return "TransMedia";
   return name;
 }

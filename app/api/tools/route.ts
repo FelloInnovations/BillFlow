@@ -84,18 +84,6 @@ export async function GET() {
       }
     }
 
-    // Parse services_used column (comma-separated)
-    if (row.services_used) {
-      for (const raw of (row.services_used as string).split(",")) {
-        const svc = raw.trim();
-        if (!svc || svc === "-") continue;
-        const canonical = canonicalVendor(svc);
-        const arr = vendorToProjects.get(canonical) ?? [];
-        if (!arr.includes(project)) arr.push(project);
-        vendorToProjects.set(canonical, arr);
-      }
-    }
-
     // OR named key(s) — comma-separated when a project uses multiple keys
     if (row.openrouter_api_key) {
       for (const key of (row.openrouter_api_key as string).split(",").map((k: string) => k.trim()).filter(Boolean)) {
