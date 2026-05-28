@@ -18,13 +18,13 @@ export async function GET() {
   const anchorYear = anchor.getFullYear();
   const anchorMonth = anchor.getMonth(); // 0-indexed
 
-  // "Last month" = the anchor month (most recent month with data)
+  // "Last complete month" = the month BEFORE the anchor month.
+  // The anchor month itself may still be in progress (e.g., unpaid invoices arriving mid-month),
+  // so we report the prior month as the completed paid period.
+  const lastCompleteDate = new Date(anchorYear, anchorMonth - 1, 1);
+  const firstOfLastComplete = lastCompleteDate.toISOString().split("T")[0];
   const firstOfAnchorMonth = new Date(anchorYear, anchorMonth, 1).toISOString().split("T")[0];
-  const firstOfNextFromAnchor = new Date(anchorYear, anchorMonth + 1, 1).toISOString().split("T")[0];
-  const spendMonth = new Date(anchorYear, anchorMonth, 1).toLocaleDateString("en-US", {
-    month: "short",
-    year: "numeric",
-  });
+  const spendMonth = lastCompleteDate.toLocaleDateString("en-US", { month: "short", year: "numeric" });
   const twelveMonthsAgo = new Date(anchorYear - 1, anchorMonth, 1).toISOString().split("T")[0];
 
   // Upcoming-due checks use the real clock (future due dates are always real-time)
@@ -32,13 +32,13 @@ export async function GET() {
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes] = await Promise.all([
-    // Anchor-month paid spend
+    // Last complete month paid spend (anchor month - 1)
     supabase
       .from("financial_records")
       .select("total_amount")
       .eq("payment_status", "paid")
-      .gte("invoice_date", firstOfAnchorMonth)
-      .lt("invoice_date", firstOfNextFromAnchor)
+      .gte("invoice_date", firstOfLastComplete)
+      .lt("invoice_date", firstOfAnchorMonth)
       .not("vendor_name", "ilike", "%makemytrip%"),
 
     // All unpaid records
