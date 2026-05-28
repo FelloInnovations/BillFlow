@@ -17,3 +17,4 @@ update agents_portfolio set openrouter_api_key = 'blog-writter-code'            
 update agents_portfolio set openrouter_api_key = 'blog-writter-code'                 where agents_projects = 'Arthur for Young Team';
 update agents_portfolio set openrouter_api_key = 'aurthur_audit'                     where agents_projects = 'Arthur Audit';
 update agents_portfolio set openrouter_api_key = 'aurthur_audit'                     where agents_projects = 'Arthur Crawler (brain)';
+update agents_portfolio set openrouter_api_key = 'billflow'                          where agents_projects = 'BillFlow';

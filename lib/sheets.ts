@@ -63,7 +63,7 @@ export const STATIC_PROJECTS: Project[] = [
     services: [],
     status: "production",
     totalSpend: null,
-    openrouter_api_key: null,
+    openrouter_api_key: "billflow",
   },
   {
     name: "Fia",
