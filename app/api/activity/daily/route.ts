@@ -10,9 +10,21 @@ export async function GET(req: NextRequest) {
   cutoff.setMonth(cutoff.getMonth() - months);
   const cutoffStr = cutoff.toISOString().substring(0, 10);
 
+  // Only query authorized keys (defense in depth — DB is clean after migration 15)
+  const AUTHORIZED_KEYS = [
+    "octo","billflow","coworking","mad (adarsh)","GTM-Digital-Office",
+    "fello-designer-portal","blog-writter-code","aurthur_audit",
+    "Felix Sells","felix-launch-command-center",
+    "ATRIUM - Agnetic real estate - Hemanth","Marketing Labs - Hemanth",
+    "Fello_Academy_Main","Fello_Academy_Backup",
+    "openclaw (nikhil)","openclaw(riyon)","spiderclaw",
+    "signalcards(boduu)","mirofish","scrrpy(code version)",
+  ];
+
   const { data } = await supabase
     .from("api_invocation_logs")
     .select("key_name, invoked_at, cost_usd")
+    .in("key_name", AUTHORIZED_KEYS)
     .gte("invoked_at", `${cutoffStr}T00:00:00Z`)
     .order("invoked_at", { ascending: true });
 

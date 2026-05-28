@@ -1,7 +1,6 @@
 // @ts-nocheck
-// Scheduled edge function — syncs per-key activity from OpenRouter to Supabase.
-// Uses provisioning key to list all keys, then fetches activity per key_hash.
-// Writes attributed rows to api_invocation_logs and monthly sums to openrouter_usage_snapshots.
+// IMPORTANT: only syncs keys explicitly listed in agents_portfolio.openrouter_api_key.
+// Any OpenRouter key not in the portfolio allowlist is ignored entirely.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -35,33 +34,47 @@ serve(async (req) => {
         filterKeyNames = body.key_names;
       }
     } catch {
-      // No body or not JSON — sync all keys
+      // No body or not JSON — sync all authorized keys
     }
 
-    // ── 1. Fetch all keys from OpenRouter ────────────────────────────────────
+    // ── 1. Query agents_portfolio to build the authorized key set ────────────
+    // This is the source of truth — only keys listed here will be synced.
+    const { data: portfolioRows } = await db
+      .from('agents_portfolio')
+      .select('agents_projects, openrouter_api_key');
+
+    const keyToProject = new Map<string, string>();
+    const authorizedKeyNames = new Set<string>();
+    for (const row of (portfolioRows ?? [])) {
+      if (!row.openrouter_api_key || !row.agents_projects) continue;
+      for (const k of row.openrouter_api_key.split(',')) {
+        const key = k.trim();
+        if (key) {
+          keyToProject.set(key, row.agents_projects);
+          authorizedKeyNames.add(key);
+        }
+      }
+    }
+
+    // ── 2. Fetch all keys from OpenRouter, filter to authorized set ──────────
     const keysRes = await fetch('https://openrouter.ai/api/v1/keys', {
       headers: { Authorization: `Bearer ${provKey}` },
     });
     if (!keysRes.ok) throw new Error(`keys API ${keysRes.status}: ${await keysRes.text()}`);
 
     const allKeys: Array<{ name?: string; hash?: string; usage?: number }> = (await keysRes.json()).data ?? [];
-    const keys = allKeys.filter(k => k.name && k.hash && (
-      filterKeyNames === null || filterKeyNames.includes(k.name)
-    ));
 
-    // ── 2. Fetch project_name mapping from agents_portfolio ──────────────────
-    const { data: portfolioRows } = await db
-      .from('agents_portfolio')
-      .select('agents_projects, openrouter_api_key');
-    const keyToProject = new Map<string, string>();
-    for (const row of (portfolioRows ?? [])) {
-      if (!row.openrouter_api_key || !row.agents_projects) continue;
-      // Handle comma-separated keys (e.g. "Fello_Academy_Main, Fello_Academy_Backup")
-      for (const k of row.openrouter_api_key.split(',')) {
-        const key = k.trim();
-        if (key) keyToProject.set(key, row.agents_projects);
-      }
-    }
+    const keys = allKeys.filter(k => {
+      if (!k.name || !k.hash) return false;
+      if (!authorizedKeyNames.has(k.name)) return false;
+      if (filterKeyNames !== null && !filterKeyNames.includes(k.name)) return false;
+      return true;
+    });
+
+    const unauthorizedCount = allKeys.filter(k => k.name && !authorizedKeyNames.has(k.name)).length;
+    console.log(
+      `[snapshot] authorized keys: ${authorizedKeyNames.size} | OR keys found: ${allKeys.length} | unauthorized (ignored): ${unauthorizedCount} | syncing: ${keys.length}`
+    );
 
     // ── 3. Per-key activity sync ─────────────────────────────────────────────
     let totalLogRowsWritten = 0;
@@ -98,7 +111,6 @@ serve(async (req) => {
 
         const projectName = keyToProject.get(key.name!) ?? null;
 
-        // Build log rows — one per activity record
         const logRows = records.map(r => ({
           key_name:          key.name!,
           project_name:      projectName,
@@ -115,7 +127,7 @@ serve(async (req) => {
           source:            'openrouter_activity_sync',
         }));
 
-        const { error: upsertErr, count } = await db
+        const { error: upsertErr } = await db
           .from('api_invocation_logs')
           .upsert(logRows, {
             onConflict: 'key_name,endpoint_id,invoked_at',
@@ -128,11 +140,10 @@ serve(async (req) => {
           continue;
         }
 
-        // Build monthly sums from activity data for openrouter_usage_snapshots
         const monthMap = new Map<string, number>();
         for (const r of records) {
           if (!r.date) continue;
-          const month = r.date.substring(0, 7); // 'YYYY-MM' (works for both "2026-05-27" and "2026-05-27 00:00:00")
+          const month = r.date.substring(0, 7);
           monthMap.set(month, (monthMap.get(month) ?? 0) + (r.usage ?? 0));
         }
 
@@ -165,6 +176,7 @@ serve(async (req) => {
         synced_keys: syncedKeys.length,
         key_names: syncedKeys,
         total_log_rows_written: totalLogRowsWritten,
+        unauthorized_keys_ignored: unauthorizedCount,
         errors,
       }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } }

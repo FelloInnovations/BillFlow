@@ -12,6 +12,21 @@ export async function GET(
   cutoff.setDate(cutoff.getDate() - 30);
   const cutoffStr = cutoff.toISOString().substring(0, 10);
 
+  // Authorized allowlist — reject requests for unauthorized keys (defense in depth)
+  const AUTHORIZED_KEYS = new Set([
+    "octo","billflow","coworking","mad (adarsh)","GTM-Digital-Office",
+    "fello-designer-portal","blog-writter-code","aurthur_audit",
+    "Felix Sells","felix-launch-command-center",
+    "ATRIUM - Agnetic real estate - Hemanth","Marketing Labs - Hemanth",
+    "Fello_Academy_Main","Fello_Academy_Backup",
+    "openclaw (nikhil)","openclaw(riyon)","spiderclaw",
+    "signalcards(boduu)","mirofish","scrrpy(code version)",
+  ]);
+
+  if (!AUTHORIZED_KEYS.has(keyName)) {
+    return NextResponse.json({ daily: [], models: [] });
+  }
+
   const { data } = await supabase
     .from("api_invocation_logs")
     .select("invoked_at, cost_usd, model, prompt_tokens, completion_tokens")

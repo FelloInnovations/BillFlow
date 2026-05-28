@@ -45,10 +45,14 @@ export async function GET() {
     }
   }
 
-  // Group snapshots by exact key_name
+  // Authorized key set from portfolio (defense in depth — DB should already be clean after migration 15)
+  const allowedKeyNames = new Set(Object.keys(keyToProject));
+
+  // Group snapshots by exact key_name — skip any key not in the portfolio allowlist
   const snapshotsByKey: Record<string, { month: string; usage_total: number }[]> = {};
   for (const snap of snapshots) {
     const k = snap.key_name as string;
+    if (!allowedKeyNames.has(k)) continue;
     if (!snapshotsByKey[k]) snapshotsByKey[k] = [];
     snapshotsByKey[k].push({ month: snap.month as string, usage_total: Number(snap.usage_total) });
   }
