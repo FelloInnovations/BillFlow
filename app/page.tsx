@@ -4,6 +4,7 @@ import { DashboardMetrics } from "@/types";
 const EMPTY_METRICS: DashboardMetrics = {
   totalMonthlySpend: 0, spendMonth: "", unpaidCount: 0, unpaidTotal: 0,
   overdueCount: 0, upcomingDue: [], spendByVendor: [], monthlyTrend: [],
+  sharedInfrastructure: { services: [], total: 0 },
 };
 
 async function getDashboard(): Promise<DashboardMetrics> {

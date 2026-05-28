@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { DashboardMetrics, FinancialRecord } from "@/types";
+import { DashboardMetrics, FinancialRecord, SharedInfraService } from "@/types";
 import { canonicalVendor } from "@/lib/utils";
 
 export async function GET() {
@@ -31,7 +31,7 @@ export async function GET() {
   const today = new Date().toISOString().split("T")[0];
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes] = await Promise.all([
+  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes, allInvoicesRes] = await Promise.all([
     // Last complete month paid spend (anchor month - 1)
     supabase
       .from("financial_records")
@@ -75,6 +75,13 @@ export async function GET() {
       .limit(5),
 
     supabase.from("hidden_tools").select("tool_key"),
+
+    // All-time non-OR invoices for shared infrastructure bucket
+    supabase
+      .from("financial_records")
+      .select("vendor_name, total_amount")
+      .not("vendor_name", "is", null)
+      .not("vendor_name", "ilike", "%makemytrip%"),
   ]);
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
@@ -129,6 +136,19 @@ export async function GET() {
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime())
     .map(([month, b]) => ({ month, total: b.paid + b.unpaid, ...b }));
 
+  // Shared infrastructure: all-time non-OpenRouter vendor totals
+  const infraMap = new Map<string, number>();
+  for (const r of allInvoicesRes.data ?? []) {
+    if (!r.vendor_name) continue;
+    const canonical = canonicalVendor(r.vendor_name as string);
+    if (canonical === "OpenRouter") continue;
+    infraMap.set(canonical, (infraMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
+  }
+  const infraServices: SharedInfraService[] = [...infraMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, total]) => ({ name, total }));
+  const infraTotal = infraServices.reduce((s, svc) => s + svc.total, 0);
+
   const metrics: DashboardMetrics = {
     totalMonthlySpend,
     spendMonth,
@@ -138,6 +158,7 @@ export async function GET() {
     upcomingDue: (upcomingRes.data ?? []) as FinancialRecord[],
     spendByVendor,
     monthlyTrend,
+    sharedInfrastructure: { services: infraServices, total: infraTotal },
   };
 
   return NextResponse.json(metrics);

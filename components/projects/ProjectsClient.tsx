@@ -16,8 +16,7 @@ export function ProjectsClient({ initialProjects, initialMaxSpend }: Props) {
   const [maxSpend, setMaxSpend] = useState(initialMaxSpend);
   const [isPending, startTransition] = useTransition();
 
-  const totalActual    = projects.reduce((s, p) => s + (p.apiKeySpend    ?? 0), 0);
-  const totalEstimated = projects.reduce((s, p) => s + (p.estimatedServiceSpend ?? 0), 0);
+  const meteredTotal = projects.reduce((s, p) => s + (p.totalSpend ?? 0), 0);
 
   function refresh() {
     startTransition(async () => {
@@ -36,33 +35,13 @@ export function ProjectsClient({ initialProjects, initialMaxSpend }: Props) {
   }
 
   function headerSpend() {
-    if (totalActual > 0 && totalEstimated > 0) {
-      return (
-        <span>
-          <span className="text-slate-700 dark:text-slate-300 font-medium">{formatCurrency(totalActual)}</span>
-          <span className="text-slate-400"> actual · </span>
-          <span className="text-slate-500">~{formatCurrency(totalEstimated)}</span>
-          <span className="text-slate-400"> estimated</span>
-        </span>
-      );
-    }
-    if (totalActual > 0) {
-      return (
-        <span>
-          <span className="text-slate-700 dark:text-slate-300 font-medium">{formatCurrency(totalActual)}</span>
-          <span className="text-slate-400"> actual</span>
-        </span>
-      );
-    }
-    if (totalEstimated > 0) {
-      return (
-        <span>
-          <span className="text-slate-500">~{formatCurrency(totalEstimated)}</span>
-          <span className="text-slate-400"> estimated</span>
-        </span>
-      );
-    }
-    return null;
+    if (meteredTotal <= 0) return null;
+    return (
+      <span>
+        <span className="text-slate-700 dark:text-slate-300 font-medium">{formatCurrency(meteredTotal)}</span>
+        <span className="text-slate-400"> metered spend</span>
+      </span>
+    );
   }
 
   return (

@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import { ProjectsClient } from "@/components/projects/ProjectsClient";
 import { Project } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { canonicalVendor } from "@/lib/utils";
 import { fetchOrKeySpend } from "@/lib/orKeySpend";
 
 async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }> {
@@ -16,14 +15,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
 
   const portfolioRows = portfolioData ?? [];
 
-  const [{ data: invoiceRows }, orKeySpend] = await Promise.all([
-    supabase
-      .from("financial_records")
-      .select("vendor_name, total_amount")
-      .not("vendor_name", "is", null)
-      .not("vendor_name", "ilike", "%makemytrip%"),
-    fetchOrKeySpend(),
-  ]);
+  const orKeySpend = await fetchOrKeySpend();
 
   // Deduplicate by project name
   const seenNames = new Set<string>();
@@ -53,7 +45,7 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     openrouter_api_key: row.openrouter_api_key ?? null,
   }));
 
-  // keyName (lowercase) → project names sharing that key
+  // key (lowercase) → project names sharing that key (for shared-key detection)
   const keyToProjects = new Map<string, string[]>();
   for (const p of rawProjects) {
     if (!p.openrouter_api_key) continue;
@@ -64,73 +56,33 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     }
   }
 
-  // Service invoice split pool (non-LLM vendors only)
-  const serviceSpendMap = new Map<string, number>();
-  for (const r of invoiceRows ?? []) {
-    if (!r.vendor_name) continue;
-    const canonical = canonicalVendor(r.vendor_name as string);
-    if (canonical !== "OpenRouter") {
-      serviceSpendMap.set(canonical, (serviceSpendMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
-    }
-  }
-
-  // Count active projects per service
-  const activeRaw = rawProjects.filter((p) => p.status !== "shut down");
-  const serviceProjectCount = new Map<string, number>();
-  for (const p of activeRaw) {
-    for (const svc of p.services) {
-      const canonical = canonicalVendor(svc);
-      if (serviceSpendMap.has(canonical)) {
-        serviceProjectCount.set(canonical, (serviceProjectCount.get(canonical) ?? 0) + 1);
-      }
-    }
-  }
-
   const projects = rawProjects.map((p) => {
-    // Actual: OR per-key spend
-    let apiKeySpend: number | null = null;
-    if (p.openrouter_api_key) {
-      let total = 0;
-      let anyResolved = false;
-      for (const k of (p.openrouter_api_key as string).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)) {
-        const spend = orKeySpend.get(k);
-        if (spend !== undefined) {
-          const shareCount = Math.max(1, keyToProjects.get(k)?.length ?? 1);
-          total += spend / shareCount;
-          anyResolved = true;
-        }
-      }
-      if (anyResolved) apiKeySpend = Math.round(total * 100) / 100;
+    if (!p.openrouter_api_key) {
+      return { ...p, totalSpend: null, spendBasis: "none" as const };
     }
 
-    // Estimated: proportional service split
-    let estimatedServiceSpend: number | null = null;
-    if (p.status !== "shut down") {
-      let total = 0;
-      let hasService = false;
-      for (const svc of p.services) {
-        const canonical = canonicalVendor(svc);
-        const spend = serviceSpendMap.get(canonical);
-        const count = serviceProjectCount.get(canonical) ?? 1;
-        if (spend !== undefined) {
-          total += spend / count;
-          hasService = true;
-        }
+    const keys = (p.openrouter_api_key as string).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    let total = 0;
+    let anyResolved = false;
+    let anyShared = false;
+
+    for (const k of keys) {
+      const spend = orKeySpend.get(k);
+      if (spend !== undefined) {
+        const shareCount = keyToProjects.get(k)?.length ?? 1;
+        if (shareCount > 1) anyShared = true;
+        total += spend / Math.max(1, shareCount);
+        anyResolved = true;
       }
-      if (hasService) estimatedServiceSpend = Math.round(total * 100) / 100;
     }
 
-    const totalSpend =
-      apiKeySpend !== null || estimatedServiceSpend !== null
-        ? Math.round(((apiKeySpend ?? 0) + (estimatedServiceSpend ?? 0)) * 100) / 100
-        : null;
+    if (!anyResolved) {
+      return { ...p, totalSpend: null, spendBasis: "none" as const };
+    }
 
-    let spendBasis: "actual" | "estimated" | "mixed" | null = null;
-    if (apiKeySpend !== null && estimatedServiceSpend === null) spendBasis = "actual";
-    else if (apiKeySpend === null && estimatedServiceSpend !== null) spendBasis = "estimated";
-    else if (apiKeySpend !== null && estimatedServiceSpend !== null) spendBasis = "mixed";
-
-    return { ...p, apiKeySpend, estimatedServiceSpend, totalSpend, spendBasis };
+    const totalSpend = Math.round(total * 100) / 100;
+    const spendBasis = anyShared ? ("shared_key" as const) : ("metered" as const);
+    return { ...p, totalSpend, spendBasis };
   });
 
   const maxSpend = Math.max(0, ...projects.map((p) => p.totalSpend ?? 0));

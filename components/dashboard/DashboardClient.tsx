@@ -10,6 +10,7 @@ import { TrendAndForecastCard } from "@/components/dashboard/TrendAndForecastCar
 import { DashboardMetrics, FinancialRecord, FlaggedToolsData } from "@/types";
 import { formatCurrency, cn, canonicalVendor } from "@/lib/utils";
 import { DashboardChat } from "@/components/dashboard/DashboardChat";
+import { SharedInfraCard } from "@/components/dashboard/SharedInfraCard";
 
 interface Props {
   initial: DashboardMetrics;
@@ -150,6 +151,13 @@ export function DashboardClient({ initial }: Props) {
         <SpendByVendorChart data={metrics.spendByVendor} vendorProjects={vendorProjects} />
         <TrendAndForecastCard data={metrics.monthlyTrend} />
       </div>
+
+      {/* Row 4 — Shared Infrastructure */}
+      {metrics.sharedInfrastructure && metrics.sharedInfrastructure.services.length > 0 && (
+        <div className={cn("transition-opacity", loading && "opacity-60")}>
+          <SharedInfraCard data={metrics.sharedInfrastructure} />
+        </div>
+      )}
 
       {/* Upcoming due */}
       {metrics.upcomingDue.length > 0 && (

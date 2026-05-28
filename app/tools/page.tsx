@@ -120,12 +120,15 @@ export default function ToolsPage() {
         </section>
       )}
 
-      {/* Services */}
+      {/* Shared Infrastructure */}
       {services.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
-            Services
-          </h2>
+          <div>
+            <h2 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+              Shared Infrastructure
+            </h2>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Org-wide · not attributed to projects</p>
+          </div>
           <div className="space-y-2">
             {services.map((tool) => (
               <ToolCard

@@ -35,6 +35,16 @@ export interface FinancialRecord {
   description: string | null;
 }
 
+export interface SharedInfraService {
+  name: string;
+  total: number;
+}
+
+export interface SharedInfrastructure {
+  services: SharedInfraService[];
+  total: number;
+}
+
 export interface DashboardMetrics {
   totalMonthlySpend: number;
   spendMonth: string;
@@ -44,6 +54,7 @@ export interface DashboardMetrics {
   upcomingDue: FinancialRecord[];
   spendByVendor: { vendor: string; total: number }[];
   monthlyTrend: { month: string; total: number; paid: number; unpaid: number; unpaidCount: number; overdueCount: number }[];
+  sharedInfrastructure: SharedInfrastructure;
 }
 
 export interface Project {
@@ -55,9 +66,7 @@ export interface Project {
   status: string | null;
   totalSpend: number | null;
   openrouter_api_key: string | null;
-  apiKeySpend?: number | null;           // precise: from OR per-key snapshot data
-  estimatedServiceSpend?: number | null; // assumed: even split across projects sharing the service
-  spendBasis?: "actual" | "estimated" | "mixed" | null;
+  spendBasis?: "metered" | "shared_key" | "none" | null;
 }
 
 export interface OpenRouterKeyUsage {

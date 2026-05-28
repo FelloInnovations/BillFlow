@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Project } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { Brain, Wrench, User, ChevronDown, Info } from "lucide-react";
+import { Brain, User, ChevronDown, Info } from "lucide-react";
 
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
@@ -27,67 +27,40 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function SpendDisplay({ project }: { project: Project }) {
-  const { apiKeySpend, estimatedServiceSpend, spendBasis, totalSpend } = project;
+  const { spendBasis, totalSpend } = project;
 
-  if (spendBasis === "actual" && apiKeySpend != null) {
+  if (spendBasis === "none" || totalSpend == null) {
     return (
       <div className="text-right shrink-0">
-        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(apiKeySpend)}</p>
-        <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">actual</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 italic">No metered spend</p>
       </div>
     );
   }
 
-  if (spendBasis === "estimated" && estimatedServiceSpend != null) {
+  if (spendBasis === "shared_key") {
     return (
       <div className="text-right shrink-0">
-        <div className="flex items-center justify-end gap-1">
-          <p className="font-bold text-slate-500 dark:text-slate-400 text-sm">~{formatCurrency(estimatedServiceSpend)}</p>
-        </div>
-        <div className="flex items-center justify-end gap-1 mt-0.5">
+        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
+        <div className="flex items-center justify-end gap-0.5 mt-0.5">
           <span
-            title="Even split of shared service invoices across all active projects using the same service. Not attributable to this project specifically."
+            title="This project shares an OpenRouter API key with other projects. Spend shown is an even split."
             className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 cursor-help"
           >
             <Info className="w-2 h-2" />
-            Estimated
+            shared key
           </span>
         </div>
       </div>
     );
   }
 
-  if (spendBasis === "mixed" && apiKeySpend != null && estimatedServiceSpend != null) {
-    return (
-      <div className="text-right shrink-0 space-y-0.5">
-        <div>
-          <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(apiKeySpend)}</p>
-          <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400">actual</p>
-        </div>
-        <div>
-          <p className="font-semibold text-slate-400 dark:text-slate-500 text-xs">+~{formatCurrency(estimatedServiceSpend)}</p>
-          <p
-            title="Even split of shared service invoices — assumed, not attributable."
-            className="text-[9px] text-amber-500 dark:text-amber-400 cursor-help"
-          >
-            estimated
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Legacy fallback (no spendBasis field — old data)
-  if (totalSpend !== null) {
-    return (
-      <div className="text-right shrink-0">
-        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">est. spend</p>
-      </div>
-    );
-  }
-
-  return null;
+  // "metered" — unique key, precise spend
+  return (
+    <div className="text-right shrink-0">
+      <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
+      <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">metered</p>
+    </div>
+  );
 }
 
 interface Props {
@@ -125,11 +98,8 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
 
   const llmAccounts = project.llms[0]?.owner || null;
 
-  // Bar color: indigo for actual, amber for estimated, split gradient for mixed
   const barColor =
-    project.spendBasis === "actual"    ? "from-indigo-400 to-violet-400" :
-    project.spendBasis === "estimated" ? "from-amber-400 to-orange-400"  :
-    project.spendBasis === "mixed"     ? "from-indigo-400 to-amber-400"  :
+    project.spendBasis === "shared_key" ? "from-amber-400 to-orange-400" :
     "from-indigo-400 to-violet-400";
 
   return (
@@ -177,23 +147,6 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
               {project.llms.map((llm, i) => (
                 <span key={i} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 font-medium border border-indigo-100 dark:border-indigo-800 px-2.5 py-0.5 rounded-full">
                   {llm.provider}{llm.model ? ` · ${llm.model}` : ""}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Services */}
-        {project.services.length > 0 && (
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <Wrench className="w-3 h-3 text-violet-400" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Services</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {project.services.map((s) => (
-                <span key={s} className="text-xs bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 font-medium border border-violet-100 dark:border-violet-800 px-2.5 py-0.5 rounded-full">
-                  {s}
                 </span>
               ))}
             </div>
