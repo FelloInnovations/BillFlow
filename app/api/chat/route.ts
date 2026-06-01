@@ -18,7 +18,6 @@ async function buildFullContext(): Promise<string> {
   const base = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
   // ── 1. Direct query for ALL financial records — no date filter, no status filter ──
-  // This matches exactly what the Tools page queries, giving the correct all-time totals.
   const { data: records } = await supabase
     .from("financial_records")
     .select("vendor_name, total_amount, subtotal, tax_amount, payment_status, invoice_date, due_date, currency")
@@ -27,9 +26,7 @@ async function buildFullContext(): Promise<string> {
 
   const rows: FinancialRow[] = records ?? [];
 
-  // Verify total matches expected — should be $11,466.78
   const grandTotal = rows.reduce((sum, r) => sum + parseFloat(String(r.total_amount ?? 0)), 0);
-  console.log("Total being sent to AI:", grandTotal.toFixed(2));
 
   const today = new Date().toISOString().split("T")[0];
   const paidTotal    = rows.filter(r => r.payment_status === "paid").reduce((s, r) => s + parseFloat(String(r.total_amount ?? 0)), 0);
@@ -69,12 +66,52 @@ async function buildFullContext(): Promise<string> {
   const sheets = sheetsRes.status === "fulfilled" ? sheetsRes.value : null;
   const tools  = toolsRes.status  === "fulfilled" ? toolsRes.value  : null;
 
+  // ── 3. Fetch OpenRouter snapshot, activity summary, guardrails, and hidden tools ──
+  const [orSnapshotsRes, activityRes, guardrailsRes, hiddenToolsRes, invocationSummaryRes] = await Promise.allSettled([
+    supabase
+      .from("openrouter_usage_snapshots")
+      .select("key_name, month, usage_total")
+      .order("month", { ascending: false }),
+
+    supabase
+      .from("api_invocation_logs")
+      .select("key_name, project_name, model, cost_usd, prompt_tokens, completion_tokens, invoked_at")
+      .order("invoked_at", { ascending: false })
+      .limit(500),
+
+    supabase
+      .from("project_guardrails")
+      .select("project_name, openrouter_key_name, monthly_budget_usd, warning_threshold_pct, recommended_budget_usd"),
+
+    supabase
+      .from("hidden_tools")
+      .select("vendor_name, tool_key"),
+
+    // Aggregated invocation stats per project
+    supabase
+      .from("api_invocation_logs")
+      .select("project_name, key_name, model, cost_usd, prompt_tokens, completion_tokens"),
+  ]);
+
+  const orSnapshots     = orSnapshotsRes.status     === "fulfilled" ? orSnapshotsRes.value.data     ?? [] : [];
+  const activityLogs    = activityRes.status         === "fulfilled" ? activityRes.value.data         ?? [] : [];
+  const guardrails      = guardrailsRes.status       === "fulfilled" ? guardrailsRes.value.data       ?? [] : [];
+  const hiddenTools     = hiddenToolsRes.status      === "fulfilled" ? hiddenToolsRes.value.data      ?? [] : [];
+  const invocationRows  = invocationSummaryRes.status === "fulfilled" ? invocationSummaryRes.value.data ?? [] : [];
+
+  const hiddenSet = new Set<string>(
+    [
+      ...hiddenTools.map((r: { vendor_name: string | null; tool_key: string | null }) => r.vendor_name),
+      ...hiddenTools.map((r: { vendor_name: string | null; tool_key: string | null }) => r.tool_key),
+    ].filter((v): v is string => v != null)
+  );
+
   const fmt = (n: number) =>
     `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const lines: string[] = [];
 
-  // ── Spend overview (from raw records — authoritative) ──────────────
+  // ── Spend overview ──────────────────────────────────────────────────────────────
   lines.push("=== SPEND OVERVIEW (all-time, all records) ===");
   lines.push(`Grand total (ALL records, ALL statuses): ${fmt(grandTotal)}`);
   lines.push(`Paid total: ${fmt(paidTotal)}`);
@@ -82,19 +119,19 @@ async function buildFullContext(): Promise<string> {
   lines.push(`Overdue invoices: ${overdueCount}`);
   lines.push(`Total invoice count: ${rows.length}`);
 
-  // ── Vendor breakdown (all-time) ────────────────────────────────────
+  // ── Vendor breakdown (hidden tools filtered) ────────────────────────────────────
   lines.push("\n=== VENDOR TOTALS (all-time, total_amount) ===");
-  vendorTotals.forEach(([vendor, total]) =>
+  vendorTotals.filter(([v]) => !hiddenSet.has(v)).forEach(([vendor, total]) =>
     lines.push(`${vendor}: ${fmt(total)}`)
   );
 
-  // ── Monthly trend ─────────────────────────────────────────────────
+  // ── Monthly trend ───────────────────────────────────────────────────────────────
   lines.push("\n=== MONTHLY TREND ===");
   monthlyTrend.forEach(([month, b]) =>
     lines.push(`${month}: ${fmt(b.paid + b.unpaid)} total (paid ${fmt(b.paid)}, unpaid ${fmt(b.unpaid)})`)
   );
 
-  // ── Spend forecast ────────────────────────────────────────────────
+  // ── Spend forecast ──────────────────────────────────────────────────────────────
   if (forecast) {
     lines.push(`\n=== SPEND FORECAST (next month projections based on 3-month average) ===`);
     lines.push(`Total projected spend next month (${forecast.nextMonthName}): ${fmt(forecast.totalForecast)}`);
@@ -106,7 +143,7 @@ async function buildFullContext(): Promise<string> {
     });
   }
 
-  // ── Projects ──────────────────────────────────────────────────────
+  // ── Projects ────────────────────────────────────────────────────────────────────
   if (sheets?.projects?.length) {
     lines.push("\n=== PROJECTS ===");
     sheets.projects.forEach((p: { name: string; status?: string; description?: string; llms?: { provider: string; model: string }[]; services?: string[]; totalSpend?: number }) => {
@@ -119,16 +156,105 @@ async function buildFullContext(): Promise<string> {
     });
   }
 
-  // ── Tools / vendor detail ─────────────────────────────────────────
+  // ── Tools / vendor detail (hidden tools filtered) ────────────────────────────────
   if (tools?.tools?.length) {
     lines.push("\n=== TOOLS & SERVICES ===");
-    tools.tools.forEach((t: { name: string; displayLabel?: string; type: string; projects: string[]; totalSpend: number; monthlyTrend?: { month: string; total: number }[] }) => {
-      const label = t.displayLabel ?? t.name;
-      const proj = t.projects?.join(", ") || "none";
-      const recent = t.monthlyTrend?.slice(-3).map((m: { month: string; total: number }) => `${m.month}: ${fmt(m.total)}`).join(", ") || "";
-      lines.push(`${label} (${t.type}) — total: ${fmt(t.totalSpend)} | projects: ${proj}${recent ? ` | recent: ${recent}` : ""}`);
-    });
+    tools.tools
+      .filter((t: { name: string }) => !hiddenSet.has(t.name))
+      .forEach((t: { name: string; displayLabel?: string; type: string; projects: string[]; totalSpend: number; monthlyTrend?: { month: string; total: number }[] }) => {
+        const label = t.displayLabel ?? t.name;
+        const proj = t.projects?.join(", ") || "none";
+        const recent = t.monthlyTrend?.slice(-3).map((m: { month: string; total: number }) => `${m.month}: ${fmt(m.total)}`).join(", ") || "";
+        lines.push(`${label} (${t.type}) — total: ${fmt(t.totalSpend)} | projects: ${proj}${recent ? ` | recent: ${recent}` : ""}`);
+      });
   }
+
+  // ── OpenRouter per-key spend (from API snapshots — primary LLM cost source) ──────
+  if (orSnapshots.length > 0) {
+    lines.push("\n=== OPENROUTER PER-KEY API SPEND (metered, from API snapshots) ===");
+    lines.push("This is the primary source for LLM costs. Each key maps to one or more projects.");
+
+    const keyTotals = new Map<string, { total: number; months: Record<string, number> }>();
+    for (const snap of orSnapshots) {
+      const k = snap.key_name as string;
+      if (!keyTotals.has(k)) keyTotals.set(k, { total: 0, months: {} });
+      const entry = keyTotals.get(k)!;
+      const usage = Number(snap.usage_total ?? 0);
+      entry.total += usage;
+      entry.months[snap.month as string] = (entry.months[snap.month as string] ?? 0) + usage;
+    }
+    const sortedKeys = [...keyTotals.entries()].sort((a, b) => b[1].total - a[1].total);
+    for (const [keyName, data] of sortedKeys) {
+      const recentMonths = Object.entries(data.months)
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .slice(0, 3)
+        .map(([m, v]) => `${m}: ${fmt(v)}`)
+        .join(", ");
+      lines.push(`Key "${keyName}": ${fmt(data.total)} total | recent: ${recentMonths}`);
+    }
+
+    const totalORSpend = sortedKeys.reduce((s, [, d]) => s + d.total, 0);
+    lines.push(`Total OpenRouter API spend (all keys): ${fmt(totalORSpend)}`);
+  }
+
+  // ── Per-project API cost summary (from invocation logs) ─────────────────────────
+  if (invocationRows.length > 0) {
+    lines.push("\n=== PER-PROJECT API COSTS (from invocation logs) ===");
+
+    const projectStats = new Map<string, { cost: number; tokens: number; requests: number; models: Set<string> }>();
+    for (const row of invocationRows) {
+      const pName = (row.project_name as string) ?? "unknown";
+      if (!projectStats.has(pName)) projectStats.set(pName, { cost: 0, tokens: 0, requests: 0, models: new Set() });
+      const entry = projectStats.get(pName)!;
+      entry.cost += Number(row.cost_usd ?? 0);
+      entry.tokens += Number(row.prompt_tokens ?? 0) + Number(row.completion_tokens ?? 0);
+      entry.requests += 1;
+      if (row.model) entry.models.add(row.model as string);
+    }
+
+    const sortedProjects = [...projectStats.entries()].sort((a, b) => b[1].cost - a[1].cost);
+    for (const [name, stats] of sortedProjects) {
+      lines.push(`${name}: ${fmt(stats.cost)} | ${stats.tokens.toLocaleString()} tokens | ${stats.requests} requests | models: ${[...stats.models].join(", ")}`);
+    }
+  }
+
+  // ── Budget guardrails ────────────────────────────────────────────────────────────
+  lines.push("\n=== BUDGET GUARDRAILS ===");
+  if (guardrails.length > 0) {
+    for (const g of guardrails) {
+      lines.push(`${g.project_name}: budget ${fmt(Number(g.monthly_budget_usd))}/month | warn at ${g.warning_threshold_pct}% | recommended: ${g.recommended_budget_usd ? fmt(Number(g.recommended_budget_usd)) : "not set"}`);
+    }
+  } else {
+    lines.push("No budget guardrails have been set yet.");
+  }
+
+  // ── Shared infrastructure (org-wide service costs from invoices) ─────────────────
+  lines.push("\n=== SHARED INFRASTRUCTURE (org-wide, not attributed to projects) ===");
+  lines.push("These service costs come from invoices and are NOT split across projects.");
+  const infraVendors = vendorTotals.filter(([v]) => {
+    const lower = v.toLowerCase();
+    return !lower.includes("openrouter") && !hiddenSet.has(v);
+  });
+  for (const [vendor, total] of infraVendors) {
+    lines.push(`${vendor}: ${fmt(total)}`);
+  }
+
+  // ── Hidden tools ─────────────────────────────────────────────────────────────────
+  if (hiddenSet.size > 0) {
+    lines.push("\n=== HIDDEN TOOLS (deleted from UI, excluded from all totals) ===");
+    lines.push([...hiddenSet].join(", "));
+  }
+
+  // ── Data freshness ───────────────────────────────────────────────────────────────
+  lines.push("\n=== DATA FRESHNESS ===");
+  const latestInvoice  = rows[0]?.invoice_date ?? "unknown";
+  const latestSnapshot = orSnapshots.length > 0 ? (orSnapshots[0]?.month as string ?? "unknown") : "no snapshots";
+  const latestActivity = activityLogs.length > 0 ? (activityLogs[0] as { invoked_at?: string })?.invoked_at ?? "unknown" : "no activity logs";
+  lines.push(`Latest invoice date: ${latestInvoice}`);
+  lines.push(`Latest OpenRouter snapshot month: ${latestSnapshot}`);
+  lines.push(`Latest API invocation: ${latestActivity}`);
+  lines.push(`Invoice ingestion may be stalled if latest invoice is more than 2 weeks old.`);
+  lines.push(`OpenRouter API data is synced via the Activity page "Sync Now" button.`);
 
   return lines.join("\n");
 }
@@ -146,42 +272,47 @@ export async function POST(req: NextRequest) {
 
   const context = await buildFullContext();
 
-  const systemPrompt = `You are Orion, an AI assistant embedded in BillFlow — an internal dashboard for Fello Innovations that tracks AI infrastructure spend, projects, and vendors.
+  const systemPrompt = `You are Orion, the AI spend intelligence assistant embedded in BillFlow — Fello Innovations' internal dashboard for tracking AI infrastructure costs.
 
-You have full visibility into:
-- Monthly spend KPIs, unpaid/overdue invoices, upcoming due dates
-- All vendors and their all-time spend totals
-- Every project (name, status, LLMs used, services, total spend)
-- All tools and services with monthly breakdowns
-- Spend forecast data: next month projections per vendor based on 3-month rolling average
+You have full, real-time visibility into:
 
-IMPORTANT — spend calculation rules:
-- The total_amount field is the definitive invoice amount (inclusive of tax). Always use total_amount for spend calculations, never subtotal or tax_amount.
-- Total/overall spend = sum of ALL total_amount values across ALL records regardless of payment_status.
-- Paid spend = sum of total_amount where payment_status = 'paid'.
-- Unpaid/pending spend = sum of total_amount where payment_status != 'paid'.
-- Never exclude any records from the total unless the user explicitly asks to filter by status.
-- The grand total across all records is provided explicitly in the snapshot under "Grand total" — use that figure directly.
+1. **Invoice-based spend** — all financial records from vendor invoices (paid, unpaid, overdue)
+2. **API-key-based spend** — per-project LLM costs tracked via named OpenRouter API keys (this is the primary and most accurate source for LLM spend)
+3. **Per-project cost breakdown** — each project's metered API spend from its OpenRouter key, including models used and token counts
+4. **Budget guardrails** — monthly spend limits set per project, warning thresholds, and recommended budgets
+5. **Shared infrastructure** — org-wide service costs (Oxylabs, Supabase, Apify, ScraperAPI, etc.) tracked from invoices, NOT attributed to individual projects
+6. **Spend forecast** — next month projections per vendor based on 3-month rolling averages
+7. **All projects** — name, status, description, LLMs, OpenRouter key name, metered spend
 
-IMPORTANT — forecast rules:
-- Forecast data is calculated as a simple average of the last 3 calendar months per vendor (both paid and pending invoices included).
-- The total projected spend for next month is provided explicitly — use that figure directly.
-- Trend: "up" = last month >10% higher than 3 months ago, "down" = >10% lower, "stable" = within 10%.
-- Inactive vendors (no invoices in last 3 months) are excluded from the forecast total.
+CRITICAL — dual-source cost model:
+- **LLM costs** come primarily from OpenRouter API key snapshots (the "OPENROUTER PER-KEY API SPEND" section). These are metered and accurate.
+- **Service/infrastructure costs** (Oxylabs, Supabase, Apify, etc.) come from invoice records. These are org-wide and NOT split across projects.
+- **Invoice-based vendor totals** may be stale if invoice ingestion has paused. Check the DATA FRESHNESS section.
+- When reporting OpenRouter/LLM spend, prefer the API snapshot figures over invoice figures — they are more current.
+- The total org spend = OpenRouter API total + shared infrastructure invoice total. Do not double-count.
+
+CRITICAL — spend calculation rules:
+- Always use total_amount (tax-inclusive) for invoice spend, never subtotal.
+- Grand total = sum of ALL total_amount values across ALL records regardless of payment_status.
+- When asked about a specific project's cost, use the per-key API data, not the invoice split.
+- Projects with "No metered spend" have no OpenRouter API key — their LLM costs cannot be individually attributed.
+
+Response guidelines:
+- Use specific $ amounts, counts, percentages, and project/vendor names from the data.
+- For tables or comparisons, format as clean markdown tables.
+- For project-specific questions, report: metered API spend, models used, token counts, and budget status if a guardrail exists.
+- For vendor questions, distinguish between LLM vendors (tracked via API keys) and service vendors (tracked via invoices).
+- If asked about something not covered by the snapshot, say so clearly — don't guess.
+- If data appears stale (check DATA FRESHNESS), mention it proactively.
+- Keep answers concise (3-5 sentences) unless a detailed breakdown is requested.
+- Tone: professional, data-driven, direct.
 
 Current BillFlow snapshot:
-${context}
-
-Guidelines:
-- Keep answers short and direct (2-4 sentences max unless a list or table is needed)
-- Use $ amounts, counts, and % figures from the data when relevant
-- For project/vendor/ticket questions, reference specific names and numbers from the snapshot
-- If asked something not covered by the snapshot, say so clearly
-- Tone: professional but conversational`;
+${context}`;
 
   const stream = await client.chat.completions.create({
     model: "openai/gpt-4o-mini",
-    max_tokens: 600,
+    max_tokens: 1500,
     stream: true,
     messages: [
       { role: "system", content: systemPrompt },
