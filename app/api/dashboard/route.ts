@@ -90,7 +90,8 @@ export async function GET() {
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
 
-  const totalMonthlySpend = (monthlyRes.data ?? []).reduce(
+  // Invoice-only spend for the card period; corrected below once snapshot data is ready.
+  const invoiceMonthlySpend = (monthlyRes.data ?? []).reduce(
     (s, r) => s + Number(r.total_amount ?? 0),
     0
   );
@@ -99,6 +100,23 @@ export async function GET() {
   const unpaidCount = unpaidData.length;
   const unpaidTotal = unpaidData.reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
   const overdueCount = unpaidData.filter((r) => r.due_date && r.due_date < today).length;
+
+  // Aggregate snapshot spend by YYYY-MM period (summed across all keys).
+  const orByMonth: Record<string, number> = {};
+  for (const snap of orSnapshotsRes.data ?? []) {
+    const period = snap.period as string;
+    orByMonth[period] = (orByMonth[period] ?? 0) + Number(snap.usage_total ?? 0);
+  }
+  // Also key by display label for direct lookup against monthMap keys.
+  const orSnapshotByMonth = new Map<string, number>();
+  for (const [period, total] of Object.entries(orByMonth)) {
+    const [year, month] = period.split("-");
+    const label = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+    orSnapshotByMonth.set(label, (orSnapshotByMonth.get(label) ?? 0) + total);
+  }
 
   // Roll up vendor names to canonical form (Anthropic/OpenAI/xAI → OpenRouter, etc.)
   const vendorMap = new Map<string, number>();
@@ -109,30 +127,24 @@ export async function GET() {
     vendorMap.set(canonical, (vendorMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
 
-  // For OpenRouter: replace invoice-based total with snapshot-based total (more current/accurate).
-  // Snapshots reflect actual metered API usage per key; invoices may lag by weeks.
-  const orSnapshotTotal = (orSnapshotsRes.data ?? []).reduce(
-    (s, snap) => s + Number(snap.usage_total ?? 0),
-    0
-  );
-  if (orSnapshotTotal > 0) {
-    vendorMap.set("OpenRouter", orSnapshotTotal);
+  // For OpenRouter: replace invoice-based total with snapshot total across the 12-month window.
+  const orSnapshotTotal12m = Object.values(orByMonth).reduce((s, v) => s + v, 0);
+  if (orSnapshotTotal12m > 0) {
+    // Replace whichever canonical OR key exists in vendorMap, or insert fresh.
+    let replaced = false;
+    for (const [key] of vendorMap) {
+      if (canonicalVendor(key) === "OpenRouter") {
+        vendorMap.set(key, orSnapshotTotal12m);
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) vendorMap.set("OpenRouter", orSnapshotTotal12m);
   }
 
   const spendByVendor = [...vendorMap.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([vendor, total]) => ({ vendor, total }));
-
-  // Pre-aggregate snapshot spend by display month key so we can query it quickly below.
-  const orSnapshotByMonth = new Map<string, number>();
-  for (const snap of orSnapshotsRes.data ?? []) {
-    const [year, month] = snap.period.split("-");
-    const key = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
-    });
-    orSnapshotByMonth.set(key, (orSnapshotByMonth.get(key) ?? 0) + Number(snap.usage_total ?? 0));
-  }
 
   // Monthly trend with paid/unpaid split.
   // orInvoicePaidByMonth / orInvoiceUnpaidByMonth track the OR invoice contribution per month
@@ -176,6 +188,13 @@ export async function GET() {
     b.unpaid = b.unpaid - (orInvoiceUnpaidByMonth.get(key) ?? 0);
     monthMap.set(key, b);
   }
+
+  // Correct the monthly KPI card: swap invoice-based OR spend for snapshot OR spend
+  // for the "last complete month" period that the card displays.
+  const totalMonthlySpend =
+    invoiceMonthlySpend
+    - (orInvoicePaidByMonth.get(spendMonth) ?? 0)
+    + (orSnapshotByMonth.get(spendMonth) ?? 0);
 
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime())
