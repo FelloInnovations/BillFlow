@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Sparkles, Send, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardMetrics } from "@/types";
+import ReactMarkdown from "react-markdown";
 
 const STARTERS = [
   "Overview of this month's spend",
@@ -100,7 +101,7 @@ export function DashboardChat(_props: Props) {
       {hasMessages && (
         <div
           ref={scrollRef}
-          className="mb-4 space-y-3 max-h-72 overflow-y-auto px-1"
+          className="mb-4 space-y-3 max-h-96 overflow-y-auto px-1"
           style={{ scrollbarWidth: "thin", scrollbarColor: "#c4b5fd transparent" }}
         >
           {messages.map((m, i) => (
@@ -112,13 +113,23 @@ export function DashboardChat(_props: Props) {
               )}
               <div
                 className={cn(
-                  "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                  "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
                   m.role === "user"
                     ? "bg-indigo-600 text-white rounded-br-sm"
                     : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm"
                 )}
               >
-                {m.content || <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                {m.content ? (
+                  m.role === "assistant" ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-headings:text-sm prose-strong:text-indigo-700 dark:prose-strong:text-indigo-300 prose-td:px-2 prose-td:py-1 prose-th:px-2 prose-th:py-1 prose-table:text-xs">
+                      <ReactMarkdown>{m.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    m.content
+                  )
+                ) : (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                )}
               </div>
             </div>
           ))}
