@@ -93,7 +93,7 @@ export function SpendRangeCard() {
         <p className={`text-3xl font-bold tracking-tight text-slate-900 dark:text-white transition-opacity ${loading ? "opacity-40" : ""}`}>
           {formatCurrency(data.paid)}
         </p>
-        <p className="text-xs mt-1.5 text-slate-400 dark:text-slate-500">Paid invoices</p>
+        <p className="text-xs mt-1.5 text-slate-400 dark:text-slate-500">Total spend (invoices + API)</p>
 
         {/* Date picker popover */}
         {open && (

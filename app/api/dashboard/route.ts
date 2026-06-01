@@ -84,39 +84,36 @@ export async function GET() {
     // OpenRouter per-key monthly snapshots (last 12 months)
     supabase
       .from("openrouter_usage_snapshots")
-      .select("key_name, period, usage_total")
+      .select("period, usage_total")
       .gte("period", twelveMonthsAgo.substring(0, 7)),
   ]);
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
 
-  // Invoice-only spend for the card period; corrected below once snapshot data is ready.
+  // Sum OR snapshots by YYYY-MM period
+  const orByMonth: Record<string, number> = {};
+  for (const row of orSnapshotsRes.data ?? []) {
+    const period = row.period as string;
+    orByMonth[period] = (orByMonth[period] ?? 0) + Number(row.usage_total ?? 0);
+  }
+
+  // Previous calendar month key (real clock — not invoice anchor — so May snapshot appears)
+  const now = new Date();
+  const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}`;
+  const orCurrentMonthSpend = orByMonth[prevMonthKey] ?? 0;
+
+  // Monthly spend card: invoice paid spend + OR snapshot for the current period
   const invoiceMonthlySpend = (monthlyRes.data ?? []).reduce(
     (s, r) => s + Number(r.total_amount ?? 0),
     0
   );
+  const totalMonthlySpend = invoiceMonthlySpend + orCurrentMonthSpend;
 
   const unpaidData = unpaidRes.data ?? [];
   const unpaidCount = unpaidData.length;
   const unpaidTotal = unpaidData.reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
   const overdueCount = unpaidData.filter((r) => r.due_date && r.due_date < today).length;
-
-  // Aggregate snapshot spend by YYYY-MM period (summed across all keys).
-  const orByMonth: Record<string, number> = {};
-  for (const snap of orSnapshotsRes.data ?? []) {
-    const period = snap.period as string;
-    orByMonth[period] = (orByMonth[period] ?? 0) + Number(snap.usage_total ?? 0);
-  }
-  // Also key by display label for direct lookup against monthMap keys.
-  const orSnapshotByMonth = new Map<string, number>();
-  for (const [period, total] of Object.entries(orByMonth)) {
-    const [year, month] = period.split("-");
-    const label = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
-    });
-    orSnapshotByMonth.set(label, (orSnapshotByMonth.get(label) ?? 0) + total);
-  }
 
   // Roll up vendor names to canonical form (Anthropic/OpenAI/xAI → OpenRouter, etc.)
   const vendorMap = new Map<string, number>();
@@ -127,33 +124,22 @@ export async function GET() {
     vendorMap.set(canonical, (vendorMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
 
-  // For OpenRouter: replace invoice-based total with snapshot total across the 12-month window.
-  const orSnapshotTotal12m = Object.values(orByMonth).reduce((s, v) => s + v, 0);
-  if (orSnapshotTotal12m > 0) {
-    // Replace whichever canonical OR key exists in vendorMap, or insert fresh.
-    let replaced = false;
-    for (const [key] of vendorMap) {
-      if (canonicalVendor(key) === "OpenRouter") {
-        vendorMap.set(key, orSnapshotTotal12m);
-        replaced = true;
-        break;
-      }
-    }
-    if (!replaced) vendorMap.set("OpenRouter", orSnapshotTotal12m);
+  // Replace OpenRouter invoice total with snapshot total (snapshots are more current/accurate)
+  const orSnapshotTotal = Object.values(orByMonth).reduce((s, v) => s + v, 0);
+  const existingORKey = [...vendorMap.keys()].find((k) => k.toLowerCase().includes("openrouter"));
+  if (existingORKey) {
+    vendorMap.set(existingORKey, orSnapshotTotal);
+  } else if (orSnapshotTotal > 0) {
+    vendorMap.set("OpenRouter", orSnapshotTotal);
   }
 
   const spendByVendor = [...vendorMap.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([vendor, total]) => ({ vendor, total }));
 
-  // Monthly trend with paid/unpaid split.
-  // orInvoicePaidByMonth / orInvoiceUnpaidByMonth track the OR invoice contribution per month
-  // so we can subtract it and replace with snapshot totals (snapshots are more accurate and
-  // cover months where invoice ingestion has stalled).
+  // Monthly trend: build from invoices, then add OR snapshot spend on top
   type MonthBucket = { paid: number; unpaid: number; unpaidCount: number; overdueCount: number };
   const monthMap = new Map<string, MonthBucket>();
-  const orInvoicePaidByMonth = new Map<string, number>();
-  const orInvoiceUnpaidByMonth = new Map<string, number>();
 
   for (const r of trendRes.data ?? []) {
     if (!r.invoice_date) continue;
@@ -166,45 +152,45 @@ export async function GET() {
     });
     const b = monthMap.get(label) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0 };
     const amount = Number(r.total_amount ?? 0);
-    const isOR = r.vendor_name != null && canonicalVendor(r.vendor_name as string) === "OpenRouter";
     if (r.payment_status === "paid") {
       b.paid += amount;
-      if (isOR) orInvoicePaidByMonth.set(label, (orInvoicePaidByMonth.get(label) ?? 0) + amount);
     } else {
       b.unpaid += amount;
       b.unpaidCount += 1;
       if (r.due_date && r.due_date < today) b.overdueCount += 1;
-      if (isOR) orInvoiceUnpaidByMonth.set(label, (orInvoiceUnpaidByMonth.get(label) ?? 0) + amount);
     }
     monthMap.set(label, b);
   }
 
-  // Replace OR invoice contributions with snapshot totals.
-  // Subtract whatever invoice-based OR spend was added (paid or unpaid), then add snapshot total
-  // to the paid bucket. For months only in snapshots, inserts a fresh entry.
-  for (const [key, snapTotal] of orSnapshotByMonth) {
-    const b = monthMap.get(key) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0 };
-    b.paid = b.paid - (orInvoicePaidByMonth.get(key) ?? 0) + snapTotal;
-    b.unpaid = b.unpaid - (orInvoiceUnpaidByMonth.get(key) ?? 0);
-    monthMap.set(key, b);
+  // Add OR snapshot spend into each month (additive — snapshots cover months invoices miss)
+  for (const [period, snapTotal] of Object.entries(orByMonth)) {
+    const [y, m] = period.split("-");
+    const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+    const b = monthMap.get(label) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0 };
+    b.paid += snapTotal;
+    monthMap.set(label, b);
   }
 
-  // Correct the monthly KPI card: swap invoice-based OR spend for snapshot OR spend
-  // for the "last complete month" period that the card displays.
-  const totalMonthlySpend =
-    invoiceMonthlySpend
-    - (orInvoicePaidByMonth.get(spendMonth) ?? 0)
-    + (orSnapshotByMonth.get(spendMonth) ?? 0);
+  // Build the trend array sorted oldest → newest
+  const orSnapshotMonths = new Set(
+    Object.keys(orByMonth).map((period) => {
+      const [y, m] = period.split("-");
+      return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      });
+    })
+  );
 
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime())
     .map(([month, b]) => {
-      const snapAmount = orSnapshotByMonth.get(month) ?? 0;
-      const source: "invoice" | "snapshot" | "none" = snapAmount > 0
+      const source: "invoice" | "snapshot" | "none" = orSnapshotMonths.has(month)
         ? "snapshot"
-        : orInvoicePaidByMonth.has(month) || orInvoiceUnpaidByMonth.has(month)
-        ? "invoice"
-        : "none";
+        : "invoice";
       return { month, total: b.paid + b.unpaid, ...b, source };
     });
 
@@ -222,9 +208,8 @@ export async function GET() {
     .map(([name, total]) => ({ name, total }));
   const infraTotal = infraServices.reduce((s, svc) => s + svc.total, 0);
 
-  // Compute data freshness warning for the dashboard banner.
-  const latestSnapshotPeriod =
-    [...(orSnapshotsRes.data ?? []).map((s) => s.period as string)].sort().at(-1) ?? "";
+  // Data freshness warning for the dashboard banner
+  const latestSnapshotPeriod = Object.keys(orByMonth).sort().at(-1) ?? "";
   const invoiceIngestionStalled = latestDateStr
     ? Date.now() - new Date(latestDateStr + "T00:00:00").getTime() > 45 * 24 * 60 * 60 * 1000
     : false;
