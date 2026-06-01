@@ -466,7 +466,7 @@ export const STATIC_PROJECTS: Project[] = [
     services: [],
     status: "production",
     totalSpend: null,
-    openrouter_api_key: "Marketing Labs - Hemanth",
+    openrouter_api_key: null,
   },
   {
     name: "Marketing Labs",
