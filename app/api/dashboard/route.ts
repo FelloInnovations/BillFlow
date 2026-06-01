@@ -84,8 +84,8 @@ export async function GET() {
     // OpenRouter per-key monthly snapshots (last 12 months)
     supabase
       .from("openrouter_usage_snapshots")
-      .select("period, usage_total")
-      .gte("period", twelveMonthsAgo.substring(0, 7)),
+      .select("month, usage_total")
+      .gte("month", twelveMonthsAgo.substring(0, 7)),
   ]);
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
@@ -93,7 +93,7 @@ export async function GET() {
   // Sum OR snapshots by YYYY-MM period
   const orByMonth: Record<string, number> = {};
   for (const row of orSnapshotsRes.data ?? []) {
-    const period = row.period as string;
+    const period = row.month as string;
     orByMonth[period] = (orByMonth[period] ?? 0) + Number(row.usage_total ?? 0);
   }
 

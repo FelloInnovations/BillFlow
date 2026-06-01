@@ -21,7 +21,7 @@ export async function buildForecast(): Promise<ForecastResult> {
     supabase.from("hidden_tools").select("tool_key"),
     supabase
       .from("openrouter_usage_snapshots")
-      .select("period, usage_total"),
+      .select("month, usage_total"),
   ]);
 
   const hiddenKeys = new Set((hiddenRows ?? []).map((r) => r.tool_key as string));
@@ -29,7 +29,7 @@ export async function buildForecast(): Promise<ForecastResult> {
   // Build per-period OR snapshot totals (sum across all keys for each month)
   const orByMonth: Record<string, number> = {};
   for (const snap of orSnapshots ?? []) {
-    orByMonth[snap.period] = (orByMonth[snap.period] ?? 0) + Number(snap.usage_total ?? 0);
+    orByMonth[snap.month] = (orByMonth[snap.month] ?? 0) + Number(snap.usage_total ?? 0);
   }
 
   // Anchor: use the later of latest invoice date or latest snapshot period.
