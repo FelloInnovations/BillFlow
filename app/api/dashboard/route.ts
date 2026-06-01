@@ -135,10 +135,14 @@ export async function GET() {
   }
 
   // Monthly trend with paid/unpaid split.
-  // hasOrInvoice tracks whether a month already has invoice-based OpenRouter rows in financial_records,
-  // so we can avoid double-counting when we later fold in snapshot data.
-  type MonthBucket = { paid: number; unpaid: number; unpaidCount: number; overdueCount: number; hasOrInvoice: boolean };
+  // orInvoicePaidByMonth / orInvoiceUnpaidByMonth track the OR invoice contribution per month
+  // so we can subtract it and replace with snapshot totals (snapshots are more accurate and
+  // cover months where invoice ingestion has stalled).
+  type MonthBucket = { paid: number; unpaid: number; unpaidCount: number; overdueCount: number };
   const monthMap = new Map<string, MonthBucket>();
+  const orInvoicePaidByMonth = new Map<string, number>();
+  const orInvoiceUnpaidByMonth = new Map<string, number>();
+
   for (const r of trendRes.data ?? []) {
     if (!r.invoice_date) continue;
     if (r.vendor_name && hiddenKeys.has(canonicalVendor(r.vendor_name as string))) continue;
@@ -148,42 +152,41 @@ export async function GET() {
       month: "short",
       year: "numeric",
     });
-    const b = monthMap.get(label) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0, hasOrInvoice: false };
+    const b = monthMap.get(label) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0 };
     const amount = Number(r.total_amount ?? 0);
+    const isOR = r.vendor_name != null && canonicalVendor(r.vendor_name as string) === "OpenRouter";
     if (r.payment_status === "paid") {
       b.paid += amount;
+      if (isOR) orInvoicePaidByMonth.set(label, (orInvoicePaidByMonth.get(label) ?? 0) + amount);
     } else {
       b.unpaid += amount;
       b.unpaidCount += 1;
       if (r.due_date && r.due_date < today) b.overdueCount += 1;
-    }
-    if (r.vendor_name && canonicalVendor(r.vendor_name as string) === "OpenRouter") {
-      b.hasOrInvoice = true;
+      if (isOR) orInvoiceUnpaidByMonth.set(label, (orInvoiceUnpaidByMonth.get(label) ?? 0) + amount);
     }
     monthMap.set(label, b);
   }
 
-  // Fold in OpenRouter snapshot spend for months that have no invoice-based OR rows.
-  // Snapshot spend is metered/paid — it goes into the paid bucket.
-  for (const [key, snapshotAmount] of orSnapshotByMonth) {
-    const b = monthMap.get(key) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0, hasOrInvoice: false };
-    if (!b.hasOrInvoice) {
-      b.paid += snapshotAmount;
-    }
+  // Replace OR invoice contributions with snapshot totals.
+  // Subtract whatever invoice-based OR spend was added (paid or unpaid), then add snapshot total
+  // to the paid bucket. For months only in snapshots, inserts a fresh entry.
+  for (const [key, snapTotal] of orSnapshotByMonth) {
+    const b = monthMap.get(key) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0 };
+    b.paid = b.paid - (orInvoicePaidByMonth.get(key) ?? 0) + snapTotal;
+    b.unpaid = b.unpaid - (orInvoiceUnpaidByMonth.get(key) ?? 0);
     monthMap.set(key, b);
   }
 
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime())
     .map(([month, b]) => {
-      const { hasOrInvoice, ...rest } = b;
-      const snapshotAmount = orSnapshotByMonth.get(month) ?? 0;
-      const source: "invoice" | "snapshot" | "none" = hasOrInvoice
-        ? "invoice"
-        : snapshotAmount > 0
+      const snapAmount = orSnapshotByMonth.get(month) ?? 0;
+      const source: "invoice" | "snapshot" | "none" = snapAmount > 0
         ? "snapshot"
+        : orInvoicePaidByMonth.has(month) || orInvoiceUnpaidByMonth.has(month)
+        ? "invoice"
         : "none";
-      return { month, total: rest.paid + rest.unpaid, ...rest, source };
+      return { month, total: b.paid + b.unpaid, ...b, source };
     });
 
   // Shared infrastructure: all-time non-OpenRouter vendor totals

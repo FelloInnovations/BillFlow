@@ -11,7 +11,7 @@ function formatMonthKey(monthKey: string): string {
 }
 
 export async function buildForecast(): Promise<ForecastResult> {
-  const [{ data: records }, { data: hiddenRows }] = await Promise.all([
+  const [{ data: records }, { data: hiddenRows }, { data: orSnapshots }] = await Promise.all([
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount, invoice_date")
@@ -19,14 +19,32 @@ export async function buildForecast(): Promise<ForecastResult> {
       .not("vendor_name", "is", null)
       .order("invoice_date", { ascending: false }),
     supabase.from("hidden_tools").select("tool_key"),
+    supabase
+      .from("openrouter_usage_snapshots")
+      .select("period, usage_total"),
   ]);
 
   const hiddenKeys = new Set((hiddenRows ?? []).map((r) => r.tool_key as string));
 
-  // Anchor all windows to the latest invoice in the DB, not the wall clock.
-  // Prevents empty forecasts if ingestion stalls for several months.
-  const latestDateStr = (records?.[0]?.invoice_date as string | null) ?? null;
-  const anchor = latestDateStr ? new Date(latestDateStr + "T00:00:00") : new Date();
+  // Build per-period OR snapshot totals (sum across all keys for each month)
+  const orByMonth: Record<string, number> = {};
+  for (const snap of orSnapshots ?? []) {
+    orByMonth[snap.period] = (orByMonth[snap.period] ?? 0) + Number(snap.usage_total ?? 0);
+  }
+
+  // Anchor: use the later of latest invoice date or latest snapshot period.
+  // When invoice ingestion stalls, snapshots advance the window so recent months stay in view.
+  const latestInvoiceDateStr = (records?.[0]?.invoice_date as string | null) ?? null;
+  const latestSnapshotPeriod = Object.keys(orByMonth).sort().at(-1) ?? null;
+  const snapshotAnchorDate = latestSnapshotPeriod ? latestSnapshotPeriod + "-01" : null;
+
+  let anchor: Date;
+  if (snapshotAnchorDate && (!latestInvoiceDateStr || snapshotAnchorDate > latestInvoiceDateStr)) {
+    anchor = new Date(snapshotAnchorDate + "T00:00:00");
+  } else {
+    anchor = latestInvoiceDateStr ? new Date(latestInvoiceDateStr + "T00:00:00") : new Date();
+  }
+
   const anchorYear = anchor.getFullYear();
   const anchorMonth = anchor.getMonth(); // 0-indexed
 
@@ -54,6 +72,15 @@ export async function buildForecast(): Promise<ForecastResult> {
     if (!vendorMonthly[canonical]) vendorMonthly[canonical] = {};
     vendorMonthly[canonical][monthKey] = (vendorMonthly[canonical][monthKey] ?? 0) +
       parseFloat(String(record.total_amount));
+  }
+
+  // Replace OR invoice monthly data with snapshot data — snapshots are metered and current,
+  // while invoices lag (or stop entirely when ingestion stalls).
+  const orKey =
+    Object.keys(vendorMonthly).find((v) => v.toLowerCase().includes("openrouter")) ?? "OpenRouter";
+  if (!vendorMonthly[orKey]) vendorMonthly[orKey] = {};
+  for (const [period, total] of Object.entries(orByMonth)) {
+    vendorMonthly[orKey][period] = total;
   }
 
   const forecasts: VendorForecast[] = [];
