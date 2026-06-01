@@ -53,8 +53,13 @@ export interface DashboardMetrics {
   overdueCount: number;
   upcomingDue: FinancialRecord[];
   spendByVendor: { vendor: string; total: number }[];
-  monthlyTrend: { month: string; total: number; paid: number; unpaid: number; unpaidCount: number; overdueCount: number }[];
+  monthlyTrend: { month: string; total: number; paid: number; unpaid: number; unpaidCount: number; overdueCount: number; source?: "invoice" | "snapshot" | "none" }[];
   sharedInfrastructure: SharedInfrastructure;
+  dataWarning?: {
+    invoiceDataThrough: string;
+    snapshotDataThrough: string;
+    invoiceIngestionStalled: boolean;
+  };
 }
 
 export interface Project {

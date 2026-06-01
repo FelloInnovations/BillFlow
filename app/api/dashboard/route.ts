@@ -19,8 +19,6 @@ export async function GET() {
   const anchorMonth = anchor.getMonth(); // 0-indexed
 
   // "Last complete month" = the month BEFORE the anchor month.
-  // The anchor month itself may still be in progress (e.g., unpaid invoices arriving mid-month),
-  // so we report the prior month as the completed paid period.
   const lastCompleteDate = new Date(anchorYear, anchorMonth - 1, 1);
   const firstOfLastComplete = lastCompleteDate.toISOString().split("T")[0];
   const firstOfAnchorMonth = new Date(anchorYear, anchorMonth, 1).toISOString().split("T")[0];
@@ -31,7 +29,7 @@ export async function GET() {
   const today = new Date().toISOString().split("T")[0];
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes, allInvoicesRes] = await Promise.all([
+  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes, allInvoicesRes, orSnapshotsRes] = await Promise.all([
     // Last complete month paid spend (anchor month - 1)
     supabase
       .from("financial_records")
@@ -82,6 +80,12 @@ export async function GET() {
       .select("vendor_name, total_amount")
       .not("vendor_name", "is", null)
       .not("vendor_name", "ilike", "%makemytrip%"),
+
+    // OpenRouter per-key monthly snapshots (last 12 months)
+    supabase
+      .from("openrouter_usage_snapshots")
+      .select("key_name, period, usage_total")
+      .gte("period", twelveMonthsAgo.substring(0, 7)),
   ]);
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
@@ -105,13 +109,35 @@ export async function GET() {
     vendorMap.set(canonical, (vendorMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
 
+  // For OpenRouter: replace invoice-based total with snapshot-based total (more current/accurate).
+  // Snapshots reflect actual metered API usage per key; invoices may lag by weeks.
+  const orSnapshotTotal = (orSnapshotsRes.data ?? []).reduce(
+    (s, snap) => s + Number(snap.usage_total ?? 0),
+    0
+  );
+  if (orSnapshotTotal > 0) {
+    vendorMap.set("OpenRouter", orSnapshotTotal);
+  }
+
   const spendByVendor = [...vendorMap.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([vendor, total]) => ({ vendor, total }));
 
+  // Pre-aggregate snapshot spend by display month key so we can query it quickly below.
+  const orSnapshotByMonth = new Map<string, number>();
+  for (const snap of orSnapshotsRes.data ?? []) {
+    const [year, month] = snap.period.split("-");
+    const key = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+    orSnapshotByMonth.set(key, (orSnapshotByMonth.get(key) ?? 0) + Number(snap.usage_total ?? 0));
+  }
+
   // Monthly trend with paid/unpaid split.
-  // Use substring(0,7) on the date string to avoid UTC/local timezone shifts.
-  type MonthBucket = { paid: number; unpaid: number; unpaidCount: number; overdueCount: number };
+  // hasOrInvoice tracks whether a month already has invoice-based OpenRouter rows in financial_records,
+  // so we can avoid double-counting when we later fold in snapshot data.
+  type MonthBucket = { paid: number; unpaid: number; unpaidCount: number; overdueCount: number; hasOrInvoice: boolean };
   const monthMap = new Map<string, MonthBucket>();
   for (const r of trendRes.data ?? []) {
     if (!r.invoice_date) continue;
@@ -122,7 +148,7 @@ export async function GET() {
       month: "short",
       year: "numeric",
     });
-    const b = monthMap.get(label) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0 };
+    const b = monthMap.get(label) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0, hasOrInvoice: false };
     const amount = Number(r.total_amount ?? 0);
     if (r.payment_status === "paid") {
       b.paid += amount;
@@ -131,11 +157,34 @@ export async function GET() {
       b.unpaidCount += 1;
       if (r.due_date && r.due_date < today) b.overdueCount += 1;
     }
+    if (r.vendor_name && canonicalVendor(r.vendor_name as string) === "OpenRouter") {
+      b.hasOrInvoice = true;
+    }
     monthMap.set(label, b);
   }
+
+  // Fold in OpenRouter snapshot spend for months that have no invoice-based OR rows.
+  // Snapshot spend is metered/paid — it goes into the paid bucket.
+  for (const [key, snapshotAmount] of orSnapshotByMonth) {
+    const b = monthMap.get(key) ?? { paid: 0, unpaid: 0, unpaidCount: 0, overdueCount: 0, hasOrInvoice: false };
+    if (!b.hasOrInvoice) {
+      b.paid += snapshotAmount;
+    }
+    monthMap.set(key, b);
+  }
+
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime())
-    .map(([month, b]) => ({ month, total: b.paid + b.unpaid, ...b }));
+    .map(([month, b]) => {
+      const { hasOrInvoice, ...rest } = b;
+      const snapshotAmount = orSnapshotByMonth.get(month) ?? 0;
+      const source: "invoice" | "snapshot" | "none" = hasOrInvoice
+        ? "invoice"
+        : snapshotAmount > 0
+        ? "snapshot"
+        : "none";
+      return { month, total: rest.paid + rest.unpaid, ...rest, source };
+    });
 
   // Shared infrastructure: all-time non-OpenRouter vendor totals
   const infraMap = new Map<string, number>();
@@ -151,6 +200,13 @@ export async function GET() {
     .map(([name, total]) => ({ name, total }));
   const infraTotal = infraServices.reduce((s, svc) => s + svc.total, 0);
 
+  // Compute data freshness warning for the dashboard banner.
+  const latestSnapshotPeriod =
+    [...(orSnapshotsRes.data ?? []).map((s) => s.period as string)].sort().at(-1) ?? "";
+  const invoiceIngestionStalled = latestDateStr
+    ? Date.now() - new Date(latestDateStr + "T00:00:00").getTime() > 45 * 24 * 60 * 60 * 1000
+    : false;
+
   const metrics: DashboardMetrics = {
     totalMonthlySpend,
     spendMonth,
@@ -161,6 +217,11 @@ export async function GET() {
     spendByVendor,
     monthlyTrend,
     sharedInfrastructure: { services: infraServices, total: infraTotal },
+    dataWarning: {
+      invoiceDataThrough: latestDateStr ?? "",
+      snapshotDataThrough: latestSnapshotPeriod,
+      invoiceIngestionStalled,
+    },
   };
 
   return NextResponse.json(metrics);
