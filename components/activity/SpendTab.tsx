@@ -81,7 +81,7 @@ interface SpendTabProps {
   lastSyncAt: string | null;
 }
 
-type SortCol = "project" | "thisMonth" | "pctTotal" | "avgMonth" | "total";
+type SortCol = "project" | "thisMonth" | "pctTotal" | "avgMonth" | "avgWeek" | "avgDay" | "total";
 type SortDir = "asc" | "desc";
 
 export function SpendTab({
@@ -136,9 +136,20 @@ export function SpendTab({
     return () => { cancelled = true; };
   }, [expandedRow]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Latest month with actual spend across all keys (used for "Latest Month" column header + values)
+  const latestActiveMonth = useMemo(() => {
+    let latest = "";
+    for (const k of activity.keys) {
+      for (const m of k.monthly) {
+        if (m.spend > 0 && m.month > latest) latest = m.month;
+      }
+    }
+    return latest; // e.g. "2026-05"
+  }, [activity.keys]);
+
   // Period-filtered stats for each key (used in table columns)
   const periodStats = useMemo(() => {
-    const map = new Map<string, { total: number; activeMonths: number; avg: number }>();
+    const map = new Map<string, { total: number; activeMonths: number; avg: number; latestMonthSpend: number; weekly: number; daily: number }>();
     for (const k of activity.keys) {
       const inRange = k.monthly.filter(m => m.month >= cutoffMonth);
       const total = inRange.reduce((s, m) => s + m.spend, 0);
@@ -147,10 +158,13 @@ export function SpendTab({
       // If no completed months yet, treat current partial month as 1 month to avoid $0.00 avg
       const effectiveMonths = snapshotMonths > 0 ? snapshotMonths : (total > 0 ? 1 : 0);
       const avg = effectiveMonths > 0 ? total / effectiveMonths : 0;
-      map.set(k.key_name, { total, activeMonths: snapshotMonths, avg });
+      const latestMonthSpend = k.monthly.find(m => m.month === latestActiveMonth)?.spend ?? 0;
+      const weekly = avg / 4.33;
+      const daily  = avg / 30;
+      map.set(k.key_name, { total, activeMonths: snapshotMonths, avg, latestMonthSpend, weekly, daily });
     }
     return map;
-  }, [activity.keys, cutoffMonth, currentMonth]);
+  }, [activity.keys, cutoffMonth, currentMonth, latestActiveMonth]);
 
   const periodGrandTotal = useMemo(
     () => [...periodStats.values()].reduce((s, v) => s + v.total, 0),
@@ -254,35 +268,38 @@ export function SpendTab({
   function sortKeys(keys: ActivityKeyData[]) {
     return [...keys].sort((a, b) => {
       let va: number | string = 0, vb: number | string = 0;
-      const sa = periodStats.get(a.key_name) ?? { total: 0, avg: 0 };
-      const sb = periodStats.get(b.key_name) ?? { total: 0, avg: 0 };
-      if (sortBy === "project")    { va = a.project_name; vb = b.project_name; }
-      else if (sortBy === "thisMonth") { va = a.current_month_spend; vb = b.current_month_spend; }
-      else if (sortBy === "pctTotal")  { va = sa.total; vb = sb.total; }
-      else if (sortBy === "avgMonth")  { va = sa.avg;   vb = sb.avg; }
-      else if (sortBy === "total")     { va = sa.total; vb = sb.total; }
+      const sa = periodStats.get(a.key_name) ?? { total: 0, avg: 0, latestMonthSpend: 0, weekly: 0, daily: 0 };
+      const sb = periodStats.get(b.key_name) ?? { total: 0, avg: 0, latestMonthSpend: 0, weekly: 0, daily: 0 };
+      if (sortBy === "project")        { va = a.project_name;      vb = b.project_name; }
+      else if (sortBy === "thisMonth") { va = sa.latestMonthSpend; vb = sb.latestMonthSpend; }
+      else if (sortBy === "pctTotal")  { va = sa.total;            vb = sb.total; }
+      else if (sortBy === "avgMonth")  { va = sa.avg;              vb = sb.avg; }
+      else if (sortBy === "avgWeek")   { va = sa.weekly;           vb = sb.weekly; }
+      else if (sortBy === "avgDay")    { va = sa.daily;            vb = sb.daily; }
+      else if (sortBy === "total")     { va = sa.total;            vb = sb.total; }
       if (typeof va === "string" && typeof vb === "string")
         return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
       return sortDir === "asc" ? (va as number) - (vb as number) : (vb as number) - (va as number);
     });
   }
 
-  // Active this month = has current_month_spend > 0
+  // Active = has any spend in the selected period (not just current calendar month)
   const tableActiveKeys = useMemo(
-    () => sortKeys(activity.keys.filter(k => k.current_month_spend > 0)),
+    () => sortKeys(activity.keys.filter(k => (periodStats.get(k.key_name)?.total ?? 0) > 0)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activity.keys, sortBy, sortDir, periodStats]
   );
 
-  // Inactive this month = no spend in current month (but may have historical spend)
+  // Inactive = zero spend across the entire selected period
   const tableInactiveKeys = useMemo(
-    () => sortKeys(activity.keys.filter(k => k.current_month_spend === 0)),
+    () => sortKeys(activity.keys.filter(k => (periodStats.get(k.key_name)?.total ?? 0) === 0)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activity.keys, sortBy, sortDir, periodStats]
   );
 
   function statusDot(k: ActivityKeyData) {
-    if (k.current_month_spend > 0) return "bg-emerald-500";
+    const periodTotal = periodStats.get(k.key_name)?.total ?? 0;
+    if (periodTotal > 0) return "bg-emerald-500";
     if (k.total > 0) return "bg-amber-400";
     return "bg-slate-300 dark:bg-slate-600";
   }
@@ -293,7 +310,7 @@ export function SpendTab({
 
   function renderRow(k: ActivityKeyData) {
     const isExpanded = expandedRow === k.key_name;
-    const ps = periodStats.get(k.key_name) ?? { total: 0, avg: 0 };
+    const ps = periodStats.get(k.key_name) ?? { total: 0, avg: 0, latestMonthSpend: 0, weekly: 0, daily: 0 };
     const pct = periodGrandTotal > 0 ? (ps.total / periodGrandTotal) * 100 : 0;
     const modelList = k.models ?? [];
     const shownModels = modelList.slice(0, 2).map(shortModel);
@@ -339,9 +356,9 @@ export function SpendTab({
               </div>
             )}
           </td>
-          {/* This Month */}
+          {/* Latest Month */}
           <td className="px-5 py-3 font-semibold text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap">
-            {formatCurrency(k.current_month_spend)}
+            {formatCurrency(ps.latestMonthSpend)}
           </td>
           {/* % of Total (period) */}
           <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
@@ -350,6 +367,14 @@ export function SpendTab({
           {/* Avg/Month (period, active months only) */}
           <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
             {formatCurrency(ps.avg)}
+          </td>
+          {/* Avg/Week */}
+          <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+            {formatCurrency(ps.weekly)}
+          </td>
+          {/* Avg/Day */}
+          <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+            {formatCurrency(ps.daily)}
           </td>
           {/* Trend */}
           <td className="px-5 py-3">
@@ -364,7 +389,7 @@ export function SpendTab({
         {/* Expandable detail panel */}
         {isExpanded && (
           <tr key={`${k.key_name}-detail`} className="bg-slate-50 dark:bg-slate-800/30">
-            <td colSpan={7} className="px-5 py-4">
+            <td colSpan={9} className="px-5 py-4">
               {detailLoading ? (
                 <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
                   <Loader2 className="w-4 h-4 animate-spin" /> Loading detail…
@@ -729,13 +754,22 @@ export function SpendTab({
                 </th>
                 <th className={cn(thCls, "cursor-default hover:text-slate-400")}>Models</th>
                 <th className={thCls} onClick={() => toggleSort("thisMonth")}>
-                  <span className="flex items-center gap-1">This Month <SortIcon col="thisMonth" /></span>
+                  <span className="flex items-center gap-1">
+                    {latestActiveMonth ? formatMonth(latestActiveMonth) : "Latest Month"}
+                    <SortIcon col="thisMonth" />
+                  </span>
                 </th>
                 <th className={thCls} onClick={() => toggleSort("pctTotal")}>
                   <span className="flex items-center gap-1">% of Total <SortIcon col="pctTotal" /></span>
                 </th>
                 <th className={thCls} onClick={() => toggleSort("avgMonth")}>
                   <span className="flex items-center gap-1">Avg/Month <SortIcon col="avgMonth" /></span>
+                </th>
+                <th className={thCls} onClick={() => toggleSort("avgWeek")}>
+                  <span className="flex items-center gap-1">Avg/Week <SortIcon col="avgWeek" /></span>
+                </th>
+                <th className={thCls} onClick={() => toggleSort("avgDay")}>
+                  <span className="flex items-center gap-1">Avg/Day <SortIcon col="avgDay" /></span>
                 </th>
                 <th className={cn(thCls, "cursor-default hover:text-slate-400")}>Trend</th>
                 <th className={thCls} onClick={() => toggleSort("total")}>
@@ -747,8 +781,8 @@ export function SpendTab({
               {tableActiveKeys.map(k => renderRow(k))}
               {tableActiveKeys.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-slate-400">
-                    No active keys this month.
+                  <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-400">
+                    No activity in selected period.
                   </td>
                 </tr>
               )}
@@ -756,7 +790,7 @@ export function SpendTab({
           </table>
         </div>
 
-        {/* Inactive this month — collapsed section */}
+        {/* No activity in period — collapsed section */}
         {tableInactiveKeys.length > 0 && (
           <div className="border-t border-slate-100 dark:border-slate-800">
             <button
@@ -764,13 +798,7 @@ export function SpendTab({
               className="w-full flex items-center gap-2 px-5 py-3 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
             >
               {inactiveExpanded ? <ChevronUp className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
-              <span>
-                Inactive this month:{" "}
-                {tableInactiveKeys.slice(0, 3).map(k => k.project_name).join(", ")}
-                {tableInactiveKeys.length > 3
-                  ? ` … (${tableInactiveKeys.length} total)`
-                  : ` (${tableInactiveKeys.length})`}
-              </span>
+              <span>No activity in selected period ({tableInactiveKeys.length} projects)</span>
             </button>
             {inactiveExpanded && (
               <table className="w-full text-sm">
@@ -779,6 +807,17 @@ export function SpendTab({
                 </tbody>
               </table>
             )}
+          </div>
+        )}
+
+        {/* Latest-month note */}
+        {latestActiveMonth && (
+          <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800">
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
+              {currentMonth > latestActiveMonth
+                ? `${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} data will appear after today's sync completes. Latest complete month: ${formatMonth(latestActiveMonth)}.`
+                : `Showing ${formatMonth(latestActiveMonth)} as the latest complete month.`}
+            </p>
           </div>
         )}
       </div>
