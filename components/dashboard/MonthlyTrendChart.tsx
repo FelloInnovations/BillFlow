@@ -24,7 +24,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 export function MonthlyTrendChart({ data }: Props) {
   return (
     <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-5">Monthly Spend Trend <span className="text-slate-400 dark:text-slate-500 font-normal">(all invoices)</span></h3>
+      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-5">Monthly Spend Trend <span className="text-slate-400 dark:text-slate-500 font-normal">(invoices + API usage)</span></h3>
       <ResponsiveContainer width="100%" height={240}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <defs>

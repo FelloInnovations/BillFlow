@@ -61,7 +61,7 @@ export function TrendAndForecastCard({ data }: Props) {
       {/* Trend chart */}
       <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-5">
         Monthly Spend Trend{" "}
-        <span className="text-slate-400 dark:text-slate-500 font-normal">(all invoices)</span>
+        <span className="text-slate-400 dark:text-slate-500 font-normal">(invoices + API usage)</span>
       </h3>
       <ResponsiveContainer width="100%" height={185}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
