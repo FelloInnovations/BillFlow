@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [paidRes, unpaidRes, upcomingRes] = await Promise.all([
+  const [paidRes, unpaidRes, upcomingRes, orSnapshotsRes] = await Promise.all([
     supabase
       .from("financial_records")
       .select("total_amount")
@@ -38,16 +38,25 @@ export async function GET(req: NextRequest) {
       .lte("invoice_date", to)
       .gte("due_date", today)
       .not("vendor_name", "ilike", "%makemytrip%"),
+
+    // OpenRouter snapshots for months overlapping the from-to range
+    supabase
+      .from("openrouter_usage_snapshots")
+      .select("month, usage_total")
+      .gte("month", from.substring(0, 7))
+      .lte("month", to.substring(0, 7)),
   ]);
 
   const paid = (paidRes.data ?? []).reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
+  const orSpend = (orSnapshotsRes.data ?? []).reduce((s, r) => s + Number(r.usage_total ?? 0), 0);
+  const totalPaid = paid + orSpend;
   const unpaidData = unpaidRes.data ?? [];
   const unpaid = unpaidData.reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
   const upcomingData = upcomingRes.data ?? [];
   const upcoming = upcomingData.reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
 
   return NextResponse.json({
-    paid,
+    paid: totalPaid,
     unpaid,
     unpaidCount: unpaidData.length,
     upcoming,
