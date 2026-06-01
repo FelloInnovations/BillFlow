@@ -454,8 +454,35 @@ export function SpendTab({
 
   const thCls = "px-5 py-3 text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 select-none whitespace-nowrap";
 
+  // Show stale-data warning when last sync happened before the current month started
+  // (end-of-month days from the previous snapshot month may be missing)
+  const latestSnapshotMonth = activity.months[activity.months.length - 1] ?? "";
+  const showStaleBanner =
+    latestSnapshotMonth < currentMonth &&
+    (!lastSyncAt || lastSyncAt.substring(0, 7) < currentMonth);
+
   return (
     <div className="space-y-5">
+      {/* Stale-data warning */}
+      {showStaleBanner && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            <span className="font-semibold">
+              {latestSnapshotMonth ? new Date(latestSnapshotMonth + "-02").toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Previous month"} data may be incomplete
+            </span>
+            {" "}— end-of-month days were not captured in the last sync. Run Sync Now to backfill them.
+          </p>
+          <button
+            onClick={onSync}
+            disabled={syncing || syncDisabled}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition-all disabled:opacity-50"
+          >
+            {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Sync Now
+          </button>
+        </div>
+      )}
+
       {/* Total spend banner */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
         <div>

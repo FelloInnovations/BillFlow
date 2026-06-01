@@ -11,7 +11,7 @@ function formatMonthKey(monthKey: string): string {
 }
 
 export async function buildForecast(): Promise<ForecastResult> {
-  const [{ data: records }, { data: hiddenRows }, { data: orSnapshots }] = await Promise.all([
+  const [{ data: records }, { data: hiddenRows }, { data: orSnapshots }, { data: liveTodayRows }] = await Promise.all([
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount, invoice_date")
@@ -22,6 +22,11 @@ export async function buildForecast(): Promise<ForecastResult> {
     supabase
       .from("openrouter_usage_snapshots")
       .select("month, usage_total"),
+    // Live-today rows: partial spend for the current day, not yet in snapshots
+    supabase
+      .from("api_invocation_logs")
+      .select("cost_usd")
+      .eq("source", "live_today"),
   ]);
 
   const hiddenKeys = new Set((hiddenRows ?? []).map((r) => r.tool_key as string));
@@ -30,6 +35,20 @@ export async function buildForecast(): Promise<ForecastResult> {
   const orByMonth: Record<string, number> = {};
   for (const snap of orSnapshots ?? []) {
     orByMonth[snap.month] = (orByMonth[snap.month] ?? 0) + Number(snap.usage_total ?? 0);
+  }
+
+  // Add scaled projection for the current month from live_today rows.
+  // Extrapolates today's partial spend to a full-month estimate so the forecast
+  // window advances to the current month rather than staying on last snapshot month.
+  const liveTodayTotal = (liveTodayRows ?? []).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
+  if (liveTodayTotal > 0) {
+    const now = new Date();
+    const currentMonthKey = now.toISOString().substring(0, 7);
+    if (!orByMonth[currentMonthKey]) {
+      const dayOfMonth = now.getUTCDate();
+      const daysInMonth = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate();
+      orByMonth[currentMonthKey] = liveTodayTotal * (daysInMonth / dayOfMonth);
+    }
   }
 
   // Anchor: use the later of latest invoice date or latest snapshot period.

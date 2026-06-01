@@ -30,12 +30,13 @@ export async function GET() {
       .order("invoked_at", { ascending: false })
       .limit(1),
     getHiddenToolKeys(),
-    // Live-today rows: partial spend for the current UTC day
+    // Live-today rows: all partial-day spend stored this calendar month
+    // Use month start (not just today) so rows from earlier syncs this month are included
     supabase
       .from("api_invocation_logs")
       .select("key_name, cost_usd")
       .eq("source", "live_today")
-      .gte("invoked_at", `${todayUtc}T00:00:00Z`),
+      .gte("invoked_at", `${new Date().toISOString().substring(0, 7)}-01T00:00:00Z`),
   ]);
 
   const projects   = projectsRes.data  ?? [];

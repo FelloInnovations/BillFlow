@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [paidRes, unpaidRes, upcomingRes, orSnapshotsRes] = await Promise.all([
+  const [paidRes, unpaidRes, upcomingRes, orSnapshotsRes, liveTodayRes] = await Promise.all([
     supabase
       .from("financial_records")
       .select("total_amount")
@@ -45,11 +45,20 @@ export async function GET(req: NextRequest) {
       .select("month, usage_total")
       .gte("month", from.substring(0, 7))
       .lte("month", to.substring(0, 7)),
+
+    // Live-today rows: partial current-day spend not yet in snapshots
+    supabase
+      .from("api_invocation_logs")
+      .select("cost_usd")
+      .eq("source", "live_today")
+      .gte("invoked_at", from)
+      .lte("invoked_at", to + "T23:59:59Z"),
   ]);
 
   const paid = (paidRes.data ?? []).reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
   const orSpend = (orSnapshotsRes.data ?? []).reduce((s, r) => s + Number(r.usage_total ?? 0), 0);
-  const totalPaid = paid + orSpend;
+  const liveSpend = (liveTodayRes.data ?? []).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
+  const totalPaid = paid + orSpend + liveSpend;
   const unpaidData = unpaidRes.data ?? [];
   const unpaid = unpaidData.reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
   const upcomingData = upcomingRes.data ?? [];

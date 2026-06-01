@@ -102,6 +102,8 @@ OPENROUTER_PROVISIONING_KEY=     # required — used by snapshot-openrouter-usag
 - **Auth**: Uses `OPENROUTER_PROVISIONING_KEY` to list keys and fetch `/api/v1/activity?api_key_hash=<hash>`
 - **Dedup**: Unique constraint on `api_invocation_logs(key_name, endpoint_id, invoked_at)` — safe to rerun
 - **Selective sync**: POST body `{ key_names: ["key-foo"] }` syncs only those keys
+- **End-of-month gap**: The activity API only returns completed UTC days at sync time. If a sync runs on the last day of the month (or if pg_cron fires before midnight), the final days of that month are missed. Running Sync Now on the 1st of the following month captures them correctly via the upsert dedup logic.
+- **live_today source**: Today's partial spend is stored in `api_invocation_logs` with `source = 'live_today'`. All current-month calculations (dashboard trend, range card, activity This Month, forecast) read these rows so the current month is never $0 between syncs.
 
 ### get-openrouter-usage
 - **Per-key path** (`?key_name=`): reads monthly totals from `openrouter_usage_snapshots` (no live OR call)

@@ -29,7 +29,7 @@ export async function GET() {
   const today = new Date().toISOString().split("T")[0];
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes, allInvoicesRes, orSnapshotsRes] = await Promise.all([
+  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes, allInvoicesRes, orSnapshotsRes, liveTodayRes] = await Promise.all([
     // Last complete month paid spend (anchor month - 1)
     supabase
       .from("financial_records")
@@ -86,6 +86,13 @@ export async function GET() {
       .from("openrouter_usage_snapshots")
       .select("month, usage_total")
       .gte("month", twelveMonthsAgo.substring(0, 7)),
+
+    // Live-today rows: partial current-day spend not yet in snapshots
+    supabase
+      .from("api_invocation_logs")
+      .select("invoked_at, cost_usd")
+      .eq("source", "live_today")
+      .gte("invoked_at", twelveMonthsAgo),
   ]);
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
@@ -95,6 +102,12 @@ export async function GET() {
   for (const row of orSnapshotsRes.data ?? []) {
     const period = row.month as string;
     orByMonth[period] = (orByMonth[period] ?? 0) + Number(row.usage_total ?? 0);
+  }
+
+  // Merge live-today rows into orByMonth — adds current month's partial spend
+  for (const row of liveTodayRes.data ?? []) {
+    const period = (row.invoked_at as string).substring(0, 7);
+    orByMonth[period] = (orByMonth[period] ?? 0) + Number(row.cost_usd ?? 0);
   }
 
   // Previous calendar month key (real clock — not invoice anchor — so May snapshot appears)
