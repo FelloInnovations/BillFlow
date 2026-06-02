@@ -3,17 +3,11 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { Bell, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
-import { ActivityData, SpendAlert, AlertPeriod, AlertStatus } from "@/types";
+import { ActivityData, SpendAlert, AlertStatus } from "@/types";
 
 interface GuardrailsTabProps {
   activity: ActivityData;
 }
-
-const PERIOD_LABELS: Record<AlertPeriod, string> = {
-  daily: "Daily",
-  weekly: "Weekly",
-  monthly: "Monthly",
-};
 
 function statusColor(status: AlertStatus) {
   if (status === "breached") return "rose";
@@ -75,13 +69,11 @@ interface NewFormState {
   project_name: string;
   openrouter_key_name: string;
   limit_usd: string;
-  limit_period: AlertPeriod;
   warning_pct: string;
 }
 
 interface EditFormState {
   limit_usd: string;
-  limit_period: AlertPeriod;
   warning_pct: string;
 }
 
@@ -89,17 +81,8 @@ const EMPTY_NEW: NewFormState = {
   project_name: "",
   openrouter_key_name: "",
   limit_usd: "",
-  limit_period: "monthly",
   warning_pct: "80",
 };
-
-const periodButtonClass = (active: boolean) =>
-  cn(
-    "px-3 py-1 text-xs font-medium transition-colors capitalize",
-    active
-      ? "bg-indigo-600 text-white"
-      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-  );
 
 export function GuardrailsTab({ activity }: GuardrailsTabProps) {
   const [alerts, setAlerts] = useState<SpendAlert[]>([]);
@@ -111,7 +94,7 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
   const [savingNew, setSavingNew] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<EditFormState>({ limit_usd: "", limit_period: "monthly", warning_pct: "80" });
+  const [editForm, setEditForm] = useState<EditFormState>({ limit_usd: "", warning_pct: "80" });
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -168,7 +151,7 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
           project_name: newForm.project_name,
           openrouter_key_name: newForm.openrouter_key_name,
           limit_usd: limit,
-          limit_period: newForm.limit_period,
+          limit_period: 'monthly',
           warning_pct: warnPct,
         }),
       });
@@ -189,7 +172,6 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
   function openEdit(alert: SpendAlert) {
     setEditForm({
       limit_usd: alert.limit_usd.toString(),
-      limit_period: alert.limit_period,
       warning_pct: alert.warning_pct.toString(),
     });
     setEditError(null);
@@ -210,7 +192,6 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           limit_usd: limit,
-          limit_period: editForm.limit_period,
           warning_pct: warnPct,
         }),
       });
@@ -300,25 +281,9 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
             className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 w-28"
           />
         </div>
-        {/* Period */}
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Per</label>
-          <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-            {(["daily", "weekly", "monthly"] as AlertPeriod[]).map(p => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setNewForm(f => ({ ...f, limit_period: p }))}
-                className={periodButtonClass(newForm.limit_period === p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
         {/* Warning pct */}
         <div>
-          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Warn me at</label>
+          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Email alert at</label>
           <div className="flex items-center gap-1.5">
             <input
               type="number"
@@ -349,6 +314,9 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
         </div>
       </div>
       {newError && <p className="text-xs text-rose-600 dark:text-rose-400">{newError}</p>}
+      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+        Alerts are sent to all team members via n8n every 15 minutes.
+      </p>
     </div>
   );
 
@@ -439,22 +407,7 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Per</label>
-                      <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                        {(["daily", "weekly", "monthly"] as AlertPeriod[]).map(p => (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => setEditForm(f => ({ ...f, limit_period: p }))}
-                            className={periodButtonClass(editForm.limit_period === p)}
-                          >
-                            {p}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Warn at</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Email alert at</label>
                       <div className="flex items-center gap-1.5">
                         <input
                           type="number"
@@ -487,9 +440,11 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
                 </div>
               ) : (
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                  {PERIOD_LABELS[alert.limit_period]} limit:{" "}
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(alert.limit_usd)}</span>
-                  {" "}· warn at {alert.warning_pct}%
+                  Monthly limit:{" "}
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    {formatCurrency(alert.limit_usd)}
+                  </span>
+                  {" "}· email alert at {alert.warning_pct}%
                 </p>
               )}
 

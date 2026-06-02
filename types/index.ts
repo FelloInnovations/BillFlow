@@ -185,7 +185,7 @@ export interface Guardrail {
   updated_at: string;
 }
 
-export type AlertPeriod = 'daily' | 'weekly' | 'monthly';
+export type AlertPeriod = 'monthly';
 export type AlertStatus = 'ok' | 'warning' | 'breached';
 
 export interface SpendAlert {

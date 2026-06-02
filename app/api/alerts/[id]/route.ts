@@ -1,7 +1,7 @@
 // PATCH /api/alerts/:id
-// Body: { limit_usd?, limit_period?, warning_pct?, is_active? }
-// When limit_usd changes: resets status = 'ok' and clears notification timestamps
-// so n8n fires fresh against the new limit.
+// Body: { limit_usd?, warning_pct?, is_active? }
+// limit_period is immutable — ignored if sent. When limit_usd changes: resets
+// status = 'ok' and clears notification timestamps so n8n fires fresh.
 
 // DELETE /api/alerts/:id
 // Sets is_active = false (soft delete).
@@ -15,7 +15,7 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await req.json();
-  const { limit_usd, limit_period, warning_pct, is_active } = body;
+  const { limit_usd, warning_pct, is_active } = body;
 
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -28,7 +28,6 @@ export async function PATCH(
     updates.warning_notified_at = null;
     updates.breach_notified_at = null;
   }
-  if (limit_period !== undefined) updates.limit_period = limit_period;
   if (warning_pct !== undefined) updates.warning_pct = Number(warning_pct);
   if (is_active !== undefined) updates.is_active = is_active;
 
