@@ -4,14 +4,14 @@ import { useState, useCallback, useEffect, ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import { BarChart2, ShieldAlert, List } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ActivityData, Guardrail, LogEntry, PaginatedResult } from "@/types";
+import { ActivityData, LogEntry, PaginatedResult } from "@/types";
 import { SpendTab } from "./SpendTab";
 import { GuardrailsTab } from "./GuardrailsTab";
 import { LogsTab } from "./LogsTab";
 
 interface Props {
   initialActivity: ActivityData;
-  initialGuardrails: Guardrail[];
+  initialGuardrails?: unknown;
   initialLogs: PaginatedResult<LogEntry>;
 }
 
@@ -29,10 +29,9 @@ export type SyncResult = {
   errors: string[];
 } | null;
 
-export function ActivityClient({ initialActivity, initialGuardrails, initialLogs }: Props) {
+export function ActivityClient({ initialActivity, initialLogs }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("spend");
-  const [guardrails, setGuardrails] = useState<Guardrail[]>(initialGuardrails);
   const [monthRange, setMonthRange] = useState<1 | 3 | 6 | 12>(6);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult>(null);
@@ -68,40 +67,6 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
       setSyncing(false);
     }
   }, [router]);
-
-  async function handleSave(projectName: string, budget: number, threshold: number) {
-    const res = await fetch("/api/guardrails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        project_name: projectName,
-        monthly_budget_usd: budget,
-        warning_threshold_pct: threshold,
-      }),
-    });
-    if (res.ok) {
-      const saved: Guardrail = await res.json();
-      setGuardrails(prev => {
-        const idx = prev.findIndex(g => g.project_name === projectName);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = saved;
-          return next;
-        }
-        return [...prev, saved];
-      });
-    }
-  }
-
-  async function handleDelete(projectName: string) {
-    const res = await fetch(
-      `/api/guardrails?project_name=${encodeURIComponent(projectName)}`,
-      { method: "DELETE" }
-    );
-    if (res.ok) {
-      setGuardrails(prev => prev.filter(g => g.project_name !== projectName));
-    }
-  }
 
   const allKeyNames = initialActivity.keys.map(k => k.key_name);
 
@@ -140,12 +105,7 @@ export function ActivityClient({ initialActivity, initialGuardrails, initialLogs
       </div>
 
       <div className={tab === "guardrails" ? "" : "hidden"}>
-        <GuardrailsTab
-          activity={initialActivity}
-          guardrails={guardrails}
-          onSave={handleSave}
-          onDelete={handleDelete}
-        />
+        <GuardrailsTab activity={initialActivity} />
       </div>
 
       <div className={tab === "logs" ? "" : "hidden"}>

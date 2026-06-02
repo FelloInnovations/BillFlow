@@ -185,6 +185,40 @@ export interface Guardrail {
   updated_at: string;
 }
 
+export type AlertPeriod    = 'daily' | 'weekly' | 'monthly';
+export type AlertFrequency = 'immediate' | 'daily_digest' | 'weekly_digest';
+export type AlertStatus    = 'ok' | 'warning' | 'crossed';
+
+export interface SpendAlert {
+  id: string;
+  project_name: string;
+  openrouter_key_name: string;
+  period_type: AlertPeriod;
+  threshold_usd: number;
+  notify_email: string;
+  notify_frequency: AlertFrequency;
+  last_notified_at: string | null;
+  last_period_start: string | null;
+  is_active: boolean;
+  created_at: string;
+  // computed by GET /api/alerts:
+  current_spend: number;
+  pct_of_threshold: number;
+  period_label: string;
+  status: AlertStatus;
+}
+
+export interface AlertDigestEntry {
+  id: string;
+  project_name: string;
+  period_type: AlertPeriod;
+  threshold_usd: number;
+  actual_spend: number;
+  detected_at: string;
+  sent: boolean;
+  digest_type: AlertFrequency;
+}
+
 export interface InvoiceFilters {
   vendor?: string;
   status?: string;
