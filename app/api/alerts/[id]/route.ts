@@ -11,8 +11,9 @@ import { supabase } from "@/lib/supabase";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const body = await req.json();
   const { limit_usd, limit_period, warning_pct, is_active } = body;
 
@@ -34,7 +35,7 @@ export async function PATCH(
   const { data, error } = await supabase
     .from("spend_alerts")
     .update(updates)
-    .eq("id", params.id)
+    .eq("id", id)
     .select()
     .single();
 
@@ -44,12 +45,13 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { error } = await supabase
     .from("spend_alerts")
     .update({ is_active: false, updated_at: new Date().toISOString() })
-    .eq("id", params.id);
+    .eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
