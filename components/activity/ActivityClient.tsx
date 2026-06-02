@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, ComponentType } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, ComponentType } from "react";
 import { BarChart2, ShieldAlert, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ActivityData, LogEntry, PaginatedResult } from "@/types";
@@ -23,50 +22,16 @@ const TABS: { id: Tab; label: string; Icon: ComponentType<{ className?: string }
   { id: "logs",       label: "Logs",       Icon: List },
 ];
 
-export type SyncResult = {
-  synced_keys: number;
-  total_log_rows_written: number;
-  errors: string[];
-} | null;
-
 export function ActivityClient({ initialActivity, initialLogs }: Props) {
-  const router = useRouter();
   const [tab, setTab] = useState<Tab>("spend");
   const [monthRange, setMonthRange] = useState<1 | 3 | 6 | 12>(6);
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<SyncResult>(null);
-  const [syncCooldownUntil, setSyncCooldownUntil] = useState(0);
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(
-    initialActivity.last_synced_at ?? null
-  );
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("billflow_last_sync");
-    if (stored) setLastSyncAt(stored);
+    fetch("/api/activity/last-synced")
+      .then(r => r.json())
+      .then(d => setLastSynced(d.last_synced_at));
   }, []);
-
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    setSyncResult(null);
-    try {
-      const res = await fetch("/api/activity/sync", { method: "POST" });
-      const json = await res.json();
-      setSyncResult({
-        synced_keys: json.synced_keys ?? 0,
-        total_log_rows_written: json.total_log_rows_written ?? 0,
-        errors: json.errors ?? [],
-      });
-      setSyncCooldownUntil(Date.now() + 60_000);
-      const now = new Date().toISOString();
-      setLastSyncAt(now);
-      localStorage.setItem("billflow_last_sync", now);
-      router.refresh();
-    } catch {
-      setSyncResult({ synced_keys: 0, total_log_rows_written: 0, errors: ["Request failed"] });
-    } finally {
-      setSyncing(false);
-    }
-  }, [router]);
 
   const allKeyNames = initialActivity.keys.map(k => k.key_name);
 
@@ -96,11 +61,7 @@ export function ActivityClient({ initialActivity, initialLogs }: Props) {
           activity={initialActivity}
           monthRange={monthRange}
           setMonthRange={setMonthRange}
-          onSync={handleSync}
-          syncing={syncing}
-          syncResult={syncResult}
-          syncDisabled={Date.now() < syncCooldownUntil}
-          lastSyncAt={lastSyncAt}
+          lastSynced={lastSynced}
         />
       </div>
 
@@ -112,10 +73,6 @@ export function ActivityClient({ initialActivity, initialLogs }: Props) {
         <LogsTab
           allKeyNames={allKeyNames}
           initialData={initialLogs}
-          onSync={handleSync}
-          syncing={syncing}
-          syncResult={syncResult}
-          syncDisabled={Date.now() < syncCooldownUntil}
         />
       </div>
     </div>

@@ -254,7 +254,7 @@ async function buildFullContext(): Promise<string> {
   lines.push(`Latest OpenRouter snapshot month: ${latestSnapshot}`);
   lines.push(`Latest API invocation: ${latestActivity}`);
   lines.push(`Invoice ingestion may be stalled if latest invoice is more than 2 weeks old.`);
-  lines.push(`OpenRouter API data is synced via the Activity page "Sync Now" button.`);
+  lines.push(`OpenRouter API data is synced hourly via n8n. Last sync timestamp is available in openrouter_usage_snapshots.`);
 
   return lines.join("\n");
 }

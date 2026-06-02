@@ -5,10 +5,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from "recharts";
-import { ChevronDown, ChevronUp, ChevronRight, RefreshCw, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Loader2 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { ActivityData, ActivityKeyData } from "@/types";
-import type { SyncResult } from "./ActivityClient";
 
 const KEY_COLORS = [
   "#6366f1", "#f59e0b", "#10b981", "#f43f5e",
@@ -34,11 +33,12 @@ function formatDateShort(d: string) {
   return `${names[parseInt(mo) - 1]} ${parseInt(dd)}`;
 }
 
-function formatLastSync(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-    ", " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+function formatRelativeTime(iso: string): string {
+  const minsAgo = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (minsAgo < 60) return `${Math.floor(minsAgo)}m ago`;
+  const hoursAgo = minsAgo / 60;
+  if (hoursAgo < 24) return `${Math.floor(hoursAgo)}h ago`;
+  return `${Math.floor(hoursAgo / 24)}d ago`;
 }
 
 function TrendBadge({ trend }: { trend: "up" | "down" | "stable" | null }) {
@@ -74,19 +74,14 @@ interface SpendTabProps {
   activity: ActivityData;
   monthRange: 1 | 3 | 6 | 12;
   setMonthRange: (n: 1 | 3 | 6 | 12) => void;
-  onSync: () => Promise<void>;
-  syncing: boolean;
-  syncResult: SyncResult;
-  syncDisabled: boolean;
-  lastSyncAt: string | null;
+  lastSynced: string | null;
 }
 
 type SortCol = "project" | "thisMonth" | "pctTotal" | "avgMonth" | "avgWeek" | "avgDay" | "total";
 type SortDir = "asc" | "desc";
 
 export function SpendTab({
-  activity, monthRange, setMonthRange,
-  onSync, syncing, syncResult, syncDisabled, lastSyncAt,
+  activity, monthRange, setMonthRange, lastSynced,
 }: SpendTabProps) {
   const [chartView, setChartView] = useState<"key" | "day">("key");
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
@@ -479,34 +474,8 @@ export function SpendTab({
 
   const thCls = "px-5 py-3 text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 select-none whitespace-nowrap";
 
-  // Show stale-data warning when last sync happened before the current month started
-  // (end-of-month days from the previous snapshot month may be missing)
-  const latestSnapshotMonth = activity.months[activity.months.length - 1] ?? "";
-  const showStaleBanner =
-    latestSnapshotMonth < currentMonth &&
-    (!lastSyncAt || lastSyncAt.substring(0, 7) < currentMonth);
-
   return (
     <div className="space-y-5">
-      {/* Stale-data warning */}
-      {showStaleBanner && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            <span className="font-semibold">
-              {latestSnapshotMonth ? new Date(latestSnapshotMonth + "-02").toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Previous month"} data may be incomplete
-            </span>
-            {" "}— end-of-month days were not captured in the last sync. Run Sync Now to backfill them.
-          </p>
-          <button
-            onClick={onSync}
-            disabled={syncing || syncDisabled}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition-all disabled:opacity-50"
-          >
-            {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            Sync Now
-          </button>
-        </div>
-      )}
 
       {/* Total spend banner */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
@@ -571,43 +540,11 @@ export function SpendTab({
           Show inactive
         </label>
 
-        <div className="ml-auto flex items-center gap-3 flex-wrap justify-end">
-          {/* Last sync + result */}
-          <div className="flex flex-col items-end gap-0.5">
-            {syncResult && (
-              <span className={cn("text-xs font-medium",
-                syncResult.errors.length > 0 ? "text-amber-500 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
-              )}>
-                {syncResult.errors.length > 0
-                  ? `${syncResult.synced_keys} keys synced, ${syncResult.errors.length} error(s)`
-                  : `Synced ${syncResult.synced_keys} keys · ${syncResult.total_log_rows_written} rows`}
-              </span>
-            )}
-            {lastSyncAt && (
-              <div className="text-right">
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                  Last synced: {formatLastSync(lastSyncAt)}
-                </span>
-                {activity.latest_date && (
-                  <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-0.5">
-                    {activity.latest_date === todayUtc
-                      ? "· data through today (live) · updates on each sync"
-                      : `· data through ${formatDateShort(activity.latest_date)} · today's spend available tomorrow`
-                    }
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={onSync}
-            disabled={syncing || syncDisabled}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={cn("w-3 h-3", syncing && "animate-spin")} />
-            {syncing ? "Syncing…" : "Sync Now"}
-          </button>
-        </div>
+        <p className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">
+          {lastSynced
+            ? `Synced ${formatRelativeTime(lastSynced)} · hourly via n8n`
+            : 'Awaiting first n8n sync'}
+        </p>
       </div>
 
       {/* Chart card */}
@@ -631,7 +568,7 @@ export function SpendTab({
           ) : dayData.days.length === 0 ? (
             <div className="flex items-center justify-center h-40">
               <p className="text-sm text-slate-400 dark:text-slate-500 text-center max-w-sm">
-                No daily data for this period. Run Sync Now to populate.
+                No daily data for this period.
               </p>
             </div>
           ) : (
