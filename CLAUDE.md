@@ -109,10 +109,20 @@ OPENROUTER_PROVISIONING_KEY=     # required — used by snapshot-openrouter-usag
 - **Per-key path** (`?key_name=`): reads monthly totals from `openrouter_usage_snapshots` (no live OR call)
 - **Account-level** (no param): calls `/api/v1/credits` with `OPENROUTER_API_KEY`
 
-### New API route
+### BillFlow Spend Alerts (n8n)
+- **Purpose**: Reads `spend_alerts` table, checks current spend per key via OpenRouter API, writes `current_spend`, `current_pct`, `status`, `last_checked_at` back to the row, and sends Resend emails when thresholds are crossed.
+- **Trigger**: n8n workflow "BillFlow Spend Alerts" running every 15 minutes.
+- **Dedup**: `warning_notified_at` / `breach_notified_at` fields prevent duplicate emails. BillFlow resets these to `null` when the user changes `limit_usd` via PATCH `/api/alerts/:id`.
+- **BillFlow's role**: UI only — creates/edits/deletes rows in `spend_alerts`. No spend computation in BillFlow; n8n owns that.
+
+### New API routes
 | Route | Purpose |
 |---|---|
 | `POST /api/activity/sync` | Triggers `snapshot-openrouter-usage` edge function, returns sync summary |
+| `GET /api/alerts` | Returns all active `spend_alerts` rows (n8n-written status fields included) |
+| `POST /api/alerts` | Upserts a new alert (project_name unique key) |
+| `PATCH /api/alerts/:id` | Edit limit/period/warning_pct; resets notification state when limit_usd changes |
+| `DELETE /api/alerts/:id` | Soft-delete (sets is_active = false) |
 
 ## Feature Log
 <!-- Append new features here as they are added -->
