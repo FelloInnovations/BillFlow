@@ -102,13 +102,13 @@ export async function GET() {
 
     const keySnaps = rawSnaps.sort((a, b) => a.month.localeCompare(b.month));
 
-    // usage_total is the monthly spend directly (NOT cumulative — stored as monthly sum)
+    // For totals and chart: include all months including current
     const monthly = keySnaps.map((s) => {
       allMonthsSet.add(s.month);
       return { month: s.month, spend: s.usage_total };
     });
 
-    // Trend compares the two most recent COMPLETED months
+    // For trend only: use completed months (current month is partial)
     const completedSorted = monthly
       .filter((m) => m.month < currentMonth)
       .sort((a, b) => b.month.localeCompare(a.month));

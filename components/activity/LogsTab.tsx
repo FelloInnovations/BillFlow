@@ -13,10 +13,9 @@ interface LogsTabProps {
 const PAGE_SIZE = 50;
 
 function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-    ", " +
-    d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  });
 }
 
 export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {

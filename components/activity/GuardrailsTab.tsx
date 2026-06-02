@@ -113,7 +113,14 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
     setLoading(true);
     try {
       const res = await fetch("/api/alerts");
-      if (res.ok) setAlerts(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts(Array.isArray(data) ? data : []);
+      } else {
+        setAlerts([]);
+      }
+    } catch {
+      setAlerts([]);
     } finally {
       setLoading(false);
     }

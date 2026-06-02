@@ -184,24 +184,22 @@ export function SpendTab({
     [periodStats]
   );
 
-  const prevMonthTotal = useMemo(() => {
-    const prev = new Date();
-    prev.setMonth(prev.getMonth() - 1);
-    const prevStr = prev.toISOString().substring(0, 7);
-    return activity.keys.reduce((sum, k) => {
-      const m = k.monthly.find(x => x.month === prevStr);
-      return sum + (m?.spend ?? 0);
-    }, 0);
-  }, [activity.keys]);
-
-  const currMonthTotal = useMemo(
-    () => activity.keys.reduce((s, k) => s + k.current_month_spend, 0),
-    [activity.keys]
-  );
-
-  const pctChange = prevMonthTotal > 0
-    ? ((currMonthTotal - prevMonthTotal) / prevMonthTotal) * 100
-    : null;
+  // Compare the two most recent completed months that have non-zero spend
+  const pctChange = useMemo(() => {
+    const monthTotals: Record<string, number> = {};
+    for (const k of activity.keys) {
+      for (const m of k.monthly) {
+        if (m.month < currentMonth && m.spend > 0) {
+          monthTotals[m.month] = (monthTotals[m.month] ?? 0) + m.spend;
+        }
+      }
+    }
+    const completedMonths = Object.entries(monthTotals)
+      .sort((a, b) => b[0].localeCompare(a[0]));
+    if (completedMonths.length < 2) return null;
+    const [latest, prev] = completedMonths;
+    return prev[1] > 0 ? ((latest[1] - prev[1]) / prev[1]) * 100 : null;
+  }, [activity.keys, currentMonth]);
 
   // Active in chart = has any spend in period + not hidden
   const activeKeys = useMemo(
