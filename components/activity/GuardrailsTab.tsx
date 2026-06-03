@@ -242,7 +242,7 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
           </div>
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">No spend alerts set</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 max-w-xs mx-auto">
-            Set a limit per project. n8n checks every 15 minutes and emails the team when a threshold is crossed.
+            Set a limit per project. n8n checks hourly and emails the team when a threshold is crossed.
           </p>
           <button
             onClick={openNew}
@@ -322,7 +322,7 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
       </div>
       {newError && <p className="text-xs text-rose-600 dark:text-rose-400">{newError}</p>}
       <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-        Alerts are sent to all team members via n8n every 15 minutes.
+        Alerts are sent to all team members via n8n hourly.
       </p>
     </div>
   );
@@ -339,7 +339,7 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
           {warningCount > 0 && (
             <span className="font-semibold text-amber-600 dark:text-amber-400">{warningCount} warning</span>
           )}
-          <span className="text-slate-400">· checked by n8n every 15 min</span>
+          <span className="text-slate-400">· checked by n8n hourly</span>
         </div>
         {!showNewForm && (
           <button
