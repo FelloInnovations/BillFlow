@@ -77,7 +77,7 @@ interface SpendTabProps {
   lastSynced: string | null;
 }
 
-type SortCol = "project" | "thisMonth" | "pctTotal" | "avgMonth" | "avgWeek" | "avgDay" | "total";
+type SortCol = "project" | "thisMonth" | "today" | "pctTotal" | "avgMonth" | "avgWeek" | "avgDay" | "total";
 type SortDir = "asc" | "desc";
 
 export function SpendTab({
@@ -99,10 +99,16 @@ export function SpendTab({
   const todayUtc     = useMemo(() => new Date().toISOString().substring(0, 10), []);
 
   const cutoffMonth = useMemo(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - monthRange + 1);
-    return d.toISOString().substring(0, 7);
-  }, [monthRange]);
+    // Anchor on latest log date if available, otherwise fall back to latest snapshot month
+    const latestDataMonth = activity.latest_date
+      ? activity.latest_date.substring(0, 7)
+      : activity.months[activity.months.length - 1]
+      ?? new Date().toISOString().substring(0, 7);
+
+    const [y, m] = latestDataMonth.split("-").map(Number);
+    const cutoff = new Date(y, m - 1 - (monthRange - 1), 1);
+    return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}`;
+  }, [monthRange, activity.latest_date, activity.months]);
 
   // Fetch daily data when switching to day view or changing period
   useEffect(() => {
@@ -171,12 +177,14 @@ export function SpendTab({
     [activity.months, cutoffMonth]
   );
 
-  // Fix 1 + 7: start from cutoffMonth (reflects period selection), end at actual latest DB date
   const periodLabel = useMemo(() => {
     const end = activity.latest_date
       ? formatDateShort(activity.latest_date)
-      : visibleMonths.length > 0 ? formatMonth(visibleMonths[visibleMonths.length - 1]) : "";
-    return end ? `${formatMonth(cutoffMonth)} – ${end}` : "";
+      : visibleMonths.length > 0
+        ? formatMonth(visibleMonths[visibleMonths.length - 1])
+        : "";
+    const start = formatMonth(cutoffMonth);
+    return end ? `${start} – ${end}` : start;
   }, [cutoffMonth, activity.latest_date, visibleMonths]);
 
   const periodTotal = useMemo(
@@ -265,6 +273,7 @@ export function SpendTab({
       const sb = periodStats.get(b.key_name) ?? { total: 0, avg: 0, latestMonthSpend: 0, weekly: 0, daily: 0 };
       if (sortBy === "project")        { va = a.project_name;      vb = b.project_name; }
       else if (sortBy === "thisMonth") { va = sa.latestMonthSpend; vb = sb.latestMonthSpend; }
+      else if (sortBy === "today")     { va = a.today_spend;       vb = b.today_spend; }
       else if (sortBy === "pctTotal")  { va = sa.total;            vb = sb.total; }
       else if (sortBy === "avgMonth")  { va = sa.avg;              vb = sb.avg; }
       else if (sortBy === "avgWeek")   { va = sa.weekly;           vb = sb.weekly; }
@@ -353,6 +362,13 @@ export function SpendTab({
           <td className="px-5 py-3 font-semibold text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap">
             {formatCurrency(ps.latestMonthSpend)}
           </td>
+          {/* Today (live daily counter from OpenRouter, updated each hourly n8n sync) */}
+          <td className="px-5 py-3 text-sm whitespace-nowrap">
+            {k.today_spend > 0
+              ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(k.today_spend)}</span>
+              : <span className="text-slate-300 dark:text-slate-600">—</span>
+            }
+          </td>
           {/* % of Total (period) */}
           <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
             {pct.toFixed(1)}%
@@ -382,7 +398,7 @@ export function SpendTab({
         {/* Expandable detail panel */}
         {isExpanded && (
           <tr key={`${k.key_name}-detail`} className="bg-slate-50 dark:bg-slate-800/30">
-            <td colSpan={9} className="px-5 py-4">
+            <td colSpan={10} className="px-5 py-4">
               {detailLoading ? (
                 <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
                   <Loader2 className="w-4 h-4 animate-spin" /> Loading detail…
@@ -694,6 +710,12 @@ export function SpendTab({
                     <SortIcon col="thisMonth" />
                   </span>
                 </th>
+                <th className={thCls} onClick={() => toggleSort("today")}>
+                  <span className="flex items-center gap-1" title="Today's running total from OpenRouter's live counter · updates every hour via n8n">
+                    Today (live · as of last sync)
+                    <SortIcon col="today" />
+                  </span>
+                </th>
                 <th className={thCls} onClick={() => toggleSort("pctTotal")}>
                   <span className="flex items-center gap-1">% of Total <SortIcon col="pctTotal" /></span>
                 </th>
@@ -716,7 +738,7 @@ export function SpendTab({
               {tableActiveKeys.map(k => renderRow(k))}
               {tableActiveKeys.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={10} className="px-5 py-8 text-center text-sm text-slate-400">
                     No activity in selected period.
                   </td>
                 </tr>

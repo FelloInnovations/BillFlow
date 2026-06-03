@@ -148,6 +148,7 @@ export interface ActivityKeyData {
   avg: number;
   trend: "up" | "down" | "stable" | null;
   current_month_spend: number;
+  today_spend: number;
   models: string[];
 }
 

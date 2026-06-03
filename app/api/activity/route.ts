@@ -13,7 +13,7 @@ export async function GET() {
       .neq("openrouter_api_key", ""),
     supabase
       .from("openrouter_usage_snapshots")
-      .select("key_name, month, usage_total")
+      .select("key_name, month, usage_total, usage_today")
       .order("month", { ascending: true }),
     supabase
       .from("api_invocation_logs")
@@ -77,13 +77,13 @@ export async function GET() {
   const hiddenOrKeys = hiddenOrKeyNames(hiddenKeys);
 
   // Group snapshots by exact key_name — skip keys not in portfolio allowlist or hidden
-  const snapshotsByKey: Record<string, { month: string; usage_total: number }[]> = {};
+  const snapshotsByKey: Record<string, { month: string; usage_total: number; usage_today: number }[]> = {};
   for (const snap of snapshots) {
     const k = snap.key_name as string;
     if (!allowedKeyNames.has(k)) continue;
     if (hiddenOrKeys.has(k)) continue;
     if (!snapshotsByKey[k]) snapshotsByKey[k] = [];
-    snapshotsByKey[k].push({ month: snap.month as string, usage_total: Number(snap.usage_total) });
+    snapshotsByKey[k].push({ month: snap.month as string, usage_total: Number(snap.usage_total), usage_today: Number(snap.usage_today ?? 0) });
   }
 
   const currentMonth = new Date().toISOString().substring(0, 7);
@@ -144,6 +144,8 @@ export async function GET() {
       trend,
       // Snapshots cover through yesterday; add live_today rows for today's partial data
       current_month_spend: (monthly.find((m) => m.month === currentMonth)?.spend ?? 0) + (liveTodayByKey[keyName] ?? 0),
+      // usage_today from OpenRouter's live daily counter, updated each hourly n8n sync
+      today_spend: keySnaps.find((s) => s.month === currentMonth)?.usage_today ?? 0,
       models: [...(modelsByKey[keyName] ?? new Set<string>())],
     };
   });
