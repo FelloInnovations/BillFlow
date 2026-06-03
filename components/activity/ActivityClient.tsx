@@ -7,6 +7,7 @@ import { ActivityData, LogEntry, PaginatedResult } from "@/types";
 import { SpendTab } from "./SpendTab";
 import { GuardrailsTab } from "./GuardrailsTab";
 import { LogsTab } from "./LogsTab";
+import TodaySpendCard from "./TodaySpendCard";
 
 interface Props {
   initialActivity: ActivityData;
@@ -57,6 +58,7 @@ export function ActivityClient({ initialActivity, initialLogs }: Props) {
       </div>
 
       <div className={tab === "spend" ? "" : "hidden"}>
+        <TodaySpendCard />
         <SpendTab
           activity={initialActivity}
           monthRange={monthRange}
