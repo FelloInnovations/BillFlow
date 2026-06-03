@@ -98,6 +98,13 @@ export function SpendTab({
   const currentMonth = useMemo(() => new Date().toISOString().substring(0, 7), []);
   const todayUtc     = useMemo(() => new Date().toISOString().substring(0, 10), []);
 
+  // Latest month with actual LOG entries (not snapshots).
+  // Used to prevent snapshot-only months from appearing in the period charts.
+  const latestLogMonth = useMemo(
+    () => activity.latest_date?.substring(0, 7) ?? null,
+    [activity.latest_date]
+  );
+
   const cutoffMonth = useMemo(() => {
     // Anchor on latest log date if available, otherwise fall back to latest snapshot month
     const latestDataMonth = activity.latest_date
@@ -152,7 +159,9 @@ export function SpendTab({
   const periodStats = useMemo(() => {
     const map = new Map<string, { total: number; activeMonths: number; avg: number; latestMonthSpend: number; weekly: number; daily: number }>();
     for (const k of activity.keys) {
-      const inRange = k.monthly.filter(m => m.month >= cutoffMonth);
+      const inRange = k.monthly.filter(m =>
+        m.month >= cutoffMonth && (!latestLogMonth || m.month <= latestLogMonth)
+      );
       const total = inRange.reduce((s, m) => s + m.spend, 0);
       // snapshotMonths: completed months (< currentMonth) that had actual spend
       const snapshotMonths = inRange.filter(m => m.spend > 0 && m.month < currentMonth).length;
@@ -165,7 +174,7 @@ export function SpendTab({
       map.set(k.key_name, { total, activeMonths: snapshotMonths, avg, latestMonthSpend, weekly, daily });
     }
     return map;
-  }, [activity.keys, cutoffMonth, currentMonth, latestActiveMonth]);
+  }, [activity.keys, cutoffMonth, currentMonth, latestActiveMonth, latestLogMonth]);
 
   const periodGrandTotal = useMemo(
     () => [...periodStats.values()].reduce((s, v) => s + v.total, 0),
@@ -173,8 +182,10 @@ export function SpendTab({
   );
 
   const visibleMonths = useMemo(
-    () => activity.months.filter(m => m >= cutoffMonth),
-    [activity.months, cutoffMonth]
+    () => activity.months.filter(m =>
+      m >= cutoffMonth && (!latestLogMonth || m <= latestLogMonth)
+    ),
+    [activity.months, cutoffMonth, latestLogMonth]
   );
 
   const periodLabel = useMemo(() => {
@@ -668,6 +679,23 @@ export function SpendTab({
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            {/* Current partial month — shown separately from the period chart */}
+            {latestLogMonth && currentMonth > latestLogMonth && (() => {
+              const partialTotal = activity.keys.reduce((sum, k) => {
+                const m = k.monthly.find(m => m.month === currentMonth);
+                return sum + (m?.spend ?? 0);
+              }, 0);
+              if (partialTotal <= 0) return null;
+              return (
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 px-1">
+                  {`${formatMonth(currentMonth)} (partial, live): `}
+                  <span className="font-medium text-slate-600 dark:text-slate-300">
+                    {formatCurrency(partialTotal)}
+                  </span>
+                  {" — from hourly n8n snapshot"}
+                </p>
+              );
+            })()}
             <div className="flex flex-wrap gap-2 mt-3">
               {activeKeys.map(k => {
                 const color = KEY_COLORS[(keyColorIndex.get(k.key_name) ?? 0) % KEY_COLORS.length];
