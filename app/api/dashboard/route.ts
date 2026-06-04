@@ -212,6 +212,7 @@ export async function GET() {
   for (const r of allInvoicesRes.data ?? []) {
     if (!r.vendor_name) continue;
     const canonical = canonicalVendor(r.vendor_name as string);
+    if (canonical === "OpenRouter") continue;
     if (hiddenKeys.has(canonical)) continue;
     infraMap.set(canonical, (infraMap.get(canonical) ?? 0) + Number(r.total_amount ?? 0));
   }
