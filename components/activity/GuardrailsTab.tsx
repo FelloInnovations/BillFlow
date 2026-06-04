@@ -62,7 +62,7 @@ function formatCheckedAt(ts: string | null): { label: string; stale: boolean } {
     ", " +
     d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) +
     " UTC";
-  return { label, stale: minsAgo > 30 };
+  return { label, stale: minsAgo > 90 };
 }
 
 interface NewFormState {
