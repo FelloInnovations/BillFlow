@@ -46,7 +46,8 @@ export function canonicalVendor(name: string): string {
   if (lower.includes("apify")) return "Apify";
   if (lower.includes("elevenlabs") || lower.includes("eleven labs")) return "ElevenLabs";
   if (lower.includes("supabase")) return "Supabase";
-  if (lower.includes("apollo")) return "Apollo";
+  if (lower.includes("apollo") || lower.includes("zen leads")) return "Apollo";
+  if (lower.includes("serper")) return "Serper";
   if (lower.includes("mention")) return "Mention";
   if (lower.includes("vector")) return "Vector";
   if (lower.includes("ngrok")) return "ngrok";
