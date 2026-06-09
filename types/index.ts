@@ -256,3 +256,11 @@ export interface OutcomeSyncResult {
   upserted: { metric_key: string; value: number }[];
   errors:   { metric_key: string; error: string }[];
 }
+
+export interface ProjectOutcomeSummary {
+  projectId: string;
+  projectName: string | null;
+  projectStatus: string | null;
+  mtd: OutcomeMtdSummary;
+  lastSynced: string | null;
+}
