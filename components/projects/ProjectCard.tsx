@@ -202,7 +202,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced }: Prop
           </Link>
           {arthurLastSynced && (
             <p className="text-[10px] text-slate-400 dark:text-slate-500">
-              Outcomes last synced: {timeAgo(arthurLastSynced)}
+              Outcomes synced {timeAgo(arthurLastSynced)}
             </p>
           )}
         </div>

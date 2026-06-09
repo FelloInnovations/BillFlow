@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  LineChart, Line, BarChart, Bar,
+  AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { RefreshCw, CheckCircle2, X, TrendingUp, TrendingDown } from "lucide-react";
@@ -26,6 +26,11 @@ function convPct(numerator: number | undefined, denominator: number | undefined)
 function avgDeal(arr: number | undefined, deals: number | undefined): string {
   if (!arr || !deals) return "—";
   return `${usd(arr / deals)}/deal`;
+}
+
+function sourcePct(count: number, total: number): string {
+  if (!count || !total) return "—";
+  return `${((count / total) * 100).toFixed(1)}%`;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -58,7 +63,7 @@ function LogModal({
   onSaved: () => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
-  const [date, setDate] = useState(today);
+  const [date, setDate]     = useState(today);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -86,8 +91,8 @@ function LogModal({
     <>
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+        <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 sticky top-0 bg-slate-900">
             <h2 className="text-base font-bold text-white">Log Metrics</h2>
             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
               <X className="w-5 h-5" />
@@ -121,10 +126,7 @@ function LogModal({
             ))}
           </div>
           <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-            >
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">
               Cancel
             </button>
             <button
@@ -141,7 +143,7 @@ function LogModal({
   );
 }
 
-// ── Funnel stage ──────────────────────────────────────────────────────────────
+// ── Funnel ────────────────────────────────────────────────────────────────────
 function FunnelStage({ label, value, metricKey }: { label: string; value: number | undefined; metricKey: string }) {
   return (
     <div className="flex flex-col items-center min-w-[100px]">
@@ -163,7 +165,11 @@ function Arrow({ label }: { label: string }) {
 }
 
 // ── Chart tooltip ─────────────────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+function ChartTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+}) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 shadow-xl text-xs">
@@ -173,6 +179,25 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
           {p.name}: {p.value.toLocaleString()}
         </p>
       ))}
+    </div>
+  );
+}
+
+// ── Source row in AI Traffic Sources card ─────────────────────────────────────
+function SourceRow({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+  const pct = sourcePct(count, total);
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+      <div className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <span className="text-sm text-slate-700 dark:text-slate-300">{label}</span>
+      </div>
+      <div className="flex items-center gap-3 tabular-nums">
+        <span className="text-xs text-slate-400">{pct}</span>
+        <span className="text-sm font-bold text-slate-900 dark:text-white">
+          {count > 0 ? count.toLocaleString() : "—"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -188,6 +213,14 @@ interface Props {
 
 type Range = "7D" | "30D" | "MTD";
 
+// Source color palette consistent with BillFlow charts
+const SOURCE_COLORS = {
+  ChatGPT:    "#10b981", // emerald
+  Perplexity: "#818cf8", // indigo
+  Claude:     "#f59e0b", // amber
+  "Other AI": "#94a3b8", // slate
+} as const;
+
 export function OutcomesClient({
   projectId,
   initialConfig,
@@ -195,14 +228,14 @@ export function OutcomesClient({
   initialSeries,
   initialLastSynced,
 }: Props) {
-  const [config, setConfig]           = useState(initialConfig);
-  const [mtd, setMtd]                 = useState<OutcomeMtdSummary>(initialMtd);
-  const [series, setSeries]           = useState(initialSeries);
-  const [lastSynced, setLastSynced]   = useState(initialLastSynced);
-  const [range, setRange]             = useState<Range>("MTD");
-  const [syncing, setSyncing]         = useState(false);
-  const [logOpen, setLogOpen]         = useState(false);
-  const [toast, setToast]             = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [config, setConfig]         = useState(initialConfig);
+  const [mtd, setMtd]               = useState<OutcomeMtdSummary>(initialMtd);
+  const [series, setSeries]         = useState(initialSeries);
+  const [lastSynced, setLastSynced] = useState(initialLastSynced);
+  const [range, setRange]           = useState<Range>("MTD");
+  const [syncing, setSyncing]       = useState(false);
+  const [logOpen, setLogOpen]       = useState(false);
+  const [toast, setToast]           = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -212,14 +245,13 @@ export function OutcomesClient({
 
   const fetchData = useCallback(async (r: Range) => {
     const now = new Date();
-    const to = now.toISOString().substring(0, 10);
+    const to  = now.toISOString().substring(0, 10);
     let from: string;
     if (r === "7D") {
       from = new Date(now.getTime() - 7 * 86_400_000).toISOString().substring(0, 10);
     } else if (r === "30D") {
       from = new Date(now.getTime() - 30 * 86_400_000).toISOString().substring(0, 10);
     } else {
-      // MTD — start of current month
       from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     }
     try {
@@ -236,7 +268,7 @@ export function OutcomesClient({
   async function syncNow() {
     setSyncing(true);
     try {
-      const res = await fetch("/api/outcomes/sync-now", { method: "POST" });
+      const res  = await fetch("/api/outcomes/sync-now", { method: "POST" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Sync failed");
       await fetchData(range);
@@ -253,8 +285,7 @@ export function OutcomesClient({
     fetchData(r);
   }
 
-  // ── Build chart series ──────────────────────────────────────────────────────
-  // Group series by date
+  // ── Derived values ────────────────────────────────────────────────────────
   const byDate: Record<string, Record<string, number>> = {};
   for (const row of series) {
     if (!byDate[row.date]) byDate[row.date] = {};
@@ -263,42 +294,52 @@ export function OutcomesClient({
   const allDates = Object.keys(byDate).sort();
 
   const trafficData = allDates.map((d) => ({
-    date: d.substring(5), // MM-DD
-    "LLM Traffic":  byDate[d].llm_traffic_daily  ?? 0,
-    "Blog Traffic": byDate[d].blog_traffic_daily ?? 0,
+    date:       d.substring(5),
+    ChatGPT:    byDate[d].llm_chatgpt_daily    ?? 0,
+    Perplexity: byDate[d].llm_perplexity_daily ?? 0,
+    Claude:     byDate[d].llm_claude_daily     ?? 0,
+    "Other AI": byDate[d].llm_other_daily      ?? 0,
   }));
 
-  // For demos chart: compute daily delta from cumulative MTD values
   const demosData = allDates.map((d, i) => {
-    const prev = i > 0 ? byDate[allDates[i - 1]] : {};
+    const prev   = i > 0 ? byDate[allDates[i - 1]] : {};
     const booked = Math.max(0, (byDate[d].demos_booked_mtd ?? 0) - (prev.demos_booked_mtd ?? 0));
     const held   = Math.max(0, (byDate[d].demos_held_mtd   ?? 0) - (prev.demos_held_mtd   ?? 0));
     return { date: d.substring(5), "Demos Booked": booked, "Demos Held": held };
   });
 
-  // Prior month ARR (for MoM delta on ARR card)
+  // MoM ARR delta (prior month max vs current MTD)
   const now = new Date();
-  const prevMonthStart = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, "0")}-01`;
-  const prevMonthEnd   = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, "0")}-31`;
-  const prevMonthSeries = series.filter(
-    (r) => r.metric_key === "arr_closed_mtd" && r.date >= prevMonthStart && r.date <= prevMonthEnd,
-  );
-  const prevArr = prevMonthSeries.length
-    ? Math.max(...prevMonthSeries.map((r) => Number(r.value)))
-    : null;
-  const currArr = mtd.arr_closed_mtd ?? 0;
-  const arrDelta = prevArr != null ? currArr - prevArr : null;
+  const prevMonthStr = String(now.getMonth()).padStart(2, "0"); // 0-padded prior month
+  const prevMonthStart = `${now.getFullYear()}-${prevMonthStr}-01`;
+  const prevMonthEnd   = `${now.getFullYear()}-${prevMonthStr}-31`;
+  const prevArr = series
+    .filter((r) => r.metric_key === "arr_closed_mtd" && r.date >= prevMonthStart && r.date <= prevMonthEnd)
+    .reduce((max, r) => Math.max(max, Number(r.value)), -1);
+  const currArr  = mtd.arr_closed_mtd ?? 0;
+  const arrDelta = prevArr >= 0 ? currArr - prevArr : null;
 
-  // Funnel values
-  const llm      = mtd.llm_traffic_daily;
-  const booked   = mtd.demos_booked_mtd;
-  const held     = mtd.demos_held_mtd;
-  const won      = mtd.closed_won_mtd;
-  const arr      = mtd.arr_closed_mtd;
+  // Funnel
+  const llm    = mtd.llm_traffic_daily;
+  const booked = mtd.demos_booked_mtd;
+  const held   = mtd.demos_held_mtd;
+  const won    = mtd.closed_won_mtd;
+  const arr    = mtd.arr_closed_mtd;
+
+  // AI Traffic Sources card
+  const chatgptMtd    = mtd.llm_chatgpt_daily    ?? 0;
+  const perplexityMtd = mtd.llm_perplexity_daily ?? 0;
+  const claudeMtd     = mtd.llm_claude_daily     ?? 0;
+  const otherMtd      = mtd.llm_other_daily      ?? 0;
+  const totalLlmMtd   = chatgptMtd + perplexityMtd + claudeMtd + otherMtd;
 
   const syncedLabel = lastSynced
     ? new Date(lastSynced).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
     : "Never";
+
+  const hasTrafficData = trafficData.some(
+    (d) => d.ChatGPT + d.Perplexity + d.Claude + d["Other AI"] > 0,
+  );
 
   return (
     <div className="p-6 space-y-6 max-w-7xl">
@@ -333,17 +374,30 @@ export function OutcomesClient({
         </div>
       </div>
 
-      {/* Blog Traffic card */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 border-t-4 border-t-violet-400 shadow-sm p-5">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
-          Content Traffic — Arthur's blogs
-        </p>
-        <p className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums">
-          {fmt("blog_traffic_daily", mtd.blog_traffic_daily)}
-        </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
-          Contacts whose first touch was an Arthur blog post via AI referral. MTD.
-        </p>
+      {/* AI Traffic Sources card */}
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              AI Traffic Sources
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+              Which LLM platforms are sending AI-referral contacts — MTD
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
+              {totalLlmMtd > 0 ? totalLlmMtd.toLocaleString() : "—"}
+            </p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">Total LLM Traffic</p>
+          </div>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <SourceRow label="ChatGPT"    count={chatgptMtd}    total={totalLlmMtd} color={SOURCE_COLORS.ChatGPT} />
+          <SourceRow label="Perplexity" count={perplexityMtd} total={totalLlmMtd} color={SOURCE_COLORS.Perplexity} />
+          <SourceRow label="Claude"     count={claudeMtd}     total={totalLlmMtd} color={SOURCE_COLORS.Claude} />
+          <SourceRow label="Other AI"   count={otherMtd}      total={totalLlmMtd} color={SOURCE_COLORS["Other AI"]} />
+        </div>
       </div>
 
       {/* Conversion funnel */}
@@ -352,15 +406,15 @@ export function OutcomesClient({
           AI Referral Funnel — MTD
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <FunnelStage label="LLM Traffic" value={llm} metricKey="llm_traffic_daily" />
+          <FunnelStage label="LLM Traffic"  value={llm}    metricKey="llm_traffic_daily" />
           <Arrow label={convPct(booked, llm)} />
           <FunnelStage label="Demos Booked" value={booked} metricKey="demos_booked_mtd" />
           <Arrow label={convPct(held, booked)} />
-          <FunnelStage label="Demos Held" value={held} metricKey="demos_held_mtd" />
+          <FunnelStage label="Demos Held"   value={held}   metricKey="demos_held_mtd" />
           <Arrow label={convPct(won, held)} />
-          <FunnelStage label="Closed Won" value={won} metricKey="closed_won_mtd" />
+          <FunnelStage label="Closed Won"   value={won}    metricKey="closed_won_mtd" />
           <Arrow label={avgDeal(arr, won)} />
-          <FunnelStage label="ARR Closed" value={arr} metricKey="arr_closed_mtd" />
+          <FunnelStage label="ARR Closed"   value={arr}    metricKey="arr_closed_mtd" />
         </div>
       </div>
 
@@ -384,23 +438,31 @@ export function OutcomesClient({
 
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {/* Left: LLM + Blog Traffic line chart */}
+        {/* Left: AI Referral Traffic by Source — stacked area */}
         <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">Traffic</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">LLM &amp; Blog traffic daily contacts</p>
-          {trafficData.length > 0 ? (
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">
+            AI Referral Traffic by Source
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
+            Daily contacts by originating LLM platform
+          </p>
+          {hasTrafficData ? (
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={trafficData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <AreaChart data={trafficData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="LLM Traffic"  stroke="#818cf8" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Blog Traffic" stroke="#a78bfa" strokeWidth={2} dot={false} />
-              </LineChart>
+                <Area type="monotone" dataKey="ChatGPT"    stackId="s" stroke={SOURCE_COLORS.ChatGPT}    fill={SOURCE_COLORS.ChatGPT}    fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="Perplexity" stackId="s" stroke={SOURCE_COLORS.Perplexity} fill={SOURCE_COLORS.Perplexity} fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="Claude"     stackId="s" stroke={SOURCE_COLORS.Claude}     fill={SOURCE_COLORS.Claude}     fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="Other AI"   stackId="s" stroke={SOURCE_COLORS["Other AI"]} fill={SOURCE_COLORS["Other AI"]} fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+              </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">No data for this range</div>
+            <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">
+              No data for this range
+            </div>
           )}
         </div>
 
@@ -420,7 +482,9 @@ export function OutcomesClient({
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">No data for this range</div>
+            <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">
+              No data for this range
+            </div>
           )}
         </div>
       </div>

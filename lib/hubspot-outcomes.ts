@@ -23,8 +23,26 @@ type HsMeeting = { id: string; properties: Record<string, string | null> };
 
 const AI_REFERRALS = { propertyName: "hs_analytics_source", operator: "EQ", value: "AI Referrals" };
 
-// Return total count from a single search request (uses HubSpot's total field)
-async function countContacts(filters: unknown[]): Promise<number> {
+// UTC epoch ms range for a single ISO date string (YYYY-MM-DD)
+function dayRange(date: string): { start: number; end: number } {
+  const [y, m, d] = date.split("-").map(Number);
+  return {
+    start: Date.UTC(y, m - 1, d, 0, 0, 0, 0),
+    end:   Date.UTC(y, m - 1, d, 23, 59, 59, 999),
+  };
+}
+
+// UTC epoch ms from start of date's month through end of date
+function monthRange(date: string): { start: number; end: number } {
+  const [y, m, d] = date.split("-").map(Number);
+  return {
+    start: Date.UTC(y, m - 1, 1, 0, 0, 0, 0),
+    end:   Date.UTC(y, m - 1, d, 23, 59, 59, 999),
+  };
+}
+
+// Total count only — single request, uses HubSpot's total field
+async function countContactsTotal(filters: unknown[]): Promise<number> {
   const data = await hsPost<{ total: number }>(
     "/crm/v3/objects/contacts/search",
     { filterGroups: [{ filters }], properties: [], limit: 1 },
@@ -32,7 +50,7 @@ async function countContacts(filters: unknown[]): Promise<number> {
   return data.total ?? 0;
 }
 
-// Paginate through ALL contacts matching filters; optionally fetch extra properties
+// Paginate through ALL contacts matching filters with optional properties
 async function getAllContacts(
   filters: unknown[],
   properties: string[] = [],
@@ -56,7 +74,7 @@ async function getAllContacts(
   return results;
 }
 
-// Batch associations: returns Map<contactId, associatedObjectIds[]>
+// Batch associations — returns Map<contactId, associatedObjectIds[]>
 async function batchAssociationsMap(
   contactIds: string[],
   toType: "meetings" | "deals",
@@ -76,7 +94,7 @@ async function batchAssociationsMap(
   return map;
 }
 
-// Flat list of all unique associated IDs across all contacts
+// Flat deduped list of all associated IDs across all contacts
 async function batchAssociations(
   contactIds: string[],
   toType: "meetings" | "deals",
@@ -115,40 +133,22 @@ async function batchReadDeals(ids: string[]): Promise<HsDeal[]> {
   return results;
 }
 
-// UTC epoch ms range for a single day
-function dayRange(date: Date) {
-  const y = date.getUTCFullYear(), m = date.getUTCMonth(), d = date.getUTCDate();
-  return {
-    start: Date.UTC(y, m, d, 0, 0, 0, 0),
-    end:   Date.UTC(y, m, d, 23, 59, 59, 999),
-  };
-}
+// ── Public API ───────────────────────────────────────────────────────────────
 
-// UTC epoch ms range from start of date's month to end of date
-function monthRange(date: Date) {
-  const y = date.getUTCFullYear(), m = date.getUTCMonth(), d = date.getUTCDate();
-  return {
-    start: Date.UTC(y, m, 1, 0, 0, 0, 0),
-    end:   Date.UTC(y, m, d, 23, 59, 59, 999),
-  };
-}
-
-// ── Public API ──────────────────────────────────────────────────────────────
-
-export async function getLlmTrafficCount(date: Date): Promise<number> {
+export async function getLlmTrafficCount(date: string): Promise<{ total: number }> {
   const { start, end } = dayRange(date);
-  return countContacts([
+  const total = await countContactsTotal([
     AI_REFERRALS,
     { propertyName: "createdate", operator: "GTE", value: String(start) },
     { propertyName: "createdate", operator: "LTE", value: String(end) },
   ]);
+  return { total };
 }
 
-export async function getBlogTrafficCount(date: Date): Promise<number> {
-  const prefix = process.env.ARTHUR_BLOG_PATH_PREFIX ?? "";
-  if (!prefix) return 0;
+export async function getLlmBreakdown(
+  date: string,
+): Promise<{ chatgpt: number; perplexity: number; claude: number; other: number }> {
   const { start, end } = dayRange(date);
-  // Fetch AI Referral contacts for the day with source_data_1, then JS-filter for prefix
   const contacts = await getAllContacts(
     [
       AI_REFERRALS,
@@ -157,61 +157,71 @@ export async function getBlogTrafficCount(date: Date): Promise<number> {
     ],
     ["hs_analytics_source_data_1"],
   );
-  return contacts.filter((c) =>
-    (c.properties.hs_analytics_source_data_1 ?? "").includes(prefix),
-  ).length;
+
+  const counts = { chatgpt: 0, perplexity: 0, claude: 0, other: 0 };
+  for (const c of contacts) {
+    const src = (c.properties.hs_analytics_source_data_1 ?? "").toLowerCase();
+    if (src.includes("chatgpt"))      counts.chatgpt++;
+    else if (src.includes("perplexity")) counts.perplexity++;
+    else if (src.includes("claude"))  counts.claude++;
+    else                              counts.other++;
+  }
+  return counts;
 }
 
-export async function getDemosBookedMtd(date: Date): Promise<number> {
+export async function getDemosBookedMtd(date: string): Promise<{ count: number }> {
   const contacts = await getAllContacts([AI_REFERRALS]);
-  if (!contacts.length) return 0;
+  if (!contacts.length) return { count: 0 };
   const meetingIds = await batchAssociations(contacts.map((c) => c.id), "meetings");
-  if (!meetingIds.length) return 0;
+  if (!meetingIds.length) return { count: 0 };
   const meetings = await batchReadMeetings(meetingIds);
   const { start, end } = monthRange(date);
-  return meetings.filter((m) => {
+  const count = meetings.filter((m) => {
     const ts = parseInt(m.properties.createdate ?? "0", 10);
     return m.properties.hs_meeting_outcome === "SCHEDULED" && ts >= start && ts <= end;
   }).length;
+  return { count };
 }
 
-export async function getDemosHeldMtd(date: Date): Promise<number> {
+export async function getDemosHeldMtd(date: string): Promise<{ count: number }> {
   const contacts = await getAllContacts([AI_REFERRALS]);
-  if (!contacts.length) return 0;
+  if (!contacts.length) return { count: 0 };
   const meetingIds = await batchAssociations(contacts.map((c) => c.id), "meetings");
-  if (!meetingIds.length) return 0;
+  if (!meetingIds.length) return { count: 0 };
   const meetings = await batchReadMeetings(meetingIds);
   const { start, end } = monthRange(date);
-  return meetings.filter((m) => {
+  const count = meetings.filter((m) => {
     const ts = parseInt(m.properties.createdate ?? "0", 10);
     return m.properties.hs_meeting_outcome === "COMPLETED" && ts >= start && ts <= end;
   }).length;
+  return { count };
 }
 
-export async function getClosedWonMtd(date: Date): Promise<number> {
+export async function getClosedWonMtd(date: string): Promise<{ count: number }> {
   const contacts = await getAllContacts([AI_REFERRALS]);
-  if (!contacts.length) return 0;
+  if (!contacts.length) return { count: 0 };
   const dealIds = await batchAssociations(contacts.map((c) => c.id), "deals");
-  if (!dealIds.length) return 0;
+  if (!dealIds.length) return { count: 0 };
   const deals = await batchReadDeals(dealIds);
   const { start, end } = monthRange(date);
-  return deals.filter((d) => {
+  const count = deals.filter((d) => {
     const ts = d.properties.closedate ? new Date(d.properties.closedate).getTime() : 0;
     return d.properties.dealstage === "closedwon" && ts >= start && ts <= end;
   }).length;
+  return { count };
 }
 
-export async function getArrClosedMtd(date: Date): Promise<number> {
+export async function getArrClosedMtd(date: string): Promise<{ total: number }> {
   const contacts = await getAllContacts(
     [AI_REFERRALS, { propertyName: "current_arr__sync_", operator: "HAS_PROPERTY" }],
     ["current_arr__sync_"],
   );
-  if (!contacts.length) return 0;
+  if (!contacts.length) return { total: 0 };
 
   const contactIds = contacts.map((c) => c.id);
   const contactToDeals = await batchAssociationsMap(contactIds, "deals");
   const allDealIds = [...new Set([...contactToDeals.values()].flat())];
-  if (!allDealIds.length) return 0;
+  if (!allDealIds.length) return { total: 0 };
 
   const deals = await batchReadDeals(allDealIds);
   const { start, end } = monthRange(date);
@@ -231,5 +241,5 @@ export async function getArrClosedMtd(date: Date): Promise<number> {
       total += parseFloat(contact.properties["current_arr__sync_"] ?? "0") || 0;
     }
   }
-  return total;
+  return { total };
 }

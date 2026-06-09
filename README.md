@@ -82,7 +82,6 @@ Arthur's Business Outcomes KPI page (`/projects/arthur/outcomes`) tracks the AI 
 
 ```
 HUBSPOT_PRIVATE_TOKEN=      # Bearer token for HubSpot Private App
-ARTHUR_BLOG_PATH_PREFIX=    # e.g. fello.ai/blog — filters blog-sourced contacts
 OUTCOMES_SYNC_SECRET=       # Random secret; passed as x-sync-secret header by Railway cron
 ```
 
@@ -92,8 +91,11 @@ All data comes from HubSpot Contacts API filtered on `hs_analytics_source = "AI 
 
 | Metric | Description |
 |---|---|
-| `llm_traffic_daily` | Contacts created via AI referrals on a given day |
-| `blog_traffic_daily` | Subset whose referral URL contains `ARTHUR_BLOG_PATH_PREFIX` |
+| `llm_traffic_daily` | Total AI-referral contacts created on a given day |
+| `llm_chatgpt_daily` | Subset sourced from ChatGPT (`hs_analytics_source_data_1` contains "chatgpt") |
+| `llm_perplexity_daily` | Subset sourced from Perplexity |
+| `llm_claude_daily` | Subset sourced from Claude |
+| `llm_other_daily` | Remaining AI-referral contacts not matching the above platforms |
 | `demos_booked_mtd` | MTD count of meetings with `hs_meeting_outcome = SCHEDULED` |
 | `demos_held_mtd` | MTD count of meetings with `hs_meeting_outcome = COMPLETED` |
 | `closed_won_mtd` | MTD count of deals with `dealstage = closedwon` |

@@ -4,7 +4,13 @@ import { createClient } from "@supabase/supabase-js";
 import { OutcomesClient } from "@/components/outcomes/OutcomesClient";
 import { OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
 
-const DAILY_KEYS = new Set(["llm_traffic_daily", "blog_traffic_daily"]);
+const DAILY_KEYS = new Set([
+  "llm_traffic_daily",
+  "llm_chatgpt_daily",
+  "llm_perplexity_daily",
+  "llm_claude_daily",
+  "llm_other_daily",
+]);
 
 function serviceClient() {
   return createClient(
