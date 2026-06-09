@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Project } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { Brain, User, ChevronDown, Info } from "lucide-react";
@@ -67,9 +68,19 @@ interface Props {
   project: Project;
   index: number;
   maxSpend: number;
+  arthurLastSynced?: string | null;
 }
 
-export function ProjectCard({ project, index, maxSpend }: Props) {
+function timeAgo(ts: string): string {
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
+  if (diff < 1)  return "just now";
+  if (diff < 60) return `${diff} min ago`;
+  const h = Math.floor(diff / 60);
+  if (h < 24)    return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+export function ProjectCard({ project, index, maxSpend, arthurLastSynced }: Props) {
   const spendPct = project.totalSpend != null && maxSpend > 0
     ? (project.totalSpend / maxSpend) * 100 : 0;
 
@@ -179,6 +190,23 @@ export function ProjectCard({ project, index, maxSpend }: Props) {
           </div>
         )}
       </div>
+
+      {/* Arthur outcomes link */}
+      {arthurLastSynced !== undefined && (
+        <div className="flex items-center justify-between pt-1">
+          <Link
+            href="/projects/arthur/outcomes"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+          >
+            Outcomes →
+          </Link>
+          {arthurLastSynced && (
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              Outcomes last synced: {timeAgo(arthurLastSynced)}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Spend bar — color-coded by basis */}
       {spendPct > 0 && (

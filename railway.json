@@ -5,6 +5,13 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "cronJobs": [
+      {
+        "name": "outcomes-sync-daily",
+        "schedule": "0 1 * * *",
+        "command": "curl -sf -H \"x-sync-secret: $OUTCOMES_SYNC_SECRET\" $NEXT_PUBLIC_BASE_URL/api/outcomes/sync"
+      }
+    ]
   }
 }

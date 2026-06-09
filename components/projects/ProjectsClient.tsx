@@ -9,9 +9,10 @@ import { formatCurrency } from "@/lib/utils";
 interface Props {
   initialProjects: Project[];
   initialMaxSpend: number;
+  arthurLastSynced?: string | null;
 }
 
-export function ProjectsClient({ initialProjects, initialMaxSpend }: Props) {
+export function ProjectsClient({ initialProjects, initialMaxSpend, arthurLastSynced }: Props) {
   const [projects, setProjects] = useState(initialProjects);
   const [maxSpend, setMaxSpend] = useState(initialMaxSpend);
   const [isPending, startTransition] = useTransition();
@@ -68,7 +69,13 @@ export function ProjectsClient({ initialProjects, initialMaxSpend }: Props) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {projects.map((p, i) => (
-            <ProjectCard key={`${p.name}-${i}`} project={p} index={i} maxSpend={maxSpend} />
+            <ProjectCard
+              key={`${p.name}-${i}`}
+              project={p}
+              index={i}
+              maxSpend={maxSpend}
+              arthurLastSynced={p.name === "Arthur for Fello" ? arthurLastSynced : undefined}
+            />
           ))}
         </div>
       )}

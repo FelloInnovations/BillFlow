@@ -4,6 +4,29 @@ import { ProjectsClient } from "@/components/projects/ProjectsClient";
 import { Project } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { fetchOrKeySpend } from "@/lib/orKeySpend";
+import { createClient } from "@supabase/supabase-js";
+
+function serviceClient() {
+  return createClient(
+    process.env.SUPABASE_URL ?? "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+}
+
+async function getArthurLastSynced(): Promise<string | null> {
+  try {
+    const { data } = await serviceClient()
+      .from("project_outcome_metrics")
+      .select("created_at")
+      .eq("project_id", "arthur")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    return data?.[0]?.created_at ?? null;
+  } catch {
+    return null;
+  }
+}
 
 async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }> {
   const { data: portfolioData, error: portfolioErr } = await supabase
@@ -88,8 +111,17 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
 }
 
 export default async function ProjectsPage() {
-  const { projects, maxSpend } = await getProjects();
+  const [{ projects, maxSpend }, arthurLastSynced] = await Promise.all([
+    getProjects(),
+    getArthurLastSynced(),
+  ]);
   const sorted = [...projects].sort((a, b) => (b.totalSpend ?? -1) - (a.totalSpend ?? -1));
 
-  return <ProjectsClient initialProjects={sorted} initialMaxSpend={maxSpend} />;
+  return (
+    <ProjectsClient
+      initialProjects={sorted}
+      initialMaxSpend={maxSpend}
+      arthurLastSynced={arthurLastSynced}
+    />
+  );
 }

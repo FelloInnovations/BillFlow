@@ -17,6 +17,7 @@ Internal dashboard for tracking AI agent infrastructure costs across projects an
 | **Forecasting** | Projected next-month spend per vendor (3-month average), trend indicators, full vendor breakdown table and bar chart |
 | **HubSpot Tickets** | Enrichment ticket tracker with KPI summary and collapsible ticket details |
 | **Vault** | End-to-end encrypted shared password manager at `/vault.html` — AES-256-GCM, PBKDF2, zero-knowledge |
+| **Arthur — Outcomes** | Business KPI funnel for Arthur's AI content at `/projects/arthur/outcomes` — HubSpot AI referral contacts → demos → ARR |
 
 ---
 
@@ -70,6 +71,43 @@ App runs at `http://localhost:3000`.
    OPENAI_API_KEY
    ```
 3. App listens on port **8080** (hardcoded in `package.json` and `railway.json`)
+
+---
+
+## Outcomes
+
+Arthur's Business Outcomes KPI page (`/projects/arthur/outcomes`) tracks the AI referral funnel from HubSpot.
+
+### Environment variables
+
+```
+HUBSPOT_PRIVATE_TOKEN=      # Bearer token for HubSpot Private App
+ARTHUR_BLOG_PATH_PREFIX=    # e.g. fello.ai/blog — filters blog-sourced contacts
+OUTCOMES_SYNC_SECRET=       # Random secret; passed as x-sync-secret header by Railway cron
+```
+
+### How it works
+
+All data comes from HubSpot Contacts API filtered on `hs_analytics_source = "AI Referrals"`.
+
+| Metric | Description |
+|---|---|
+| `llm_traffic_daily` | Contacts created via AI referrals on a given day |
+| `blog_traffic_daily` | Subset whose referral URL contains `ARTHUR_BLOG_PATH_PREFIX` |
+| `demos_booked_mtd` | MTD count of meetings with `hs_meeting_outcome = SCHEDULED` |
+| `demos_held_mtd` | MTD count of meetings with `hs_meeting_outcome = COMPLETED` |
+| `closed_won_mtd` | MTD count of deals with `dealstage = closedwon` |
+| `arr_closed_mtd` | MTD sum of `current_arr__sync_` for contacts with a closed deal |
+
+### Sync
+
+- **Automatic**: Railway cron hits `GET /api/outcomes/sync` daily at 01:00 UTC with `x-sync-secret` header
+- **Manual**: "Sync Now" button on the Outcomes page calls `POST /api/outcomes/sync-now` (server-side proxy)
+- **Idempotent**: upsert on `(project_id, metric_key, date)` — safe to re-run
+
+### Manual logging
+
+Use the "Log Metrics" button on the Outcomes page to manually enter values for any date.
 
 ---
 

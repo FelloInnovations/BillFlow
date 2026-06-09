@@ -224,3 +224,35 @@ export interface PaginatedResult<T> {
   pageSize: number;
   totalPages: number;
 }
+
+// ── Outcomes / Arthur KPIs ────────────────────────────────────────────────────
+
+export interface OutcomeMetricConfig {
+  id: string;
+  project_id: string;
+  metric_key: string;
+  label: string;
+  target_value: number | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface OutcomeMetricRow {
+  id: string;
+  project_id: string;
+  metric_key: string;
+  value: number;
+  date: string;
+  source: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export type OutcomeMtdSummary = Record<string, number>;
+
+export interface OutcomeSyncResult {
+  date: string;
+  upserted: { metric_key: string; value: number }[];
+  errors:   { metric_key: string; error: string }[];
+}
