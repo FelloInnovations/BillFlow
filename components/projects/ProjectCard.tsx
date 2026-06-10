@@ -28,7 +28,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function SpendDisplay({ project }: { project: Project }) {
-  const { spendBasis, totalSpend } = project;
+  const { spendBasis, totalSpend, expenseBreakdown } = project;
+  const method = expenseBreakdown?.orAllocationMethod ?? "none";
 
   if (spendBasis === "none" || totalSpend == null) {
     return (
@@ -38,28 +39,29 @@ function SpendDisplay({ project }: { project: Project }) {
     );
   }
 
-  if (spendBasis === "shared_key") {
+  const badge = (() => {
+    if (method === "dedicated" || method === "none") {
+      return <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">metered</p>;
+    }
+    const label   = method === "volume" ? "volume split" : "equal split";
+    const tooltip = method === "volume"
+      ? "Shared OR key — spend allocated by actual invocation volume."
+      : "Shared OR key — no invocation log data; spend split equally.";
     return (
-      <div className="text-right shrink-0">
-        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
-        <div className="flex items-center justify-end gap-0.5 mt-0.5">
-          <span
-            title="This project shares an OpenRouter API key with other projects. Spend shown is an even split."
-            className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 cursor-help"
-          >
-            <Info className="w-2 h-2" />
-            shared key
-          </span>
-        </div>
-      </div>
+      <span
+        title={tooltip}
+        className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 cursor-help mt-0.5"
+      >
+        <Info className="w-2 h-2" />
+        {label}
+      </span>
     );
-  }
+  })();
 
-  // "metered" — unique key, precise spend
   return (
     <div className="text-right shrink-0">
       <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
-      <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">metered</p>
+      {badge}
     </div>
   );
 }
@@ -109,8 +111,10 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced }: Prop
 
   const llmAccounts = project.llms[0]?.owner || null;
 
+  const method = project.expenseBreakdown?.orAllocationMethod ?? "none";
   const barColor =
-    project.spendBasis === "shared_key" ? "from-amber-400 to-orange-400" :
+    method === "volume" ? "from-amber-400 to-orange-400" :
+    method === "equal"  ? "from-orange-400 to-rose-400"  :
     "from-indigo-400 to-violet-400";
 
   return (

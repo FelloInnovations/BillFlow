@@ -72,6 +72,7 @@ export interface Project {
   totalSpend: number | null;
   openrouter_api_key: string | null;
   spendBasis?: "metered" | "shared_key" | "none" | null;
+  expenseBreakdown?: import("@/lib/project-expense").ProjectExpense | null;
 }
 
 export interface OpenRouterKeyUsage {

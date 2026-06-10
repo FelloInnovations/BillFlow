@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { buildForecast } from "@/lib/forecast";
+import { getAllProjectsExpense, getUnallocatedSpend } from "@/lib/project-expense";
 
 type FinancialRow = {
   vendor_name: string | null;
@@ -55,16 +56,27 @@ async function buildFullContext(): Promise<string> {
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime());
 
-  // ── 2. Fetch forecast + projects + tools in parallel ──
-  const [forecastResult, sheetsRes, toolsRes] = await Promise.allSettled([
+  // ── 2. Fetch forecast + projects + tools + expense + outcomes in parallel ──
+  const [forecastResult, sheetsRes, toolsRes, expenseMapResult, unallocatedResult, arthurOutcomesResult] = await Promise.allSettled([
     buildForecast(),
     fetch(`${base}/api/sheets`).then((r) => r.json()).catch(() => null),
     fetch(`${base}/api/tools`).then((r) => r.json()).catch(() => null),
+    getAllProjectsExpense("all_time"),
+    getUnallocatedSpend("all_time"),
+    supabase
+      .from("project_outcome_metrics")
+      .select("metric_key, value, date")
+      .eq("project_id", "arthur")
+      .order("date", { ascending: false })
+      .limit(200),
   ]);
 
-  const forecast = forecastResult.status === "fulfilled" ? forecastResult.value : null;
-  const sheets = sheetsRes.status === "fulfilled" ? sheetsRes.value : null;
-  const tools  = toolsRes.status  === "fulfilled" ? toolsRes.value  : null;
+  const forecast        = forecastResult.status        === "fulfilled" ? forecastResult.value              : null;
+  const sheets          = sheetsRes.status             === "fulfilled" ? sheetsRes.value                   : null;
+  const tools           = toolsRes.status              === "fulfilled" ? toolsRes.value                    : null;
+  const expenseMap      = expenseMapResult.status      === "fulfilled" ? expenseMapResult.value             : null;
+  const unallocated     = unallocatedResult.status     === "fulfilled" ? unallocatedResult.value            : null;
+  const arthurOutcomes  = arthurOutcomesResult.status  === "fulfilled" ? arthurOutcomesResult.value.data ?? [] : [];
 
   // ── 3. Fetch OpenRouter snapshot, activity summary, guardrails, and hidden tools ──
   const [orSnapshotsRes, activityRes, guardrailsRes, hiddenToolsRes, invocationSummaryRes] = await Promise.allSettled([
@@ -239,6 +251,70 @@ async function buildFullContext(): Promise<string> {
     lines.push(`${vendor}: ${fmt(total)}`);
   }
 
+  // ── Volume-attributed project expense summary ────────────────────────────────────
+  if (expenseMap && expenseMap.size > 0) {
+    lines.push("\n=== PROJECT EXPENSE SUMMARY (volume-attributed, all-time) ===");
+    lines.push("OR spend on shared keys is split by actual invocation volume (falls back to equal split if no log data).");
+    const sortedExpense = [...expenseMap.entries()]
+      .filter(([, e]) => e.total > 0)
+      .sort((a, b) => b[1].total - a[1].total);
+    for (const [name, e] of sortedExpense) {
+      const methodLabel = e.orAllocationMethod === "dedicated" ? "metered"
+        : e.orAllocationMethod === "volume" ? "volume-split"
+        : e.orAllocationMethod === "equal" ? "equal-split"
+        : "no OR key";
+      lines.push(`${name}: ${fmt(e.total)} total (OR dedicated: ${fmt(e.orDedicated)}, OR allocated: ${fmt(e.orShared)}, tools: ${fmt(e.toolsDedicated + e.toolsShared)}) [${methodLabel}]`);
+    }
+  }
+
+  if (unallocated) {
+    lines.push("\n=== UNALLOCATED SPEND (org-wide, not attributed to any project) ===");
+    lines.push(`Total unallocated: ${fmt(unallocated.total)}`);
+    lines.push(`  Shared infrastructure (Railway, Supabase, etc.): ${fmt(unallocated.sharedInfra)}`);
+    lines.push(`  Invoice vendors with no project link: ${fmt(unallocated.invoicesUnallocated)}`);
+    if (unallocated.unlinkedOrKeys > 0) lines.push(`  OR keys not linked to any project: ${fmt(unallocated.unlinkedOrKeys)}`);
+    if (unallocated.topUnallocatedInvoiceVendors.length > 0) {
+      lines.push("  Top unallocated invoice vendors:");
+      for (const v of unallocated.topUnallocatedInvoiceVendors) lines.push(`    ${v.vendor}: ${fmt(v.amount)}`);
+    }
+    lines.push("NOTE: Invoice spend cannot be attributed to individual projects until Phase 2 adds project_id to financial_records.");
+  }
+
+  // ── Arthur outcomes (AI referral ROI for Fello) ──────────────────────────────────
+  if (arthurOutcomes.length > 0) {
+    lines.push("\n=== ARTHUR OUTCOMES (AI-referral pipeline for Fello) ===");
+    lines.push("Arthur is Fello's AI agent that attracts inbound leads via ChatGPT, Perplexity, Claude mentions.");
+    lines.push("Metrics sourced from HubSpot CRM. LLM traffic = contacts created via AI referral per day.");
+
+    type ARow = { metric_key: string; value: number; date: string };
+    const trafficByMonth = new Map<string, number>();
+    const mtdByMonth = new Map<string, Record<string, number>>();
+    for (const row of arthurOutcomes as ARow[]) {
+      const month = row.date.substring(0, 7);
+      if (row.metric_key === "llm_traffic_daily") {
+        trafficByMonth.set(month, (trafficByMonth.get(month) ?? 0) + row.value);
+      } else {
+        const m = mtdByMonth.get(month) ?? {};
+        if (!(row.metric_key in m)) m[row.metric_key] = row.value;
+        mtdByMonth.set(month, m);
+      }
+    }
+
+    const months = [...new Set([...trafficByMonth.keys(), ...mtdByMonth.keys()])].sort().reverse().slice(0, 6);
+    for (const month of months) {
+      const m = mtdByMonth.get(month) ?? {};
+      const traffic = trafficByMonth.get(month) ?? 0;
+      lines.push(
+        `${month}: traffic=${traffic} | demos booked=${m["demos_booked_mtd"] ?? 0} | demos held=${m["demos_held_mtd"] ?? 0} | closed-won=${m["closed_won_mtd"] ?? 0} | ARR closed=${fmt(m["arr_closed_mtd"] ?? 0)}`
+      );
+    }
+
+    const arthurExpense = expenseMap?.get("Arthur for Fello");
+    if (arthurExpense && arthurExpense.total > 0) {
+      lines.push(`Arthur all-time OR spend: ${fmt(arthurExpense.total)} [${arthurExpense.orAllocationMethod}]`);
+    }
+  }
+
   // ── Hidden tools ─────────────────────────────────────────────────────────────────
   if (hiddenSet.size > 0) {
     lines.push("\n=== HIDDEN TOOLS (deleted from UI, excluded from all totals) ===");
@@ -272,30 +348,38 @@ export async function POST(req: NextRequest) {
 
   const context = await buildFullContext();
 
-  const systemPrompt = `You are Orion, the AI spend intelligence assistant embedded in BillFlow — Fello Innovations' internal dashboard for tracking AI infrastructure costs.
+  const systemPrompt = `You are Orion, the AI spend intelligence assistant embedded in BillFlow — Fello Innovations' internal dashboard for tracking AI infrastructure costs and project outcomes.
 
 You have full, real-time visibility into:
 
 1. **Invoice-based spend** — all financial records from vendor invoices (paid, unpaid, overdue)
-2. **API-key-based spend** — per-project LLM costs tracked via named OpenRouter API keys (this is the primary and most accurate source for LLM spend)
-3. **Per-project cost breakdown** — each project's metered API spend from its OpenRouter key, including models used and token counts
-4. **Budget guardrails** — monthly spend limits set per project, warning thresholds, and recommended budgets
-5. **Shared infrastructure** — org-wide service costs (Oxylabs, Supabase, Apify, ScraperAPI, etc.) tracked from invoices, NOT attributed to individual projects
+2. **API-key-based spend** — per-project LLM costs tracked via named OpenRouter API keys (primary and most accurate source for LLM spend)
+3. **Volume-attributed project expense** — each project's OR spend with shared keys split by actual invocation volume (falls back to equal split when no log data)
+4. **Unallocated spend** — shared infrastructure (Railway, Supabase, etc.) and invoice vendors not yet linked to projects
+5. **Budget guardrails** — monthly spend limits per project, warning thresholds, recommended budgets
 6. **Spend forecast** — next month projections per vendor based on 3-month rolling averages
-7. **All projects** — name, status, description, LLMs, OpenRouter key name, metered spend
+7. **Arthur outcomes** — AI-referral pipeline metrics (LLM traffic, demos booked/held, closed-won deals, ARR) sourced from HubSpot CRM
+8. **All projects** — name, status, description, LLMs, spend allocation method
 
 CRITICAL — dual-source cost model:
 - **LLM costs** come primarily from OpenRouter API key snapshots (the "OPENROUTER PER-KEY API SPEND" section). These are metered and accurate.
-- **Service/infrastructure costs** (Oxylabs, Supabase, Apify, etc.) come from invoice records. These are org-wide and NOT split across projects.
+- **Service/infrastructure costs** (Oxylabs, Supabase, Apify, etc.) come from invoice records and are NOT attributed to individual projects.
 - **Invoice-based vendor totals** may be stale if invoice ingestion has paused. Check the DATA FRESHNESS section.
 - When reporting OpenRouter/LLM spend, prefer the API snapshot figures over invoice figures — they are more current.
 - The total org spend = OpenRouter API total + shared infrastructure invoice total. Do not double-count.
+- **Shared key allocation**: OR keys shared between projects are split by invocation log volume. Check the PROJECT EXPENSE SUMMARY section for per-project figures.
 
 CRITICAL — spend calculation rules:
 - Always use total_amount (tax-inclusive) for invoice spend, never subtotal.
 - Grand total = sum of ALL total_amount values across ALL records regardless of payment_status.
-- When asked about a specific project's cost, use the per-key API data, not the invoice split.
+- When asked about a specific project's cost, use the PROJECT EXPENSE SUMMARY section for the most accurate figure.
 - Projects with "No metered spend" have no OpenRouter API key — their LLM costs cannot be individually attributed.
+
+ARTHUR ROI GUIDANCE:
+- Arthur is Fello's AI agent that generates inbound leads through AI platform mentions (ChatGPT, Perplexity, Claude).
+- LLM traffic = number of new contacts whose source is attributed to an AI platform in HubSpot.
+- ROI can be calculated as: ARR closed / Arthur OR spend. Use the ARTHUR OUTCOMES section for monthly data.
+- Demos booked and held are counted independently — a demo booked in one month but held in another counts in both, so held/booked ratio can exceed 100%.
 
 Response formatting rules:
 - Use **bold** for key numbers and names (they render as highlights in the chat UI).

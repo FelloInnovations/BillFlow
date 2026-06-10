@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { ProjectsClient } from "@/components/projects/ProjectsClient";
 import { Project } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { fetchOrKeySpend } from "@/lib/orKeySpend";
+import { getAllProjectsExpense, getUnallocatedSpend, UnallocatedSpend } from "@/lib/project-expense";
 import { createClient } from "@supabase/supabase-js";
 
 function serviceClient() {
@@ -28,7 +28,11 @@ async function getArthurLastSynced(): Promise<string | null> {
   }
 }
 
-async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }> {
+async function getProjects(): Promise<{
+  projects: Project[];
+  maxSpend: number;
+  unallocated: UnallocatedSpend;
+}> {
   const { data: portfolioData, error: portfolioErr } = await supabase
     .from("agents_portfolio")
     .select("agents_projects, description, llms, llm_accounts, status, openrouter_api_key")
@@ -38,9 +42,11 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
 
   const portfolioRows = portfolioData ?? [];
 
-  const orKeySpend = await fetchOrKeySpend();
+  const [expenseMap, unallocated] = await Promise.all([
+    getAllProjectsExpense("all_time"),
+    getUnallocatedSpend("all_time"),
+  ]);
 
-  // Deduplicate by project name
   const seenNames = new Set<string>();
   const uniqueRows = portfolioRows.filter((row) => {
     const key = (row.agents_projects ?? "").trim().toLowerCase();
@@ -49,69 +55,50 @@ async function getProjects(): Promise<{ projects: Project[]; maxSpend: number }>
     return true;
   });
 
-  const rawProjects: Project[] = uniqueRows.map((row) => ({
-    name: row.agents_projects ?? "Untitled",
-    description: row.description ?? "",
-    timeline: null,
-    status: row.status ?? null,
-    llms: row.llms
+  const projects: Project[] = uniqueRows.map((row) => {
+    const name = row.agents_projects ?? "Untitled";
+    const expense = expenseMap.get(name);
+
+    const llms = row.llms
       ? row.llms.split(",").map((s: string) => s.trim()).filter((s: string) => s && s.toLowerCase() !== "na")
           .map((entry: string) => {
             const parts = entry.trim().split(" ");
             return { provider: parts[0] ?? entry, model: parts.slice(1).join(" "), owner: row.llm_accounts ?? "" };
           })
-      : [],
-    services: [],
-    totalSpend: null,
-    openrouter_api_key: row.openrouter_api_key ?? null,
-  }));
+      : [];
 
-  // key (lowercase) → project names sharing that key (for shared-key detection)
-  const keyToProjects = new Map<string, string[]>();
-  for (const p of rawProjects) {
-    if (!p.openrouter_api_key) continue;
-    for (const k of (p.openrouter_api_key as string).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)) {
-      const arr = keyToProjects.get(k) ?? [];
-      if (!arr.includes(p.name)) arr.push(p.name);
-      keyToProjects.set(k, arr);
-    }
-  }
+    let totalSpend: number | null = null;
+    let spendBasis: "metered" | "shared_key" | "none" | null = null;
 
-  const projects = rawProjects.map((p) => {
-    if (!p.openrouter_api_key) {
-      return { ...p, totalSpend: null, spendBasis: "none" as const };
+    if (expense && expense.total > 0) {
+      totalSpend = expense.total;
+      spendBasis = expense.orAllocationMethod === "dedicated" ? "metered"
+        : expense.orAllocationMethod === "none" ? "none"
+        : "shared_key";
+    } else if (expense && expense.orAllocationMethod === "none") {
+      spendBasis = "none";
     }
 
-    const keys = (p.openrouter_api_key as string).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    let total = 0;
-    let anyResolved = false;
-    let anyShared = false;
-
-    for (const k of keys) {
-      const spend = orKeySpend.get(k);
-      if (spend !== undefined) {
-        const shareCount = keyToProjects.get(k)?.length ?? 1;
-        if (shareCount > 1) anyShared = true;
-        total += spend / Math.max(1, shareCount);
-        anyResolved = true;
-      }
-    }
-
-    if (!anyResolved) {
-      return { ...p, totalSpend: null, spendBasis: "none" as const };
-    }
-
-    const totalSpend = Math.round(total * 100) / 100;
-    const spendBasis = anyShared ? ("shared_key" as const) : ("metered" as const);
-    return { ...p, totalSpend, spendBasis };
+    return {
+      name,
+      description: row.description ?? "",
+      timeline: null,
+      status: row.status ?? null,
+      llms,
+      services: [],
+      totalSpend,
+      openrouter_api_key: row.openrouter_api_key ?? null,
+      spendBasis,
+      expenseBreakdown: expense ?? null,
+    };
   });
 
   const maxSpend = Math.max(0, ...projects.map((p) => p.totalSpend ?? 0));
-  return { projects, maxSpend };
+  return { projects, maxSpend, unallocated };
 }
 
 export default async function ProjectsPage() {
-  const [{ projects, maxSpend }, arthurLastSynced] = await Promise.all([
+  const [{ projects, maxSpend, unallocated }, arthurLastSynced] = await Promise.all([
     getProjects(),
     getArthurLastSynced(),
   ]);
@@ -122,6 +109,7 @@ export default async function ProjectsPage() {
       initialProjects={sorted}
       initialMaxSpend={maxSpend}
       arthurLastSynced={arthurLastSynced}
+      unallocated={unallocated}
     />
   );
 }

@@ -8,9 +8,11 @@ import ReactMarkdown from "react-markdown";
 
 const STARTERS = [
   "Overview of this month's spend",
-  "Which projects are active and what do they cost?",
-  "Which vendor costs the most?",
+  "Which projects cost the most?",
+  "How is Arthur performing this quarter?",
   "What's the forecast for next month?",
+  "Which AI platform sends us the most leads?",
+  "How much are we spending on shared infrastructure?",
 ];
 
 interface Message {
