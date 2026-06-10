@@ -257,6 +257,24 @@ export interface OutcomeSyncResult {
   errors:   { metric_key: string; error: string }[];
 }
 
+export interface MonthlyOutcomeMetrics {
+  llm_traffic_daily: number;
+  llm_chatgpt_daily: number;
+  llm_perplexity_daily: number;
+  llm_claude_daily: number;
+  llm_other_daily: number;
+  demos_booked_mtd: number;
+  demos_held_mtd: number;
+  closed_won_mtd: number;
+  arr_closed_mtd: number;
+}
+
+export interface MonthlyOutcomeBreakdown {
+  month: string;       // "2026-06"
+  monthLabel: string;  // "June 2026"
+  metrics: MonthlyOutcomeMetrics;
+}
+
 export interface ProjectOutcomeSummary {
   projectId: string;
   projectName: string | null;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { OutcomeMetricConfig, OutcomeMetricRow, OutcomeMtdSummary } from "@/types";
+import { MonthlyOutcomeBreakdown, MonthlyOutcomeMetrics, OutcomeMetricConfig, OutcomeMetricRow, OutcomeMtdSummary } from "@/types";
 
 const DAILY_KEYS = new Set([
   "llm_traffic_daily",
@@ -9,6 +9,43 @@ const DAILY_KEYS = new Set([
   "llm_claude_daily",
   "llm_other_daily",
 ]);
+
+function buildMonthlyBreakdown(
+  allRows: { metric_key: string; date: string; value: number }[],
+  currentMonth: string,
+): MonthlyOutcomeBreakdown[] {
+  const byMonth: Record<string, Record<string, { date: string; value: number }[]>> = {};
+  for (const row of allRows) {
+    const month = row.date.substring(0, 7);
+    if (!byMonth[month]) byMonth[month] = {};
+    if (!byMonth[month][row.metric_key]) byMonth[month][row.metric_key] = [];
+    byMonth[month][row.metric_key].push({ date: row.date, value: Number(row.value) });
+  }
+  if (!byMonth[currentMonth]) byMonth[currentMonth] = {};
+
+  return Object.entries(byMonth)
+    .map(([month, keys]) => {
+      const metrics: MonthlyOutcomeMetrics = {
+        llm_traffic_daily: 0, llm_chatgpt_daily: 0, llm_perplexity_daily: 0,
+        llm_claude_daily: 0, llm_other_daily: 0, demos_booked_mtd: 0,
+        demos_held_mtd: 0, closed_won_mtd: 0, arr_closed_mtd: 0,
+      };
+      for (const [key, rows] of Object.entries(keys)) {
+        if (!(key in metrics)) continue;
+        const m = metrics as unknown as Record<string, number>;
+        if (DAILY_KEYS.has(key)) {
+          m[key] = rows.reduce((s, r) => s + r.value, 0);
+        } else {
+          m[key] = [...rows].sort((a, b) => b.date.localeCompare(a.date))[0]?.value ?? 0;
+        }
+      }
+      const [y, mo] = month.split("-").map(Number);
+      const monthLabel = new Date(Date.UTC(y, mo - 1, 1))
+        .toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+      return { month, monthLabel, metrics };
+    })
+    .sort((a, b) => b.month.localeCompare(a.month));
+}
 
 function serviceClient() {
   return createClient(
@@ -32,7 +69,7 @@ export async function GET(
   const from = url.searchParams.get("from") ?? defaultFrom;
   const to   = url.searchParams.get("to")   ?? defaultTo;
 
-  const [configRes, seriesRes, lastSyncRes] = await Promise.all([
+  const [configRes, seriesRes, lastSyncRes, allRowsRes] = await Promise.all([
     supabase
       .from("project_outcome_config")
       .select("*")
@@ -52,6 +89,11 @@ export async function GET(
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(1),
+    supabase
+      .from("project_outcome_metrics")
+      .select("metric_key, date, value")
+      .eq("project_id", projectId)
+      .order("date"),
   ]);
 
   if (configRes.error) {
@@ -87,10 +129,14 @@ export async function GET(
     }
   }
 
+  const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const monthlyBreakdown = buildMonthlyBreakdown(allRowsRes.data ?? [], currentMonth);
+
   return NextResponse.json({
-    config:      (configRes.data ?? []) as OutcomeMetricConfig[],
-    series:      (seriesRes.data ?? []) as Pick<OutcomeMetricRow, "metric_key" | "date" | "value">[],
+    config:           (configRes.data ?? []) as OutcomeMetricConfig[],
+    series:           (seriesRes.data ?? []) as Pick<OutcomeMetricRow, "metric_key" | "date" | "value">[],
     mtd,
-    lastSynced:  lastSyncRes.data?.[0]?.created_at ?? null,
+    lastSynced:       lastSyncRes.data?.[0]?.created_at ?? null,
+    monthlyBreakdown,
   });
 }

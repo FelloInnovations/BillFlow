@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { RefreshCw, CheckCircle2, X, TrendingUp, TrendingDown } from "lucide-react";
-import { OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
+import { MonthlyOutcomeBreakdown, MonthlyOutcomeMetrics, OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
 import { cn } from "@/lib/utils";
 
 const usd = (v: number) =>
@@ -303,6 +303,42 @@ function SourceRow({ label, count, total, color }: { label: string; count: numbe
   );
 }
 
+// ── Sparkline helpers ─────────────────────────────────────────────────────────
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return <div className="h-7" />;
+  return (
+    <ResponsiveContainer width="100%" height={28}>
+      <AreaChart data={data.map((v, i) => ({ i, v }))} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <Area type="monotone" dataKey="v" stroke={color} fill={color} fillOpacity={0.15} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+function SparkTile({ label, total, data, color, currency = false }: {
+  label: string; total: number; data: number[]; color: string; currency?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{label}</p>
+      <p className="text-xl font-bold text-slate-900 dark:text-white tabular-nums leading-tight">
+        {currency
+          ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(total)
+          : total.toLocaleString()}
+      </p>
+      <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-2">last 6 months</p>
+      <Sparkline data={data} color={color} />
+    </div>
+  );
+}
+
+const SPARK_TILES: { label: string; key: keyof MonthlyOutcomeMetrics; color: string; currency?: boolean }[] = [
+  { label: "LLM Traffic",  key: "llm_traffic_daily", color: "#6366f1" },
+  { label: "Demos Held",   key: "demos_held_mtd",    color: "#10b981" },
+  { label: "Closed Won",   key: "closed_won_mtd",    color: "#f59e0b" },
+  { label: "ARR Closed",   key: "arr_closed_mtd",    color: "#06b6d4", currency: true },
+];
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   projectId: string;
@@ -310,6 +346,7 @@ interface Props {
   initialMtd: OutcomeMtdSummary;
   initialSeries: { metric_key: string; date: string; value: number }[];
   initialLastSynced: string | null;
+  initialMonthlyBreakdown: MonthlyOutcomeBreakdown[];
 }
 
 type Range = "7D" | "30D" | "MTD";
@@ -328,11 +365,13 @@ export function OutcomesClient({
   initialMtd,
   initialSeries,
   initialLastSynced,
+  initialMonthlyBreakdown,
 }: Props) {
-  const [config, setConfig]         = useState(initialConfig);
-  const [mtd, setMtd]               = useState<OutcomeMtdSummary>(initialMtd);
-  const [series, setSeries]         = useState(initialSeries);
-  const [lastSynced, setLastSynced] = useState(initialLastSynced);
+  const [config, setConfig]                     = useState(initialConfig);
+  const [mtd, setMtd]                           = useState<OutcomeMtdSummary>(initialMtd);
+  const [series, setSeries]                     = useState(initialSeries);
+  const [lastSynced, setLastSynced]             = useState(initialLastSynced);
+  const [monthlyBreakdown, setMonthlyBreakdown] = useState<MonthlyOutcomeBreakdown[]>(initialMonthlyBreakdown);
   const [range, setRange]           = useState<Range>("MTD");
   const [syncing, setSyncing]           = useState(false);
   const [logOpen, setLogOpen]           = useState(false);
@@ -364,6 +403,7 @@ export function OutcomesClient({
       setMtd(data.mtd ?? {});
       setSeries(data.series ?? []);
       setLastSynced(data.lastSynced ?? null);
+      setMonthlyBreakdown(data.monthlyBreakdown ?? []);
     } catch { /* silent */ }
   }, [projectId]);
 
@@ -525,6 +565,135 @@ export function OutcomesClient({
           <FunnelStage label="ARR Closed"   value={arr}    metricKey="arr_closed_mtd" />
         </div>
       </div>
+
+      {/* Monthly Performance section */}
+      {monthlyBreakdown.length > 0 && (() => {
+        const currentMonth = new Date().toISOString().substring(0, 7);
+        const usdFmt = (v: number) =>
+          new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
+
+        // Last 6 months oldest→newest for sparklines
+        const spark6 = monthlyBreakdown.slice(0, 6).reverse();
+
+        return (
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Performance</h3>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">All months with data · newest first</p>
+            </div>
+
+            {/* Sparkline tiles */}
+            <div className="px-6 py-5 grid grid-cols-2 lg:grid-cols-4 gap-6 border-b border-slate-100 dark:border-slate-800">
+              {SPARK_TILES.map(({ label, key, color, currency }) => (
+                <SparkTile
+                  key={key}
+                  label={label}
+                  total={spark6.reduce((s, m) => s + m.metrics[key], 0)}
+                  data={spark6.map(m => m.metrics[key])}
+                  color={color}
+                  currency={currency}
+                />
+              ))}
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800">
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                      Month
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide whitespace-nowrap">
+                      LLM Traffic
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap border-l border-slate-100 dark:border-slate-800">
+                      ChatGPT
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                      Perplexity
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                      Claude
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                      Other
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                      Demos Booked
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                      Demos Held
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                      Closed Won
+                    </th>
+                    <th className="text-right px-6 py-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide whitespace-nowrap">
+                      ARR Closed
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {monthlyBreakdown.map((row) => {
+                    const isCurrent = row.month === currentMonth;
+                    const m = row.metrics;
+                    return (
+                      <tr
+                        key={row.month}
+                        className={cn(
+                          "hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors",
+                          isCurrent && "bg-indigo-50/40 dark:bg-indigo-950/20",
+                        )}
+                      >
+                        <td className="px-6 py-3 whitespace-nowrap">
+                          <span className={cn(
+                            "font-medium text-slate-800 dark:text-slate-200",
+                            isCurrent && "font-semibold",
+                          )}>
+                            {row.monthLabel}
+                          </span>
+                          {isCurrent && (
+                            <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 uppercase tracking-wide align-middle">
+                              current
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                          {m.llm_traffic_daily.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap border-l border-slate-100 dark:border-slate-800">
+                          {m.llm_chatgpt_daily.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {m.llm_perplexity_daily.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {m.llm_claude_daily.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {m.llm_other_daily.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {m.demos_booked_mtd.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {m.demos_held_mtd.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {m.closed_won_mtd.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-3 text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                          {usdFmt(m.arr_closed_mtd)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Time range toggle */}
       <div className="flex items-center gap-1">

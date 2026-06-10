@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient } from "@supabase/supabase-js";
 import { OutcomesClient } from "@/components/outcomes/OutcomesClient";
-import { OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
+import { MonthlyOutcomeBreakdown, MonthlyOutcomeMetrics, OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
 
 const DAILY_KEYS = new Set([
   "llm_traffic_daily",
@@ -11,6 +11,43 @@ const DAILY_KEYS = new Set([
   "llm_claude_daily",
   "llm_other_daily",
 ]);
+
+function buildMonthlyBreakdown(
+  allRows: { metric_key: string; date: string; value: number }[],
+  currentMonth: string,
+): MonthlyOutcomeBreakdown[] {
+  const byMonth: Record<string, Record<string, { date: string; value: number }[]>> = {};
+  for (const row of allRows) {
+    const month = row.date.substring(0, 7);
+    if (!byMonth[month]) byMonth[month] = {};
+    if (!byMonth[month][row.metric_key]) byMonth[month][row.metric_key] = [];
+    byMonth[month][row.metric_key].push({ date: row.date, value: Number(row.value) });
+  }
+  if (!byMonth[currentMonth]) byMonth[currentMonth] = {};
+
+  return Object.entries(byMonth)
+    .map(([month, keys]) => {
+      const metrics: MonthlyOutcomeMetrics = {
+        llm_traffic_daily: 0, llm_chatgpt_daily: 0, llm_perplexity_daily: 0,
+        llm_claude_daily: 0, llm_other_daily: 0, demos_booked_mtd: 0,
+        demos_held_mtd: 0, closed_won_mtd: 0, arr_closed_mtd: 0,
+      };
+      for (const [key, rows] of Object.entries(keys)) {
+        if (!(key in metrics)) continue;
+        const m = metrics as unknown as Record<string, number>;
+        if (DAILY_KEYS.has(key)) {
+          m[key] = rows.reduce((s, r) => s + r.value, 0);
+        } else {
+          m[key] = [...rows].sort((a, b) => b.date.localeCompare(a.date))[0]?.value ?? 0;
+        }
+      }
+      const [y, mo] = month.split("-").map(Number);
+      const monthLabel = new Date(Date.UTC(y, mo - 1, 1))
+        .toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+      return { month, monthLabel, metrics };
+    })
+    .sort((a, b) => b.month.localeCompare(a.month));
+}
 
 function serviceClient() {
   return createClient(
@@ -27,7 +64,7 @@ async function getInitialData() {
   const today    = now.toISOString().substring(0, 10);
   const from30   = new Date(now.getTime() - 30 * 86_400_000).toISOString().substring(0, 10);
 
-  const [configRes, seriesRes, mtdRowsRes, lastSyncRes] = await Promise.all([
+  const [configRes, seriesRes, mtdRowsRes, lastSyncRes, allRowsRes] = await Promise.all([
     supabase
       .from("project_outcome_config")
       .select("*")
@@ -54,6 +91,11 @@ async function getInitialData() {
       .eq("project_id", "arthur")
       .order("created_at", { ascending: false })
       .limit(1),
+    supabase
+      .from("project_outcome_metrics")
+      .select("metric_key, date, value")
+      .eq("project_id", "arthur")
+      .order("date"),
   ]);
 
   const mtd: OutcomeMtdSummary = {};
@@ -73,11 +115,14 @@ async function getInitialData() {
     }
   }
 
+  const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+
   return {
-    config:      (configRes.data ?? []) as OutcomeMetricConfig[],
-    series:      seriesRes.data ?? [],
+    config:           (configRes.data ?? []) as OutcomeMetricConfig[],
+    series:           seriesRes.data ?? [],
     mtd,
-    lastSynced:  lastSyncRes.data?.[0]?.created_at ?? null,
+    lastSynced:       lastSyncRes.data?.[0]?.created_at ?? null,
+    monthlyBreakdown: buildMonthlyBreakdown(allRowsRes.data ?? [], currentMonth),
   };
 }
 
@@ -86,7 +131,7 @@ export default async function ArthurOutcomesPage() {
   try {
     data = await getInitialData();
   } catch {
-    data = { config: [], series: [], mtd: {}, lastSynced: null };
+    data = { config: [], series: [], mtd: {}, lastSynced: null, monthlyBreakdown: [] };
   }
 
   return (
@@ -96,6 +141,7 @@ export default async function ArthurOutcomesPage() {
       initialMtd={data.mtd}
       initialSeries={data.series}
       initialLastSynced={data.lastSynced}
+      initialMonthlyBreakdown={data.monthlyBreakdown}
     />
   );
 }
