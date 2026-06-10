@@ -33,11 +33,11 @@ const TOOLTIP_CONTENT_CLS =
 
 function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: number }) {
   const expense = project.expenseBreakdown;
-  const { totalSpend } = project;
-  const method = expense?.breakdown.openrouter.allocationMethod ?? "none";
+  const or = expense?.breakdown.openrouter;
+  const attributionNote = or?.attributionNote ?? "none";
 
-  // No linked OR key → "No spend data" with explanation tooltip
-  if (method === "none") {
+  // No linked OR key
+  if (attributionNote === "none") {
     return (
       <div className="text-right shrink-0">
         <RTooltip.Root delayDuration={150}>
@@ -46,7 +46,7 @@ function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: 
           </RTooltip.Trigger>
           <RTooltip.Portal>
             <RTooltip.Content className={TOOLTIP_CONTENT_CLS} sideOffset={6} side="left">
-              No OpenRouter API key linked to this project. Spend cannot be tracked here.
+              No OpenRouter API key configured for this project.
               <RTooltip.Arrow className="fill-slate-700" />
             </RTooltip.Content>
           </RTooltip.Portal>
@@ -56,28 +56,20 @@ function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: 
   }
 
   // Has a linked key but zero recorded spend
-  if (!expense || totalSpend == null || totalSpend === 0) {
+  if (!expense || project.totalSpend == null || project.totalSpend === 0) {
     return (
       <div className="text-right shrink-0">
         <p className="font-bold text-slate-900 dark:text-white text-sm">$0.00</p>
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">OpenRouter $0.00</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+          OpenRouter{or?.keyName ? ` · ${or.keyName}` : ""} $0.00
+        </p>
       </div>
     );
   }
 
-  const orValue = expense.breakdown.openrouter.value;
+  const { keyName, keyTotalSpend, isShared, sharedWith } = or!;
   const invoiceValue = expense.breakdown.allocated_invoices.value;
   const invoiceCount = expense.breakdown.allocated_invoices.count;
-  const { allocationMethod, sharedKeyName, sharePercent } = expense.breakdown.openrouter;
-
-  const orTooltip = (() => {
-    if (allocationMethod === "dedicated") return "OpenRouter API usage on a dedicated key for this project.";
-    if (allocationMethod === "volume_split")
-      return `OpenRouter API usage — ${sharePercent?.toFixed(1)}% share of shared key ${sharedKeyName}, split by invocation volume.`;
-    if (allocationMethod === "equal_split_fallback")
-      return `OpenRouter API usage — equal split of shared key ${sharedKeyName} (no per-project volume data).`;
-    return null;
-  })();
 
   const invoiceTooltip = invoiceCount > 0
     ? `${invoiceCount} invoice${invoiceCount !== 1 ? "s" : ""} manually allocated to this project. View in Financial Records.`
@@ -86,7 +78,23 @@ function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: 
   return (
     <div className="text-right shrink-0">
       <div className="flex items-center justify-end gap-1.5">
-        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
+        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(project.totalSpend)}</p>
+        {isShared && (
+          <RTooltip.Root delayDuration={150}>
+            <RTooltip.Trigger asChild>
+              <span className="cursor-help text-[9px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                shared
+              </span>
+            </RTooltip.Trigger>
+            <RTooltip.Portal>
+              <RTooltip.Content className={TOOLTIP_CONTENT_CLS} sideOffset={6} side="left">
+                Key &ldquo;{keyName}&rdquo; is shared — showing full key total {formatCurrency(keyTotalSpend)}.
+                {sharedWith.length > 0 && ` Also used by: ${sharedWith.join(", ")}.`}
+                <RTooltip.Arrow className="fill-slate-700" />
+              </RTooltip.Content>
+            </RTooltip.Portal>
+          </RTooltip.Root>
+        )}
         {pctOfTotal != null && (
           <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full whitespace-nowrap">
             {pctOfTotal.toFixed(1)}%
@@ -94,24 +102,26 @@ function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: 
         )}
       </div>
 
-      {(orValue > 0 || invoiceValue > 0) && (
+      {(keyTotalSpend > 0 || invoiceValue > 0) && (
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center justify-end gap-1 flex-wrap">
-          {orValue > 0 && (
+          {keyTotalSpend > 0 && (
             <RTooltip.Root delayDuration={150}>
               <RTooltip.Trigger asChild>
-                <span className="cursor-help whitespace-nowrap">OpenRouter {formatCurrency(orValue)}</span>
+                <span className="cursor-help whitespace-nowrap">
+                  OpenRouter{keyName ? ` · ${keyName}` : ""} {formatCurrency(keyTotalSpend)}
+                </span>
               </RTooltip.Trigger>
-              {orTooltip && (
-                <RTooltip.Portal>
-                  <RTooltip.Content className={TOOLTIP_CONTENT_CLS} sideOffset={6} side="left">
-                    {orTooltip}
-                    <RTooltip.Arrow className="fill-slate-700" />
-                  </RTooltip.Content>
-                </RTooltip.Portal>
-              )}
+              <RTooltip.Portal>
+                <RTooltip.Content className={TOOLTIP_CONTENT_CLS} sideOffset={6} side="left">
+                  {isShared
+                    ? `Full spend on shared key "${keyName}" — shown identically on all ${sharedWith.length + 1} projects using this key.`
+                    : `OpenRouter API usage on a dedicated key for this project.`}
+                  <RTooltip.Arrow className="fill-slate-700" />
+                </RTooltip.Content>
+              </RTooltip.Portal>
             </RTooltip.Root>
           )}
-          {orValue > 0 && invoiceValue > 0 && <span className="text-slate-300 dark:text-slate-600">·</span>}
+          {keyTotalSpend > 0 && invoiceValue > 0 && <span className="text-slate-300 dark:text-slate-600">·</span>}
           {invoiceValue > 0 && (
             <RTooltip.Root delayDuration={150}>
               <RTooltip.Trigger asChild>
@@ -181,11 +191,8 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
 
   const llmAccounts = project.llms[0]?.owner || null;
 
-  const method = project.expenseBreakdown?.breakdown.openrouter.allocationMethod ?? "none";
-  const barColor =
-    method === "volume_split"        ? "from-amber-400 to-orange-400" :
-    method === "equal_split_fallback" ? "from-orange-400 to-rose-400"  :
-    "from-indigo-400 to-violet-400";
+  const isSharedKey = project.expenseBreakdown?.breakdown.openrouter.isShared ?? false;
+  const barColor = isSharedKey ? "from-amber-400 to-orange-400" : "from-indigo-400 to-violet-400";
 
   return (
     <div

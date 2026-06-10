@@ -255,23 +255,36 @@ async function buildFullContext(): Promise<string> {
       .filter(([, e]) => e.total > 0)
       .sort((a, b) => b[1].total - a[1].total);
 
-    const attributedTotal = sortedExpense.reduce((s, [, e]) => s + e.total, 0);
     const manualInvoiceCount = sortedExpense.filter(([, e]) => e.breakdown.allocated_invoices.value > 0).length;
 
+    // Dedup shared keys for attributed total
+    const seenKeys2 = new Set<string>();
+    let attributedTotalDeduped = 0;
+    for (const [, e] of sortedExpense) {
+      for (const kd of e.breakdown.openrouter.keyDetails) {
+        if (!seenKeys2.has(kd.name)) { seenKeys2.add(kd.name); attributedTotalDeduped += kd.spend; }
+      }
+      attributedTotalDeduped += e.breakdown.allocated_invoices.value;
+    }
+    attributedTotalDeduped = Math.round(attributedTotalDeduped * 100) / 100;
+
     lines.push("\n=== PROJECT EXPENSE SUMMARY (directly attributable costs only, all-time) ===");
-    lines.push("Each project shows: OpenRouter API spend (real, per-key) + manually allocated invoices (cost_type=project_specific). No proportional estimates.");
-    lines.push(`Global totals: attributed ${fmt(attributedTotal)} | unallocated ${unallocated ? fmt(unallocated.grand_total) : "?"} | grand total ${unallocated ? fmt(attributedTotal + unallocated.grand_total) : "?"}`);
+    lines.push("Each project shows: full OpenRouter key spend + manually allocated invoices. Shared keys show the same total on every project that uses them — no per-project split.");
+    lines.push(`Global totals: attributed (unique keys) ${fmt(attributedTotalDeduped)} | unallocated ${unallocated ? fmt(unallocated.grand_total) : "?"} | grand total ${unallocated ? fmt(attributedTotalDeduped + unallocated.grand_total) : "?"}`);
     lines.push(`Projects with manually allocated invoices: ${manualInvoiceCount} of ${sortedExpense.length}`);
     lines.push("---");
 
     for (const [name, e] of sortedExpense) {
       const status = statusByName.get(name) ?? "";
       const statusStr = status ? ` [${status}]` : "";
-      const orValue = e.breakdown.openrouter.value;
+      const orSpend = e.breakdown.openrouter.keyTotalSpend;
       const invoiceValue = e.breakdown.allocated_invoices.value;
-      const method = e.breakdown.openrouter.allocationMethod;
+      const note = e.breakdown.openrouter.attributionNote;
+      const sharedTag = e.breakdown.openrouter.isShared
+        ? ` [shared key: ${e.breakdown.openrouter.keyName}, also used by: ${e.breakdown.openrouter.sharedWith.join(", ")}]`
+        : "";
       const parts = [
-        orValue > 0 ? `OpenRouter=${fmt(orValue)} (${method})` : null,
+        orSpend > 0 ? `OpenRouter=${fmt(orSpend)} (${note})${sharedTag}` : null,
         invoiceValue > 0 ? `invoices=${fmt(invoiceValue)} (${e.breakdown.allocated_invoices.count} manual)` : null,
       ].filter(Boolean).join(" | ");
       lines.push(`${name}${statusStr}: total=${fmt(e.total)} | ${parts || "no spend data"}`);
@@ -411,7 +424,7 @@ async function buildFullContext(): Promise<string> {
     const arrLast6 = last6.reduce((s, mo) => s + (mtdByMonth2.get(mo)?.["arr_closed_mtd"] ?? 0), 0);
 
     if (arthurExpense && arthurExpense.total > 0) {
-      const orSpend = arthurExpense.breakdown.openrouter.value;
+      const orSpend = arthurExpense.breakdown.openrouter.keyTotalSpend;
       const roi = arrLast6 > 0 && orSpend > 0 ? Math.round(arrLast6 / orSpend) : 0;
       lines.push("\n=== PROJECT ROI ===");
       lines.push("Arthur for Fello:");
@@ -472,7 +485,7 @@ CRITICAL — cost model:
 - **Project totals** = OpenRouter spend + manually allocated invoices. Nothing else. No estimates.
 - **Shared infrastructure** (Railway, Supabase, etc.) is NEVER allocated to individual projects — it stays in the Unallocated bucket.
 - **Shared tooling** (HubSpot, Slack, etc.) is NEVER allocated to individual projects — it stays in the Unallocated bucket.
-- **LLM costs** come from OpenRouter API key snapshots (metered and accurate). Shared keys are split by invocation log volume.
+- **LLM costs** come from OpenRouter API key snapshots (metered and accurate). If a key is shared by multiple projects, every project shows the key's full total — no per-project split.
 - **Invoice-based vendor totals** may be stale if invoice ingestion has paused. Check the DATA FRESHNESS section.
 - Grand total = Σ project totals + unallocated grand total. These two sides always balance.
 
@@ -480,7 +493,7 @@ CRITICAL — spend calculation rules:
 - Always use total_amount (tax-inclusive) for invoice spend, never subtotal.
 - Grand total = sum of ALL total_amount values across ALL records regardless of payment_status.
 - When asked about a specific project's cost, use the PROJECT EXPENSE SUMMARY section for the most accurate figure.
-- Projects with "No metered spend" have no OpenRouter API key — their LLM costs cannot be individually attributed.
+- Projects with "No spend data" have no OpenRouter API key — their LLM costs cannot be individually attributed.
 - Never say "(est.)" or "estimated" for any project spend figure — all figures are directly metered or manually allocated.
 
 ARTHUR ROI GUIDANCE:

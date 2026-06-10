@@ -74,8 +74,8 @@ async function getProjects(): Promise<{
       totalSpend = expense.total;
     }
     // spendBasis reflects whether a key is linked, not whether spend > 0
-    const method = expense?.breakdown.openrouter.allocationMethod ?? "none";
-    spendBasis = method === "dedicated" ? "metered" : method === "none" ? "none" : "shared_key";
+    const note = expense?.breakdown.openrouter.attributionNote ?? "none";
+    spendBasis = note === "dedicated" ? "metered" : note === "none" ? "none" : "shared_key";
 
     return {
       name,

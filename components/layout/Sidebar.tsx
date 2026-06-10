@@ -15,7 +15,6 @@ import {
   Sun,
   Moon,
   Lock,
-  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +22,6 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/records", label: "Financial Records", icon: FileText },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/projects/setup", label: "Project Setup", icon: Settings2 },
   { href: "/outcomes", label: "Outcomes", icon: BarChart2 },
   { href: "/tools", label: "Tools", icon: Wrench },
   { href: "/activity", label: "Activity", icon: Activity },

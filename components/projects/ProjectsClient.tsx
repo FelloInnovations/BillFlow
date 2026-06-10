@@ -22,8 +22,8 @@ function sortProjects(projects: Project[], sort: string): Project[] {
       case "spend_desc":
         return (b.totalSpend ?? -1) - (a.totalSpend ?? -1);
       case "openrouter_desc":
-        return (b.expenseBreakdown?.breakdown.openrouter.value ?? -1) -
-               (a.expenseBreakdown?.breakdown.openrouter.value ?? -1);
+        return (b.expenseBreakdown?.breakdown.openrouter.keyTotalSpend ?? -1) -
+               (a.expenseBreakdown?.breakdown.openrouter.keyTotalSpend ?? -1);
       case "name_asc":
         return a.name.localeCompare(b.name);
       case "status":
@@ -140,8 +140,25 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
   const maxSpend = initialMaxSpend;
   const unallocated = initialUnallocated;
 
-  const attributedTotal = projects.reduce((s, p) => s + (p.totalSpend ?? 0), 0);
-  const grandTotal = attributedTotal + unallocated.grand_total;
+  // Sum each unique OR key once (shared keys are counted once, not once per project)
+  const { attributedTotal, grandTotal } = useMemo(() => {
+    const seenKeys = new Set<string>();
+    let attributed = 0;
+    for (const p of projects) {
+      const or = p.expenseBreakdown?.breakdown.openrouter;
+      if (or) {
+        for (const kd of or.keyDetails) {
+          if (!seenKeys.has(kd.name)) {
+            seenKeys.add(kd.name);
+            attributed += kd.spend;
+          }
+        }
+      }
+      attributed += p.expenseBreakdown?.breakdown.allocated_invoices.value ?? 0;
+    }
+    attributed = Math.round(attributed * 100) / 100;
+    return { attributedTotal: attributed, grandTotal: Math.round((attributed + unallocated.grand_total) * 100) / 100 };
+  }, [projects, unallocated.grand_total]);
 
   const displayed = useMemo(() => {
     let filtered = projects;
@@ -177,12 +194,6 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
               {projects.length} projects · {headerSpend()}
             </p>
           </div>
-          <Link
-            href="/projects/setup"
-            className="text-xs text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 font-medium transition-colors mt-1"
-          >
-            Setup →
-          </Link>
         </div>
 
         {/* Controls */}
