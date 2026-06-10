@@ -109,6 +109,12 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
     return m;
   }, [orProjects]);
 
+  const accountNameByKey = useMemo(() => {
+    const m: Record<string, string | null> = {};
+    for (const k of activity.keys) m[k.key_name] = k.account_name;
+    return m;
+  }, [activity.keys]);
+
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
@@ -322,7 +328,7 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
       </div>
       {newError && <p className="text-xs text-rose-600 dark:text-rose-400">{newError}</p>}
       <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-        Alerts are sent to all team members via n8n hourly.
+        Alerts are sent to all team members via n8n hourly. Keys from both OpenRouter accounts are available in the project list.
       </p>
     </div>
   );
@@ -374,7 +380,14 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-800 dark:text-slate-200">{alert.project_name}</p>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 truncate">{alert.openrouter_key_name}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono truncate">{alert.openrouter_key_name}</p>
+                    {accountNameByKey[alert.openrouter_key_name] === "Account 2" && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 shrink-0">
+                        Account 2
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {!isEditing && (
