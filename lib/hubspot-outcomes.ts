@@ -327,21 +327,27 @@ export async function getClosedWonMtd(date: string): Promise<{ count: number }> 
 
 export async function getArrClosedMtd(date: string): Promise<{ total: number }> {
   const [contacts, closedWonIds] = await Promise.all([
+    // NOTE: filtering for HAS_PROPERTY(current_arr__sync_) limits to contacts with that field set;
+    // if closed-won contacts lack the property this returns 0 → see debug endpoint for diagnosis
     getAllContacts(
       [AI_REFERRALS, { propertyName: "current_arr__sync_", operator: "HAS_PROPERTY" }],
       ["current_arr__sync_"],
     ),
     getClosedWonStageIds(),
   ]);
-  if (!contacts.length) return { total: 0 };
+  console.log(`[getArrClosedMtd] filter=AI_REFERRALS+HAS_PROPERTY(current_arr__sync_) contacts=${contacts.length} closedWonIds=${JSON.stringify(closedWonIds)}`);
+  if (!contacts.length) { console.log(`[getArrClosedMtd] EARLY_EXIT: no AI-referral contacts have current_arr__sync_ set`); return { total: 0 }; }
 
   const contactIds = contacts.map((c) => c.id);
   const contactToDeals = await batchAssociationsMap(contactIds, "deals");
   const allDealIds = [...new Set([...contactToDeals.values()].flat())];
+  console.log(`[getArrClosedMtd] contacts_with_arr=${contacts.length} total_deal_ids=${allDealIds.length}`);
   if (!allDealIds.length) return { total: 0 };
 
   const deals = await batchReadDeals(allDealIds);
   const { start, end } = monthRange(date);
+  console.log(`[getArrClosedMtd] window=${new Date(start).toISOString()}–${new Date(end).toISOString()} all_stages=${JSON.stringify([...new Set(deals.map(d => d.properties.dealstage))])}`);
+
   const qualifyingDealIds = new Set(
     deals
       .filter((d) => {
@@ -350,13 +356,16 @@ export async function getArrClosedMtd(date: string): Promise<{ total: number }> 
       })
       .map((d) => d.id),
   );
+  console.log(`[getArrClosedMtd] qualifying_closed_won_deals=${qualifyingDealIds.size}`);
 
   let total = 0;
   for (const contact of contacts) {
     const cDealIds = contactToDeals.get(contact.id) ?? [];
-    if (cDealIds.some((did) => qualifyingDealIds.has(did))) {
-      total += parseFloat(contact.properties["current_arr__sync_"] ?? "0") || 0;
-    }
+    const hasWon = cDealIds.some((did) => qualifyingDealIds.has(did));
+    const arr = parseFloat(contact.properties["current_arr__sync_"] ?? "0") || 0;
+    console.log(`[getArrClosedMtd] contact=${contact.id} arr=${arr} deal_ids=${JSON.stringify(cDealIds)} has_qualifying_deal=${hasWon}`);
+    if (hasWon) total += arr;
   }
+  console.log(`[getArrClosedMtd] result=${total}`);
   return { total };
 }

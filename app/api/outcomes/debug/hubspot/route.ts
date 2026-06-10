@@ -102,6 +102,8 @@ export async function GET(req: NextRequest) {
   // 6. Check deal associations for AI-referral contacts
   let aiDealIds: string[] = [];
   let sampleDeals: unknown[] = [];
+  // Build a map from deal ID → contact IDs for section 7
+  const dealToContactIds = new Map<string, string[]>();
   if (aiContactIds.length > 0) {
     const dealAssoc = await hsPost(
       "/crm/v4/associations/contacts/deals/batch/read",
@@ -109,7 +111,14 @@ export async function GET(req: NextRequest) {
     );
     aiDealIds = Array.from(new Set(
       (dealAssoc.results ?? []).flatMap(
-        (r: { to?: { toObjectId: string }[] }) => (r.to ?? []).map((t) => t.toObjectId),
+        (r: { from?: { id: string }; to?: { toObjectId: string }[] }) => {
+          for (const t of r.to ?? []) {
+            const existing = dealToContactIds.get(t.toObjectId) ?? [];
+            if (r.from?.id) existing.push(r.from.id);
+            dealToContactIds.set(t.toObjectId, existing);
+          }
+          return (r.to ?? []).map((t) => t.toObjectId);
+        },
       ),
     )) as string[];
     if (aiDealIds.length > 0) {
@@ -126,6 +135,56 @@ export async function GET(req: NextRequest) {
         }),
       );
     }
+  }
+
+  // 7. Closed-won contacts — ARR and deal details
+  // Fetch pipeline to resolve closed-won stage IDs
+  const pipelineData = await hsGet("/crm/v3/pipelines/deals");
+  const closedWonIds: string[] = [];
+  for (const pipeline of pipelineData.results ?? []) {
+    for (const stage of (pipeline as { stages?: { id: string; label: string; metadata?: { probability?: string } }[] }).stages ?? []) {
+      if (stage.metadata?.probability === "1.0") {
+        closedWonIds.push(stage.id);
+      }
+    }
+  }
+
+  // Fetch AI-referral contacts WITH their ARR property (no HAS_PROPERTY filter — include all)
+  const aiContactsFull = await hsPost("/crm/v3/objects/contacts/search", {
+    filterGroups: [{ filters: [{ propertyName: "hs_analytics_source", operator: "EQ", value: "AI_REFERRALS" }] }],
+    properties: ["email", "current_arr__sync_"],
+    limit: 100,
+  });
+  const contactArrMap = new Map<string, { email: string; arr: string | null }>(
+    ((aiContactsFull as { results?: { id: string; properties: Record<string, string | null> }[] }).results ?? []).map(
+      (c) => [c.id, { email: c.properties.email ?? "", arr: c.properties.current_arr__sync_ ?? null }],
+    ),
+  );
+
+  // Read ALL deals for AI-referral contacts with amount field
+  let closedWonContactBreakdown: unknown[] = [];
+  if (aiDealIds.length > 0) {
+    const allDealsData = await hsPost("/crm/v3/objects/deals/batch/read", {
+      inputs: aiDealIds.map((id) => ({ id })),
+      properties: ["dealstage", "closedate", "dealname", "amount"],
+    });
+    const closedWonDeals = ((allDealsData as { results?: { id: string; properties: Record<string, string | null> }[] }).results ?? [])
+      .filter((d) => closedWonIds.includes(d.properties.dealstage ?? ""));
+
+    closedWonContactBreakdown = closedWonDeals.map((d) => {
+      const contactIds = dealToContactIds.get(d.id) ?? [];
+      return {
+        deal_id:    d.id,
+        deal_name:  d.properties.dealname,
+        deal_stage: d.properties.dealstage,
+        deal_amount: d.properties.amount,
+        closedate:  d.properties.closedate,
+        contacts: contactIds.map((cid) => {
+          const info = contactArrMap.get(cid);
+          return { contact_id: cid, email: info?.email ?? null, current_arr__sync_: info?.arr ?? null };
+        }),
+      };
+    });
   }
 
   return NextResponse.json({
@@ -165,6 +224,10 @@ export async function GET(req: NextRequest) {
       deal_ids_found: aiDealIds.length,
       sample_meetings: sampleMeetings,
       sample_deals: sampleDeals,
+    },
+    closed_won_arr_diagnosis: {
+      closed_won_stage_ids: closedWonIds,
+      closed_won_deals_for_ai_referrals: closedWonContactBreakdown,
     },
   });
 }
