@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     } else if (SHARED_TOOLING_CANONICAL.has(canonical)) {
       cost_type = "shared_tooling";
     } else {
-      cost_type = "unallocated";
+      continue; // leave NULL — human review required
     }
     updates.push({ id: row.id as string, cost_type });
   }

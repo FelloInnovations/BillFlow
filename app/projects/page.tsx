@@ -70,12 +70,10 @@ async function getProjects(): Promise<{
     let totalSpend: number | null = null;
     let spendBasis: "metered" | "shared_key" | "none" | null = null;
 
-    if (expense && expense.direct > 0) {
-      // total = direct + allocatedInfra (headline shown on card)
+    if (expense && expense.total > 0) {
       totalSpend = expense.total;
-      spendBasis = expense.orAllocationMethod === "dedicated" ? "metered"
-        : expense.orAllocationMethod === "none" ? "none"
-        : "shared_key";
+      const method = expense.breakdown.openrouter.allocationMethod;
+      spendBasis = method === "dedicated" ? "metered" : method === "none" ? "none" : "shared_key";
     } else {
       spendBasis = "none";
     }

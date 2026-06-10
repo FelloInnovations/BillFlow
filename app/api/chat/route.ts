@@ -242,16 +242,8 @@ async function buildFullContext(): Promise<string> {
     lines.push("No budget guardrails have been set yet.");
   }
 
-  // ── Shared infrastructure note (now allocated to projects — see PROJECT EXPENSE SUMMARY) ──
-  lines.push("\n=== SHARED INFRASTRUCTURE (now proportionally allocated to projects) ===");
-  lines.push("Railway, Supabase, Vercel, Cloudflare, AWS, GCP invoices are distributed to each project");
-  lines.push("proportionally based on that project's share of total direct (OR + tools) spend.");
-  lines.push("These figures are estimates — see PROJECT EXPENSE SUMMARY for each project's allocated_infra value.");
-  lines.push("All other invoice vendors (Oxylabs, Apify, ElevenLabs, etc.) remain in UNALLOCATED SPEND.");
-
-  // ── Project expense summary ───────────────────────────────────────────────────────
+  // ── Project expense summary (directly attributable costs only) ───────────────────────
   if (expenseMap && expenseMap.size > 0) {
-    // Build name → status lookup from sheets data (best available source)
     const statusByName = new Map<string, string>();
     if (sheets?.projects) {
       for (const p of sheets.projects as { name: string; status?: string }[]) {
@@ -260,82 +252,48 @@ async function buildFullContext(): Promise<string> {
     }
 
     const sortedExpense = [...expenseMap.entries()]
-      .filter(([, e]) => e.direct > 0)
+      .filter(([, e]) => e.total > 0)
       .sort((a, b) => b[1].total - a[1].total);
 
     const attributedTotal = sortedExpense.reduce((s, [, e]) => s + e.total, 0);
-    const infraPool = sortedExpense[0]?.[1].infraTotalPool ?? 0;
-    const totalDirect = sortedExpense.reduce((s, [, e]) => s + e.direct, 0);
+    const manualInvoiceCount = sortedExpense.filter(([, e]) => e.breakdown.allocated_invoices.value > 0).length;
 
-    const manualInvoiceCount = sortedExpense.filter(([, e]) => e.invoicesDirect > 0).length;
-
-    lines.push("\n=== PROJECT EXPENSE SUMMARY (volume-attributed, all-time) ===");
-    lines.push(`Methodology: OR spend on shared keys split by invocation volume (equal-split fallback). Shared infrastructure (${fmt(infraPool)}) allocated proportionally — each project's share = (project direct / ${fmt(totalDirect)} total direct) × infra pool.`);
-    lines.push(`Global totals: attributed ${fmt(attributedTotal)} | unallocated ${unallocated ? fmt(unallocated.total) : "?"} | grand total ${unallocated ? fmt(attributedTotal + unallocated.total) : "?"}`);
-    lines.push(`Manual invoice attribution: ${manualInvoiceCount} of ${sortedExpense.length} projects have manually allocated invoices. The rest use proportional infra estimates only.`);
+    lines.push("\n=== PROJECT EXPENSE SUMMARY (directly attributable costs only, all-time) ===");
+    lines.push("Each project shows: OpenRouter API spend (real, per-key) + manually allocated invoices (cost_type=project_specific). No proportional estimates.");
+    lines.push(`Global totals: attributed ${fmt(attributedTotal)} | unallocated ${unallocated ? fmt(unallocated.grand_total) : "?"} | grand total ${unallocated ? fmt(attributedTotal + unallocated.grand_total) : "?"}`);
+    lines.push(`Projects with manually allocated invoices: ${manualInvoiceCount} of ${sortedExpense.length}`);
     lines.push("---");
 
     for (const [name, e] of sortedExpense) {
       const status = statusByName.get(name) ?? "";
       const statusStr = status ? ` [${status}]` : "";
-      const methodLabel = e.orAllocationMethod === "dedicated" ? "metered"
-        : e.orAllocationMethod === "volume" ? "volume-split"
-        : e.orAllocationMethod === "equal" ? "equal-split"
-        : "no OR key";
-      const orTotal = e.orDedicated + e.orShared;
-      const toolsTotal = e.toolsDedicated + e.toolsShared;
-      const breakdownParts = [
-        `OR=${fmt(orTotal)}`,
-        e.invoicesDirect > 0 ? `invoices=${fmt(e.invoicesDirect)} (manual)` : `invoices=$0`,
-        toolsTotal > 0 ? `tools=${fmt(toolsTotal)}` : null,
-      ].filter(Boolean).join(" ");
-      lines.push(`${name}${statusStr}: total=${fmt(e.total)} | direct=${fmt(e.direct)} (${breakdownParts}) | infra est.=${fmt(e.allocatedInfra)} (${e.infraSharePercent}% of pool) | OR method=${methodLabel}`);
+      const orValue = e.breakdown.openrouter.value;
+      const invoiceValue = e.breakdown.allocated_invoices.value;
+      const method = e.breakdown.openrouter.allocationMethod;
+      const parts = [
+        orValue > 0 ? `OpenRouter=${fmt(orValue)} (${method})` : null,
+        invoiceValue > 0 ? `invoices=${fmt(invoiceValue)} (${e.breakdown.allocated_invoices.count} manual)` : null,
+      ].filter(Boolean).join(" | ");
+      lines.push(`${name}${statusStr}: total=${fmt(e.total)} | ${parts || "no spend data"}`);
     }
   }
 
+  // ── Unallocated spend (three buckets — none flow to projects) ────────────────────────
   if (unallocated) {
-    lines.push("\n=== UNALLOCATED SPEND (costs not attributed to any project) ===");
-    lines.push(`Total unallocated: ${fmt(unallocated.total)}`);
-    lines.push(`  Shared infrastructure distributed to projects: ${fmt(unallocated.sharedInfraAllocated)} (proportional to direct spend — NOT in this bucket)`);
-    if (unallocated.sharedTooling > 0) lines.push(`  Shared tooling (HubSpot, Slack, etc.): ${fmt(unallocated.sharedTooling)}`);
-    lines.push(`  Invoice vendors with no project link: ${fmt(unallocated.invoicesUnallocated)}`);
-    if (unallocated.unlinkedOrKeys > 0) lines.push(`  OR keys not linked to any project: ${fmt(unallocated.unlinkedOrKeys)}`);
-    if (unallocated.topUnallocatedInvoiceVendors.length > 0) {
-      lines.push("  Top unallocated invoice vendors:");
-      for (const v of unallocated.topUnallocatedInvoiceVendors) lines.push(`    ${v.vendor}: ${fmt(v.amount)}`);
+    lines.push("\n=== UNALLOCATED SPEND (not attributable to any single project) ===");
+    lines.push(`Grand unallocated total: ${fmt(unallocated.grand_total)}`);
+    lines.push("IMPORTANT: Shared infrastructure and shared tooling are NEVER split across projects. All three buckets below remain portfolio-level costs.");
+    if (unallocated.shared_infrastructure.total > 0) {
+      lines.push(`  Shared Infrastructure: ${fmt(unallocated.shared_infrastructure.total)} (Railway, Supabase, Vercel, Cloudflare, AWS, GCP — costs of running the platform)`);
+      for (const v of unallocated.shared_infrastructure.vendors) lines.push(`    ${v.name}: ${fmt(v.value)}`);
     }
-    lines.push("NOTE: Shared infrastructure IS allocated to projects (proportional to direct OR spend). Invoices can now be manually allocated via the Financial Records page — see MANUALLY ALLOCATED INVOICES and UNALLOCATED INVOICES sections below.");
-  }
-
-  // ── Manually allocated invoices (project_specific) ────────────────────────────────
-  const allocatedRows = rows.filter((r) => r.cost_type === "project_specific" && r.project_id);
-  if (allocatedRows.length > 0) {
-    const byProject = new Map<string, number>();
-    for (const r of allocatedRows) {
-      const p = r.project_id as string;
-      byProject.set(p, (byProject.get(p) ?? 0) + parseFloat(String(r.total_amount ?? 0)));
+    if (unallocated.shared_tooling.total > 0) {
+      lines.push(`  Shared Tooling: ${fmt(unallocated.shared_tooling.total)} (HubSpot, Slack, GitHub, etc. — team-wide tools)`);
+      for (const v of unallocated.shared_tooling.vendors) lines.push(`    ${v.name}: ${fmt(v.value)}`);
     }
-    lines.push("\n=== MANUALLY ALLOCATED INVOICES (cost_type=project_specific) ===");
-    lines.push(`${allocatedRows.length} invoices manually attributed to specific projects.`);
-    for (const [project, total] of [...byProject.entries()].sort((a, b) => b[1] - a[1])) {
-      lines.push(`  ${project}: ${fmt(total)}`);
+    if (unallocated.unallocated_misc.total > 0) {
+      lines.push(`  Unallocated Invoices: ${fmt(unallocated.unallocated_misc.total)} (${unallocated.unallocated_misc.count} invoices still need allocation in Financial Records)`);
     }
-  }
-
-  // ── Unallocated invoices (cost_type IS NULL or 'unallocated') ─────────────────────
-  const unallocatedInvoiceRows = rows.filter((r) => !r.cost_type || r.cost_type === "unallocated");
-  if (unallocatedInvoiceRows.length > 0) {
-    const byVendor = new Map<string, number>();
-    for (const r of unallocatedInvoiceRows) {
-      if (!r.vendor_name) continue;
-      byVendor.set(r.vendor_name, (byVendor.get(r.vendor_name) ?? 0) + parseFloat(String(r.total_amount ?? 0)));
-    }
-    const topUnalloc = [...byVendor.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-    const totalUnallocInvoice = [...byVendor.values()].reduce((s, v) => s + v, 0);
-    lines.push("\n=== UNALLOCATED INVOICES (cost_type IS NULL or 'unallocated') ===");
-    lines.push(`${unallocatedInvoiceRows.length} invoices not yet attributed to a project or category. Total: ${fmt(totalUnallocInvoice)}`);
-    lines.push("To allocate these, go to Financial Records and click 'Allocate →' on each row.");
-    for (const [vendor, total] of topUnalloc) lines.push(`  ${vendor}: ${fmt(total)}`);
   }
 
   // ── Arthur outcomes (AI referral pipeline for Fello) ─────────────────────────────
@@ -452,15 +410,14 @@ async function buildFullContext(): Promise<string> {
     const last6 = [...mtdByMonth2.keys()].sort().reverse().slice(0, 6);
     const arrLast6 = last6.reduce((s, mo) => s + (mtdByMonth2.get(mo)?.["arr_closed_mtd"] ?? 0), 0);
 
-    if (arthurExpense && arthurExpense.direct > 0) {
-      const directSpend = arthurExpense.direct;
-      const roi = arrLast6 > 0 ? Math.round(arrLast6 / directSpend) : 0;
+    if (arthurExpense && arthurExpense.total > 0) {
+      const orSpend = arthurExpense.breakdown.openrouter.value;
+      const roi = arrLast6 > 0 && orSpend > 0 ? Math.round(arrLast6 / orSpend) : 0;
       lines.push("\n=== PROJECT ROI ===");
       lines.push("Arthur for Fello:");
-      lines.push(`  Expense (all-time direct OR): ${fmt(directSpend)}`);
+      lines.push(`  OpenRouter spend (all-time): ${fmt(orSpend)}`);
       lines.push(`  ARR Closed (last 6 months): ${fmt(arrLast6)}`);
-      lines.push(`  ROI: ${roi}x (ARR last 6 months / all-time direct OR spend)`);
-      lines.push("  Note: Uses direct OR spend only — allocated infra share excluded at this scale to avoid distorting the ROI signal.");
+      lines.push(`  ROI: ${roi}x (ARR last 6 months / all-time OpenRouter spend)`);
       if (arrLast6 === 0) lines.push("  Note: No closed-won ARR recorded in last 6 months — ROI cannot be computed.");
     }
   }
@@ -504,32 +461,32 @@ You have full, real-time visibility into:
 
 1. **Invoice-based spend** — all financial records from vendor invoices (paid, unpaid, overdue)
 2. **API-key-based spend** — per-project LLM costs tracked via named OpenRouter API keys (primary and most accurate source for LLM spend)
-3. **Volume-attributed project expense** — each project's OR spend with shared keys split by actual invocation volume; shared infrastructure (Railway, Supabase, etc.) distributed proportionally to projects by direct spend share
-4. **Unallocated spend** — shared tooling (HubSpot, Slack, etc.) and misc invoice vendors with no project link; shared infra is NOT here — it has been allocated to projects
+3. **Project expense** — each project's total = OpenRouter spend + manually allocated invoices only. No estimates, no proportional infra allocation.
+4. **Unallocated spend** — three buckets: Shared Infrastructure (Railway, Supabase, etc.), Shared Tooling (HubSpot, Slack, etc.), and Unallocated Invoices (not yet attributed). These are NEVER split across projects.
 5. **Budget guardrails** — monthly spend limits per project, warning thresholds, recommended budgets
 6. **Spend forecast** — next month projections per vendor based on 3-month rolling averages
 7. **Arthur outcomes** — AI-referral pipeline metrics (LLM traffic, demos booked/held, closed-won deals, ARR) sourced from HubSpot CRM
 8. **All projects** — name, status, description, LLMs, spend allocation method
 
-CRITICAL — dual-source cost model:
-- **LLM costs** come primarily from OpenRouter API key snapshots (the "OPENROUTER PER-KEY API SPEND" section). These are metered and accurate.
-- **Service/infrastructure costs** (Oxylabs, Supabase, Apify, etc.) come from invoice records and are NOT attributed to individual projects.
+CRITICAL — cost model:
+- **Project totals** = OpenRouter spend + manually allocated invoices. Nothing else. No estimates.
+- **Shared infrastructure** (Railway, Supabase, etc.) is NEVER allocated to individual projects — it stays in the Unallocated bucket.
+- **Shared tooling** (HubSpot, Slack, etc.) is NEVER allocated to individual projects — it stays in the Unallocated bucket.
+- **LLM costs** come from OpenRouter API key snapshots (metered and accurate). Shared keys are split by invocation log volume.
 - **Invoice-based vendor totals** may be stale if invoice ingestion has paused. Check the DATA FRESHNESS section.
-- When reporting OpenRouter/LLM spend, prefer the API snapshot figures over invoice figures — they are more current.
-- The total org spend = OpenRouter API total + shared infrastructure invoice total. Do not double-count.
-- **Shared key allocation**: OR keys shared between projects are split by invocation log volume. Check the PROJECT EXPENSE SUMMARY section for per-project figures.
-- **Infrastructure allocation**: The shared infra pool (Railway, Supabase, etc.) is proportionally distributed across projects based on each project's share of total direct spend. All infra figures are estimates — marked as "(est.)" in the UI.
+- Grand total = Σ project totals + unallocated grand total. These two sides always balance.
 
 CRITICAL — spend calculation rules:
 - Always use total_amount (tax-inclusive) for invoice spend, never subtotal.
 - Grand total = sum of ALL total_amount values across ALL records regardless of payment_status.
 - When asked about a specific project's cost, use the PROJECT EXPENSE SUMMARY section for the most accurate figure.
 - Projects with "No metered spend" have no OpenRouter API key — their LLM costs cannot be individually attributed.
+- Never say "(est.)" or "estimated" for any project spend figure — all figures are directly metered or manually allocated.
 
 ARTHUR ROI GUIDANCE:
 - Arthur is Fello's AI agent that generates inbound leads through AI platform mentions (ChatGPT, Perplexity, Claude).
 - LLM traffic = number of new contacts whose source is attributed to an AI platform in HubSpot.
-- Precomputed ROI is in the PROJECT ROI section: ARR closed (last 6 months) / all-time direct OR spend.
+- Precomputed ROI is in the PROJECT ROI section: ARR closed (last 6 months) / all-time OpenRouter spend.
 - Demos booked and held are counted independently — a demo booked in one month but held in another counts in both, so held/booked ratio can exceed 100%.
 - For "which platform sends us the most demos?" — check ARTHUR OUTCOMES per-month source breakdown (ChatGPT/Perplexity/Claude/Other columns) and identify which has the highest cumulative traffic, then cross-reference with demo conversion. Traffic is a proxy since HubSpot doesn't directly attribute demos to source platform.
 

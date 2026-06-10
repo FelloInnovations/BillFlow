@@ -3,16 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ProjectOutcomeSummary } from "@/types";
-import { formatCurrency, cn } from "@/lib/utils";
-
-const SCOPE_OPTIONS = [
-  { value: "this_month",  label: "This Month",     short: "this month" },
-  { value: "last_month",  label: "Last Month",     short: "last month" },
-  { value: "last_3m",     label: "Last 3 Months",  short: "last 3 months" },
-  { value: "last_6m",     label: "Last 6 Months",  short: "last 6 months" },
-  { value: "last_12m",    label: "Last 12 Months", short: "last 12 months" },
-  { value: "all_time",    label: "All Time",        short: "all time" },
-];
+import { formatCurrency } from "@/lib/utils";
 
 const PLATFORMS = [
   { key: "llm_chatgpt_daily",    label: "ChatGPT",    bar: "bg-emerald-400", text: "text-emerald-600 dark:text-emerald-400" },
@@ -51,20 +42,16 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function OutcomesIndexClient() {
-  const [scope, setScope] = useState("last_6m");
   const [projects, setProjects] = useState<ProjectOutcomeSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/outcomes?scope=${scope}`)
+    fetch("/api/outcomes?scope=last_6m")
       .then((r) => r.json())
       .then((data) => setProjects(Array.isArray(data) ? data : []))
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
-  }, [scope]);
-
-  const scopeOpt = SCOPE_OPTIONS.find((o) => o.value === scope) ?? SCOPE_OPTIONS[3];
+  }, []);
 
   const totals = projects.reduce(
     (acc, p) => ({
@@ -77,51 +64,31 @@ export function OutcomesIndexClient() {
   );
 
   const statCards = [
-    { label: "LLM Traffic",  value: totals.llmTraffic.toLocaleString(), sub: `contacts in ${scopeOpt.short}` },
-    { label: "Demos Booked", value: totals.demosBooked.toString(),       sub: `meetings scheduled in ${scopeOpt.short}` },
-    { label: "Closed Won",   value: totals.closedWon.toString(),          sub: `deals closed in ${scopeOpt.short}` },
-    { label: "ARR Closed",   value: formatCurrency(totals.arrClosed),     sub: `revenue in ${scopeOpt.short}` },
+    { label: "LLM Traffic",  value: totals.llmTraffic.toLocaleString(), sub: "contacts in last 6 months" },
+    { label: "Demos Booked", value: totals.demosBooked.toString(),       sub: "meetings scheduled in last 6 months" },
+    { label: "Closed Won",   value: totals.closedWon.toString(),          sub: "deals closed in last 6 months" },
+    { label: "ARR Closed",   value: formatCurrency(totals.arrClosed),     sub: "revenue in last 6 months" },
   ];
 
   return (
     <main className="flex-1 min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
       {/* Header */}
-      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Outcomes</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Business KPI portfolio across all AI projects &middot; {scopeOpt.label}
-          </p>
-        </div>
-
-        {/* Scope selector */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 flex-wrap">
-          {SCOPE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setScope(opt.value)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
-                scope === opt.value
-                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Outcomes</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Business KPI portfolio across all AI projects &middot; Last 6 Months
+        </p>
       </div>
 
-      {/* Skeleton / loading overlay */}
-      <div className={cn("transition-opacity duration-150", loading ? "opacity-50 pointer-events-none" : "opacity-100")}>
+      {/* Loading / content */}
+      <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : "transition-opacity"}>
         {projects.length === 0 && !loading ? (
           <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-16 text-center">
             <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">
               No outcome data for this period.
             </p>
             <p className="text-slate-300 dark:text-slate-600 text-xs mt-2">
-              Try selecting a wider scope or check that{" "}
+              Check that{" "}
               <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">
                 project_outcome_config
               </code>{" "}
@@ -221,7 +188,7 @@ export function OutcomesIndexClient() {
                       {/* Funnel */}
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-                          Funnel &middot; {scopeOpt.label}
+                          Funnel &middot; Last 6 Months
                         </p>
                         <div className="flex items-center gap-1 flex-wrap">
                           {funnelSteps.map(({ label, value, currency }, i) => (

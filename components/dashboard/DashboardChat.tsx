@@ -10,9 +10,9 @@ const STARTERS = [
   "Overview of this month's spend",
   "Which projects cost the most?",
   "How is Arthur performing this quarter?",
-  "Which invoices need to be allocated?",
-  "How much of our spend is estimated vs manually allocated?",
-  "Show me Arthur's true cost including manually allocated invoices.",
+  "Which invoices still need allocation?",
+  "How much shared infrastructure do we have?",
+  "What's the true OpenRouter cost for Arthur?",
 ];
 
 interface Message {

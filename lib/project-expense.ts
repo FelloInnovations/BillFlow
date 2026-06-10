@@ -14,52 +14,34 @@ export const SHARED_TOOLING_CANONICAL = new Set([
 ]);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-export interface SharedKeyDetail {
-  keyName: string;
-  keySpend: number;
-  thisProjectPct: number;
-  thisProjectSpend: number;
-  allocationMethod: "volume" | "equal";
-}
-
 export interface ProjectExpense {
   projectName: string;
-  // Direct spend components (measured / tracked)
-  orDedicated: number;
-  orShared: number;
-  orAllocationMethod: "dedicated" | "volume" | "equal" | "none";
-  toolsDedicated: number;
-  toolsShared: number;
-  invoicesDirect: number; // manually attributed invoices (cost_type='project_specific' or project-specific infra/tooling)
-  direct: number;         // sum of all direct components above
-  // Proportional infrastructure allocation (estimated)
-  allocatedInfra: number;
-  infraSharePercent: number;   // this project's % of total direct (e.g. 30.5)
-  infraTotalPool: number;      // total shared infra pool
-  infraAllocationMethod: "proportional_to_direct_spend" | "equal_split";
-  // Grand total shown on card
-  total: number; // direct + allocatedInfra
-  sharedKeyDetails: SharedKeyDetail[];
+  total: number;
+  breakdown: {
+    openrouter: {
+      value: number;
+      isShared: boolean;
+      sharedKeyName?: string;
+      allocationMethod: "dedicated" | "volume_split" | "equal_split_fallback" | "none";
+      sharePercent?: number;
+    };
+    allocated_invoices: {
+      value: number;
+      count: number;
+      items: { vendor: string; amount: number }[];
+    };
+  };
 }
 
 export interface UnallocatedSpend {
-  // These categories are NOT proportionally split — kept visible as-is
-  sharedTooling: number;
-  unlinkedOrKeys: number;
-  invoicesUnallocated: number;
-  total: number; // sum of above three
-  // Reference only — already distributed to project cards
-  sharedInfraAllocated: number;
-  topSharedToolingVendors: { vendor: string; amount: number }[];
-  topUnallocatedInvoiceVendors: { vendor: string; amount: number }[];
+  shared_infrastructure: { total: number; vendors: { name: string; value: number }[] };
+  shared_tooling: { total: number; vendors: { name: string; value: number }[] };
+  unallocated_misc: { total: number; count: number };
+  grand_total: number;
 }
 
 // ── Cache ──────────────────────────────────────────────────────────────────────
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
+interface CacheEntry<T> { data: T; expiresAt: number; }
 const _cache = new Map<string, CacheEntry<unknown>>();
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -68,7 +50,6 @@ function getCache<T>(key: string): T | null {
   if (!entry || Date.now() > entry.expiresAt) return null;
   return entry.data;
 }
-
 function setCache<T>(key: string, data: T): void {
   _cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
@@ -113,16 +94,15 @@ interface RawExpenseData {
   keyToProjects: Map<string, string[]>;
   projectToKeys: Map<string, string[]>;
   projects: { name: string; status: string | null }[];
-  invocationByProjectKey: Map<string, number>; // `${project}::${key}` → cost
+  invocationByProjectKey: Map<string, number>;
   invocationByKey: Map<string, number>;
   toolToProjects: Map<string, string[]>;
   attributableVendorTotals: Map<string, number>;
-  invoicesDirectByProject: Map<string, number>; // project_id → manually-attributed invoice total
-  sharedInfraTotal: number;
+  invoicesDirectByProject: Map<string, { total: number; count: number; items: { vendor: string; amount: number }[] }>;
   sharedInfraByVendor: Map<string, number>;
-  sharedToolingTotal: number;
   sharedToolingByVendor: Map<string, number>;
-  unallocatedInvoiceVendors: Map<string, number>;
+  unallocatedMiscTotal: number;
+  unallocatedMiscCount: number;
 }
 
 // ── Bulk data loader (cached per scope) ──────────────────────────────────────
@@ -150,20 +130,14 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     { data: toolOverrideRows },
     { data: invocationRows },
   ] = await Promise.all([
-    supabase
-      .from("agents_portfolio")
-      .select("agents_projects, status, openrouter_api_key"),
-    supabase
-      .from("openrouter_usage_snapshots")
-      .select("key_name, month, usage_total"),
+    supabase.from("agents_portfolio").select("agents_projects, status, openrouter_api_key"),
+    supabase.from("openrouter_usage_snapshots").select("key_name, month, usage_total"),
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount, project_id, cost_type")
       .not("vendor_name", "is", null)
       .not("vendor_name", "ilike", "%makemytrip%"),
-    supabase
-      .from("tool_project_overrides")
-      .select("vendor_name, project_names"),
+    supabase.from("tool_project_overrides").select("vendor_name, project_names"),
     invQuery,
   ]);
 
@@ -225,42 +199,40 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     }
   }
 
-  // Categorize financial records into buckets
+  // Categorize financial records
   const sharedInfraByVendor = new Map<string, number>();
   const sharedToolingByVendor = new Map<string, number>();
   const attributableVendorTotals = new Map<string, number>();
-  const unallocatedInvoiceVendors = new Map<string, number>();
-  const invoicesDirectByProject = new Map<string, number>();
+  const invoicesDirectByProject = new Map<string, { total: number; count: number; items: { vendor: string; amount: number }[] }>();
+  let unallocatedMiscTotal = 0;
+  let unallocatedMiscCount = 0;
 
   for (const r of financialRows ?? []) {
     if (!r.vendor_name) continue;
     const canonical = canonicalVendor(r.vendor_name as string);
     const amount = Number(r.total_amount ?? 0);
-    if (canonical === "OpenRouter") continue; // tracked via OR snapshots
+    if (canonical === "OpenRouter") continue;
 
     const costType = r.cost_type as string | null;
     const projectId = r.project_id as string | null;
 
     if (costType === "project_specific" && projectId) {
-      // Manually attributed to a specific project
-      invoicesDirectByProject.set(projectId, (invoicesDirectByProject.get(projectId) ?? 0) + amount);
+      const existing = invoicesDirectByProject.get(projectId) ?? { total: 0, count: 0, items: [] };
+      existing.total += amount;
+      existing.count += 1;
+      existing.items.push({ vendor: canonical, amount });
+      invoicesDirectByProject.set(projectId, existing);
     } else if (costType === "shared_infrastructure") {
-      if (projectId) {
-        // Dedicated infra for a project — goes to project direct, not the shared pool
-        invoicesDirectByProject.set(projectId, (invoicesDirectByProject.get(projectId) ?? 0) + amount);
-      } else {
-        sharedInfraByVendor.set(canonical, (sharedInfraByVendor.get(canonical) ?? 0) + amount);
-      }
+      // Never routed to projects — always shared infra bucket
+      sharedInfraByVendor.set(canonical, (sharedInfraByVendor.get(canonical) ?? 0) + amount);
     } else if (costType === "shared_tooling") {
-      if (projectId) {
-        invoicesDirectByProject.set(projectId, (invoicesDirectByProject.get(projectId) ?? 0) + amount);
-      } else {
-        sharedToolingByVendor.set(canonical, (sharedToolingByVendor.get(canonical) ?? 0) + amount);
-      }
+      // Never routed to projects
+      sharedToolingByVendor.set(canonical, (sharedToolingByVendor.get(canonical) ?? 0) + amount);
     } else if (costType === "unallocated") {
-      unallocatedInvoiceVendors.set(canonical, (unallocatedInvoiceVendors.get(canonical) ?? 0) + amount);
+      unallocatedMiscTotal += amount;
+      unallocatedMiscCount += 1;
     } else {
-      // cost_type IS NULL — vendor-based classification (backward compat)
+      // cost_type IS NULL — vendor-based classification for backward compat
       if (SHARED_INFRA_CANONICAL.has(canonical)) {
         sharedInfraByVendor.set(canonical, (sharedInfraByVendor.get(canonical) ?? 0) + amount);
       } else if (SHARED_TOOLING_CANONICAL.has(canonical)) {
@@ -268,13 +240,11 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
       } else if (toolToProjects.has(canonical)) {
         attributableVendorTotals.set(canonical, (attributableVendorTotals.get(canonical) ?? 0) + amount);
       } else {
-        unallocatedInvoiceVendors.set(canonical, (unallocatedInvoiceVendors.get(canonical) ?? 0) + amount);
+        unallocatedMiscTotal += amount;
+        unallocatedMiscCount += 1;
       }
     }
   }
-
-  const sharedInfraTotal  = [...sharedInfraByVendor.values()].reduce((s, v) => s + v, 0);
-  const sharedToolingTotal = [...sharedToolingByVendor.values()].reduce((s, v) => s + v, 0);
 
   const data: RawExpenseData = {
     orKeySpend,
@@ -286,124 +256,106 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     toolToProjects,
     attributableVendorTotals,
     invoicesDirectByProject,
-    sharedInfraTotal,
     sharedInfraByVendor,
-    sharedToolingTotal,
     sharedToolingByVendor,
-    unallocatedInvoiceVendors,
+    unallocatedMiscTotal,
+    unallocatedMiscCount,
   };
 
   setCache(cacheKey, data);
   return data;
 }
 
-// ── Volume-based key allocation ────────────────────────────────────────────────
-function allocateSharedKey(
-  projectName: string,
-  keyName: string,
-  keySpend: number,
-  sharedProjects: string[],
-  invocationByProjectKey: Map<string, number>,
-  invocationByKey: Map<string, number>,
-): SharedKeyDetail {
-  const totalKeyLog = invocationByKey.get(keyName) ?? 0;
-
-  if (totalKeyLog > 0) {
-    const thisProjectLog = invocationByProjectKey.get(`${projectName}::${keyName}`) ?? 0;
-    const pct = thisProjectLog / totalKeyLog;
-    return {
-      keyName,
-      keySpend,
-      thisProjectPct: pct,
-      thisProjectSpend: keySpend * pct,
-      allocationMethod: "volume",
-    };
-  }
-
-  const equalShare = 1 / sharedProjects.length;
-  return {
-    keyName,
-    keySpend,
-    thisProjectPct: equalShare,
-    thisProjectSpend: keySpend * equalShare,
-    allocationMethod: "equal",
-  };
-}
-
-// ── Direct spend only (no infra) — used internally by getAllProjectsExpense ───
-function computeDirectSpend(
+// ── Per-project expense computation ──────────────────────────────────────────
+function computeProjectExpense(
   projectName: string,
   scope: ExpenseScope,
   raw: RawExpenseData,
-): Omit<ProjectExpense, "allocatedInfra" | "infraSharePercent" | "infraTotalPool" | "infraAllocationMethod" | "total"> {
+): ProjectExpense {
   const keys = raw.projectToKeys.get(projectName) ?? [];
-  let orDedicated = 0;
-  let orShared = 0;
-  const sharedKeyDetails: SharedKeyDetail[] = [];
-  let anyDedicated = false;
-  let anyShared = false;
+  let orValue = 0;
+  let isShared = false;
+  let sharedKeyName: string | undefined;
+  let allocationMethod: ProjectExpense["breakdown"]["openrouter"]["allocationMethod"] = keys.length === 0 ? "none" : "dedicated";
+  let sharePercent: number | undefined;
 
   if (scope === "all_time") {
     for (const k of keys) {
       const keySpend = raw.orKeySpend.get(k) ?? 0;
       const sharedProjects = raw.keyToProjects.get(k) ?? [projectName];
       if (sharedProjects.length === 1) {
-        orDedicated += keySpend;
-        anyDedicated = true;
+        orValue += keySpend;
       } else {
-        anyShared = true;
-        const detail = allocateSharedKey(
-          projectName, k, keySpend, sharedProjects,
-          raw.invocationByProjectKey, raw.invocationByKey,
-        );
-        orShared += detail.thisProjectSpend;
-        sharedKeyDetails.push(detail);
+        isShared = true;
+        sharedKeyName = k;
+        const totalKeyLog = raw.invocationByKey.get(k) ?? 0;
+        if (totalKeyLog > 0) {
+          const thisProjectLog = raw.invocationByProjectKey.get(`${projectName}::${k}`) ?? 0;
+          const pct = thisProjectLog / totalKeyLog;
+          orValue += keySpend * pct;
+          sharePercent = Math.round(pct * 1000) / 10;
+          allocationMethod = "volume_split";
+        } else {
+          const equalShare = 1 / sharedProjects.length;
+          orValue += keySpend * equalShare;
+          sharePercent = Math.round(equalShare * 1000) / 10;
+          allocationMethod = "equal_split_fallback";
+        }
       }
     }
   } else {
+    // Scoped: use invocation logs directly
     for (const k of keys) {
       const sharedProjects = raw.keyToProjects.get(k) ?? [projectName];
       const thisProjectCost = raw.invocationByProjectKey.get(`${projectName}::${k}`) ?? 0;
       if (sharedProjects.length === 1) {
-        orDedicated += thisProjectCost;
-        anyDedicated = true;
+        orValue += thisProjectCost;
       } else {
-        orShared += thisProjectCost;
-        anyShared = true;
+        isShared = true;
+        sharedKeyName = k;
+        orValue += thisProjectCost;
+        allocationMethod = "volume_split";
       }
     }
   }
 
-  let toolsDedicated = 0;
-  let toolsShared = 0;
-  for (const [vendor, projects] of raw.toolToProjects) {
-    if (!projects.includes(projectName)) continue;
+  // Manually allocated invoices (project_specific cost_type)
+  const invoiceData = raw.invoicesDirectByProject.get(projectName);
+  let invoiceValue = invoiceData?.total ?? 0;
+  let invoiceCount = invoiceData?.count ?? 0;
+  const invoiceItems: { vendor: string; amount: number }[] = [...(invoiceData?.items ?? [])];
+
+  // Tool overrides — fold into allocated invoices (backward compat)
+  for (const [vendor, projList] of raw.toolToProjects) {
+    if (!projList.includes(projectName)) continue;
     const vendorSpend = raw.attributableVendorTotals.get(vendor) ?? 0;
-    if (projects.length === 1) toolsDedicated += vendorSpend;
-    else toolsShared += vendorSpend / projects.length;
+    const share = vendorSpend / projList.length;
+    if (share > 0) {
+      invoiceValue += share;
+      invoiceCount += 1;
+      invoiceItems.push({ vendor, amount: Math.round(share * 100) / 100 });
+    }
   }
 
-  const invoicesDirect = raw.invoicesDirectByProject.get(projectName) ?? 0;
-
-  let orAllocationMethod: ProjectExpense["orAllocationMethod"] = "none";
-  if (keys.length > 0) {
-    if (!anyShared) orAllocationMethod = "dedicated";
-    else if (sharedKeyDetails.some((d) => d.allocationMethod === "volume")) orAllocationMethod = "volume";
-    else orAllocationMethod = "equal";
-  }
-
-  const direct = orDedicated + orShared + toolsDedicated + toolsShared + invoicesDirect;
+  const total = Math.round((orValue + invoiceValue) * 100) / 100;
 
   return {
     projectName,
-    orDedicated:    Math.round(orDedicated    * 100) / 100,
-    orShared:       Math.round(orShared        * 100) / 100,
-    orAllocationMethod,
-    toolsDedicated: Math.round(toolsDedicated  * 100) / 100,
-    toolsShared:    Math.round(toolsShared     * 100) / 100,
-    invoicesDirect: Math.round(invoicesDirect  * 100) / 100,
-    direct:         Math.round(direct          * 100) / 100,
-    sharedKeyDetails,
+    total,
+    breakdown: {
+      openrouter: {
+        value: Math.round(orValue * 100) / 100,
+        isShared,
+        sharedKeyName,
+        allocationMethod,
+        sharePercent,
+      },
+      allocated_invoices: {
+        value: Math.round(invoiceValue * 100) / 100,
+        count: invoiceCount,
+        items: invoiceItems,
+      },
+    },
   };
 }
 
@@ -418,43 +370,9 @@ export async function getAllProjectsExpense(
 
   const raw = await loadRawData(scope);
 
-  // Pass 1: direct spend per project
-  const directMap = new Map<string, ReturnType<typeof computeDirectSpend>>();
-  for (const p of raw.projects) {
-    directMap.set(p.name, computeDirectSpend(p.name, scope, raw));
-  }
-
-  const totalDirect = [...directMap.values()].reduce((s, e) => s + e.direct, 0);
-  const numProjects = raw.projects.length;
-  const useEqualSplit = totalDirect === 0;
-
-  // Pass 2: add proportional infra allocation
   const result = new Map<string, ProjectExpense>();
-  for (const [name, base] of directMap) {
-    const shareRatio = useEqualSplit
-      ? 1 / Math.max(1, numProjects)
-      : base.direct / totalDirect;
-
-    const allocatedInfra = Math.round(shareRatio * raw.sharedInfraTotal * 100) / 100;
-    const infraSharePercent = Math.round(shareRatio * 1000) / 10; // one decimal
-
-    result.set(name, {
-      ...base,
-      allocatedInfra,
-      infraSharePercent,
-      infraTotalPool:       Math.round(raw.sharedInfraTotal * 100) / 100,
-      infraAllocationMethod: useEqualSplit ? "equal_split" : "proportional_to_direct_spend",
-      total: Math.round((base.direct + allocatedInfra) * 100) / 100,
-    });
-  }
-
-  // Dev-mode reconciliation check: Σ(total) must equal totalDirect + sharedInfra
-  if (process.env.NODE_ENV === "development") {
-    const sumTotal   = [...result.values()].reduce((s, e) => s + e.total, 0);
-    const expected   = totalDirect + raw.sharedInfraTotal;
-    if (Math.abs(sumTotal - expected) > 0.10) {
-      console.warn(`[project-expense] reconciliation mismatch: sum=${sumTotal.toFixed(2)} expected=${expected.toFixed(2)}`);
-    }
+  for (const p of raw.projects) {
+    result.set(p.name, computeProjectExpense(p.name, scope, raw));
   }
 
   setCache(cacheKey, result);
@@ -468,11 +386,11 @@ export async function getProjectExpense(
   const all = await getAllProjectsExpense(scope);
   return all.get(projectName) ?? {
     projectName,
-    orDedicated: 0, orShared: 0, orAllocationMethod: "none",
-    toolsDedicated: 0, toolsShared: 0, invoicesDirect: 0, direct: 0,
-    allocatedInfra: 0, infraSharePercent: 0, infraTotalPool: 0,
-    infraAllocationMethod: "proportional_to_direct_spend",
-    total: 0, sharedKeyDetails: [],
+    total: 0,
+    breakdown: {
+      openrouter: { value: 0, isShared: false, allocationMethod: "none" },
+      allocated_invoices: { value: 0, count: 0, items: [] },
+    },
   };
 }
 
@@ -485,31 +403,38 @@ export async function getUnallocatedSpend(
 
   const raw = await loadRawData(scope);
 
-  let unlinkedOrKeys = 0;
+  // Unlinked OR keys (not attributed to any project)
+  let unlinkedOrTotal = 0;
   for (const [k, spend] of raw.orKeySpend) {
-    if (!raw.keyToProjects.has(k)) unlinkedOrKeys += spend;
+    if (!raw.keyToProjects.has(k)) unlinkedOrTotal += spend;
   }
 
-  const invoicesUnallocated = [...raw.unallocatedInvoiceVendors.values()].reduce((s, v) => s + v, 0);
+  const infraTotal = [...raw.sharedInfraByVendor.values()].reduce((s, v) => s + v, 0);
+  const toolingTotal = [...raw.sharedToolingByVendor.values()].reduce((s, v) => s + v, 0);
+  const miscTotal = raw.unallocatedMiscTotal + unlinkedOrTotal;
 
-  const topSharedToolingVendors = [...raw.sharedToolingByVendor.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([vendor, amount]) => ({ vendor, amount: Math.round(amount * 100) / 100 }));
+  const infraVendors = [...raw.sharedInfraByVendor.entries()]
+    .sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
 
-  const topUnallocatedInvoiceVendors = [...raw.unallocatedInvoiceVendors.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([vendor, amount]) => ({ vendor, amount: Math.round(amount * 100) / 100 }));
+  const toolingVendors = [...raw.sharedToolingByVendor.entries()]
+    .sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
 
   const result: UnallocatedSpend = {
-    sharedTooling:          Math.round(raw.sharedToolingTotal * 100) / 100,
-    unlinkedOrKeys:         Math.round(unlinkedOrKeys         * 100) / 100,
-    invoicesUnallocated:    Math.round(invoicesUnallocated    * 100) / 100,
-    total:                  Math.round((raw.sharedToolingTotal + unlinkedOrKeys + invoicesUnallocated) * 100) / 100,
-    sharedInfraAllocated:   Math.round(raw.sharedInfraTotal   * 100) / 100,
-    topSharedToolingVendors,
-    topUnallocatedInvoiceVendors,
+    shared_infrastructure: {
+      total: Math.round(infraTotal * 100) / 100,
+      vendors: infraVendors,
+    },
+    shared_tooling: {
+      total: Math.round(toolingTotal * 100) / 100,
+      vendors: toolingVendors,
+    },
+    unallocated_misc: {
+      total: Math.round(miscTotal * 100) / 100,
+      count: raw.unallocatedMiscCount,
+    },
+    grand_total: Math.round((infraTotal + toolingTotal + miscTotal) * 100) / 100,
   };
 
   setCache(cacheKey, result);

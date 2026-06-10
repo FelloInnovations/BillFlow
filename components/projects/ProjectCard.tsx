@@ -5,7 +5,7 @@ import Link from "next/link";
 import * as RTooltip from "@radix-ui/react-tooltip";
 import { Project } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { Brain, User, ChevronDown, Info } from "lucide-react";
+import { Brain, User, ChevronDown } from "lucide-react";
 
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
@@ -28,6 +28,9 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const TOOLTIP_CONTENT_CLS =
+  "z-50 max-w-[260px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-200 shadow-xl leading-snug";
+
 function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: number }) {
   const expense = project.expenseBreakdown;
   const { totalSpend } = project;
@@ -35,36 +38,28 @@ function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: 
   if (!expense || totalSpend == null || totalSpend === 0) {
     return (
       <div className="text-right shrink-0">
-        <p className="text-xs text-slate-400 dark:text-slate-500 italic">No metered spend</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 italic">No spend data</p>
       </div>
     );
   }
 
-  const showBreakdown = expense.allocatedInfra > 0 || expense.invoicesDirect > 0;
-  const infraLabel = expense.allocatedInfra > 0
-    ? `Infra ${formatCurrency(expense.allocatedInfra)} (est.)`
-    : null;
-  const infraTooltip = expense.allocatedInfra > 0
-    ? `Estimated based on this project's share of direct spend (${expense.infraSharePercent.toFixed(1)}% of ${formatCurrency(expense.infraTotalPool)} shared infrastructure pool). Manually allocated project-specific invoices are already in Direct.`
-    : null;
+  const orValue = expense.breakdown.openrouter.value;
+  const invoiceValue = expense.breakdown.allocated_invoices.value;
+  const invoiceCount = expense.breakdown.allocated_invoices.count;
+  const { allocationMethod, sharedKeyName, sharePercent } = expense.breakdown.openrouter;
 
-  const sharedKeyBadge = (() => {
-    const method = expense.orAllocationMethod;
-    if (method !== "volume" && method !== "equal") return null;
-    const label   = method === "volume" ? "volume split" : "equal split";
-    const tooltip = method === "volume"
-      ? "Shared OR key — spend allocated by actual invocation volume."
-      : "Shared OR key — no invocation log data; spend split equally.";
-    return (
-      <span
-        title={tooltip}
-        className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 cursor-help"
-      >
-        <Info className="w-2 h-2" />
-        {label}
-      </span>
-    );
+  const orTooltip = (() => {
+    if (allocationMethod === "dedicated") return "OpenRouter API usage on a dedicated key for this project.";
+    if (allocationMethod === "volume_split")
+      return `OpenRouter API usage — ${sharePercent?.toFixed(1)}% share of shared key ${sharedKeyName}, split by invocation volume.`;
+    if (allocationMethod === "equal_split_fallback")
+      return `OpenRouter API usage — equal split of shared key ${sharedKeyName} (no per-project volume data).`;
+    return null;
   })();
+
+  const invoiceTooltip = invoiceCount > 0
+    ? `${invoiceCount} invoice${invoiceCount !== 1 ? "s" : ""} manually allocated to this project. View in Financial Records.`
+    : null;
 
   return (
     <div className="text-right shrink-0">
@@ -77,38 +72,43 @@ function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: 
         )}
       </div>
 
-      {showBreakdown && (
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 whitespace-nowrap">
-          Direct {formatCurrency(expense.direct)}
-          {expense.invoicesDirect > 0 && (
-            <> · <span className="text-indigo-400">Invoices {formatCurrency(expense.invoicesDirect)}</span></>
-          )}
-          {infraLabel && (
-            <>
-              {" · "}
-              <RTooltip.Root delayDuration={150}>
-                <RTooltip.Trigger asChild>
-                  <span className="cursor-help underline decoration-dotted decoration-slate-400">
-                    {infraLabel}
-                  </span>
-                </RTooltip.Trigger>
+      {(orValue > 0 || invoiceValue > 0) && (
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center justify-end gap-1 flex-wrap">
+          {orValue > 0 && (
+            <RTooltip.Root delayDuration={150}>
+              <RTooltip.Trigger asChild>
+                <span className="cursor-help whitespace-nowrap">OpenRouter {formatCurrency(orValue)}</span>
+              </RTooltip.Trigger>
+              {orTooltip && (
                 <RTooltip.Portal>
-                  <RTooltip.Content
-                    className="z-50 max-w-[260px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-200 shadow-xl leading-snug"
-                    sideOffset={6}
-                    side="left"
-                  >
-                    {infraTooltip}
+                  <RTooltip.Content className={TOOLTIP_CONTENT_CLS} sideOffset={6} side="left">
+                    {orTooltip}
                     <RTooltip.Arrow className="fill-slate-700" />
                   </RTooltip.Content>
                 </RTooltip.Portal>
-              </RTooltip.Root>
-            </>
+              )}
+            </RTooltip.Root>
+          )}
+          {orValue > 0 && invoiceValue > 0 && <span className="text-slate-300 dark:text-slate-600">·</span>}
+          {invoiceValue > 0 && (
+            <RTooltip.Root delayDuration={150}>
+              <RTooltip.Trigger asChild>
+                <span className="cursor-help text-indigo-500 dark:text-indigo-400 whitespace-nowrap">
+                  Invoices {formatCurrency(invoiceValue)}
+                </span>
+              </RTooltip.Trigger>
+              {invoiceTooltip && (
+                <RTooltip.Portal>
+                  <RTooltip.Content className={TOOLTIP_CONTENT_CLS} sideOffset={6} side="left">
+                    {invoiceTooltip}
+                    <RTooltip.Arrow className="fill-slate-700" />
+                  </RTooltip.Content>
+                </RTooltip.Portal>
+              )}
+            </RTooltip.Root>
           )}
         </p>
       )}
-
-      {sharedKeyBadge && <div className="mt-0.5 flex justify-end">{sharedKeyBadge}</div>}
     </div>
   );
 }
@@ -159,10 +159,10 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
 
   const llmAccounts = project.llms[0]?.owner || null;
 
-  const method = project.expenseBreakdown?.orAllocationMethod ?? "none";
+  const method = project.expenseBreakdown?.breakdown.openrouter.allocationMethod ?? "none";
   const barColor =
-    method === "volume" ? "from-amber-400 to-orange-400" :
-    method === "equal"  ? "from-orange-400 to-rose-400"  :
+    method === "volume_split"        ? "from-amber-400 to-orange-400" :
+    method === "equal_split_fallback" ? "from-orange-400 to-rose-400"  :
     "from-indigo-400 to-violet-400";
 
   return (
@@ -260,7 +260,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
         </div>
       )}
 
-      {/* Spend bar — color-coded by OR allocation method */}
+      {/* Spend bar */}
       {spendPct > 0 && (
         <div className="h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden rounded-b-2xl">
           <div
