@@ -21,7 +21,7 @@ type HsContact = { id: string; properties: Record<string, string | null> };
 type HsDeal    = { id: string; properties: Record<string, string | null> };
 type HsMeeting = { id: string; properties: Record<string, string | null> };
 
-const AI_REFERRALS = { propertyName: "hs_analytics_source", operator: "EQ", value: "AI Referrals" };
+const AI_REFERRALS = { propertyName: "hs_analytics_source", operator: "EQ", value: "AI_REFERRALS" };
 
 // UTC epoch ms range for a single ISO date string (YYYY-MM-DD)
 function dayRange(date: string): { start: number; end: number } {
