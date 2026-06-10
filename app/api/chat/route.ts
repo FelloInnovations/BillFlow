@@ -65,7 +65,7 @@ async function buildFullContext(): Promise<string> {
     getUnallocatedSpend("all_time"),
     supabase
       .from("project_outcome_metrics")
-      .select("metric_key, value, date")
+      .select("metric_key, value, date, created_at")
       .eq("project_id", "arthur")
       .order("date", { ascending: false })
       .limit(200),
@@ -240,30 +240,44 @@ async function buildFullContext(): Promise<string> {
     lines.push("No budget guardrails have been set yet.");
   }
 
-  // ── Shared infrastructure (org-wide service costs from invoices) ─────────────────
-  lines.push("\n=== SHARED INFRASTRUCTURE (org-wide, not attributed to projects) ===");
-  lines.push("These service costs come from invoices and are NOT split across projects.");
-  const infraVendors = vendorTotals.filter(([v]) => {
-    const lower = v.toLowerCase();
-    return !lower.includes("openrouter") && !hiddenSet.has(v);
-  });
-  for (const [vendor, total] of infraVendors) {
-    lines.push(`${vendor}: ${fmt(total)}`);
-  }
+  // ── Shared infrastructure note (now allocated to projects — see PROJECT EXPENSE SUMMARY) ──
+  lines.push("\n=== SHARED INFRASTRUCTURE (now proportionally allocated to projects) ===");
+  lines.push("Railway, Supabase, Vercel, Cloudflare, AWS, GCP invoices are distributed to each project");
+  lines.push("proportionally based on that project's share of total direct (OR + tools) spend.");
+  lines.push("These figures are estimates — see PROJECT EXPENSE SUMMARY for each project's allocated_infra value.");
+  lines.push("All other invoice vendors (Oxylabs, Apify, ElevenLabs, etc.) remain in UNALLOCATED SPEND.");
 
-  // ── Volume-attributed project expense summary ────────────────────────────────────
+  // ── Project expense summary ───────────────────────────────────────────────────────
   if (expenseMap && expenseMap.size > 0) {
-    lines.push("\n=== PROJECT EXPENSE SUMMARY (volume-attributed, all-time) ===");
-    lines.push("OR spend on shared keys is split by actual invocation volume (falls back to equal split if no log data).");
+    // Build name → status lookup from sheets data (best available source)
+    const statusByName = new Map<string, string>();
+    if (sheets?.projects) {
+      for (const p of sheets.projects as { name: string; status?: string }[]) {
+        if (p.name && p.status) statusByName.set(p.name, p.status);
+      }
+    }
+
     const sortedExpense = [...expenseMap.entries()]
       .filter(([, e]) => e.direct > 0)
       .sort((a, b) => b[1].total - a[1].total);
+
+    const attributedTotal = sortedExpense.reduce((s, [, e]) => s + e.total, 0);
+    const infraPool = sortedExpense[0]?.[1].infraTotalPool ?? 0;
+    const totalDirect = sortedExpense.reduce((s, [, e]) => s + e.direct, 0);
+
+    lines.push("\n=== PROJECT EXPENSE SUMMARY (volume-attributed, all-time) ===");
+    lines.push(`Methodology: OR spend on shared keys split by invocation volume (equal-split fallback). Shared infrastructure (${fmt(infraPool)}) allocated proportionally — each project's share = (project direct / ${fmt(totalDirect)} total direct) × infra pool.`);
+    lines.push(`Global totals: attributed ${fmt(attributedTotal)} | unallocated ${unallocated ? fmt(unallocated.total) : "?"} | grand total ${unallocated ? fmt(attributedTotal + unallocated.total) : "?"}`);
+    lines.push("---");
+
     for (const [name, e] of sortedExpense) {
+      const status = statusByName.get(name) ?? "";
+      const statusStr = status ? ` [${status}]` : "";
       const methodLabel = e.orAllocationMethod === "dedicated" ? "metered"
         : e.orAllocationMethod === "volume" ? "volume-split"
         : e.orAllocationMethod === "equal" ? "equal-split"
         : "no OR key";
-      lines.push(`${name}: ${fmt(e.total)} total | direct: ${fmt(e.direct)} | allocated infra (est.): ${fmt(e.allocatedInfra)} (${e.infraSharePercent}% of ${fmt(e.infraTotalPool)} pool) [${methodLabel}]`);
+      lines.push(`${name}${statusStr}: total=${fmt(e.total)} | direct=${fmt(e.direct)} | infra est.=${fmt(e.allocatedInfra)} (${e.infraSharePercent}% of pool) | OR method=${methodLabel}`);
     }
   }
 
@@ -281,38 +295,130 @@ async function buildFullContext(): Promise<string> {
     lines.push("NOTE: Shared infrastructure IS allocated to projects (proportional to their direct OR spend). Only tooling and misc invoices remain unallocated until Phase 2.");
   }
 
-  // ── Arthur outcomes (AI referral ROI for Fello) ──────────────────────────────────
+  // ── Arthur outcomes (AI referral pipeline for Fello) ─────────────────────────────
   if (arthurOutcomes.length > 0) {
-    lines.push("\n=== ARTHUR OUTCOMES (AI-referral pipeline for Fello) ===");
-    lines.push("Arthur is Fello's AI agent that attracts inbound leads via ChatGPT, Perplexity, Claude mentions.");
-    lines.push("Metrics sourced from HubSpot CRM. LLM traffic = contacts created via AI referral per day.");
+    type ARow = { metric_key: string; value: number; date: string; created_at?: string };
+    const rows_ = arthurOutcomes as ARow[];
 
-    type ARow = { metric_key: string; value: number; date: string };
-    const trafficByMonth = new Map<string, number>();
+    // Sync freshness: latest created_at across all rows
+    const latestCreatedAt = rows_
+      .map((r) => r.created_at ?? "")
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
+    const syncAgo = latestCreatedAt ? (() => {
+      const diffMs = Date.now() - new Date(latestCreatedAt).getTime();
+      const mins = Math.floor(diffMs / 60_000);
+      if (mins < 1)  return "just now";
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24)  return `${hrs}h ago`;
+      return `${Math.floor(hrs / 24)}d ago`;
+    })() : "unknown";
+
+    // Daily metrics: sum per month
+    const dailyKeys = ["llm_traffic_daily", "llm_chatgpt_daily", "llm_perplexity_daily", "llm_claude_daily", "llm_other_daily"];
+    const dailyByMonth = new Map<string, Record<string, number>>();
+    // MTD snapshot metrics: keep latest row per metric per month (rows ordered date desc)
     const mtdByMonth = new Map<string, Record<string, number>>();
-    for (const row of arthurOutcomes as ARow[]) {
+
+    for (const row of rows_) {
       const month = row.date.substring(0, 7);
-      if (row.metric_key === "llm_traffic_daily") {
-        trafficByMonth.set(month, (trafficByMonth.get(month) ?? 0) + row.value);
+      if (dailyKeys.includes(row.metric_key)) {
+        const d = dailyByMonth.get(month) ?? {};
+        d[row.metric_key] = (d[row.metric_key] ?? 0) + row.value;
+        dailyByMonth.set(month, d);
       } else {
         const m = mtdByMonth.get(month) ?? {};
-        if (!(row.metric_key in m)) m[row.metric_key] = row.value;
+        if (!(row.metric_key in m)) m[row.metric_key] = row.value; // keep latest (first seen, ordered desc)
         mtdByMonth.set(month, m);
       }
     }
 
-    const months = [...new Set([...trafficByMonth.keys(), ...mtdByMonth.keys()])].sort().reverse().slice(0, 6);
-    for (const month of months) {
+    const allMonths = [...new Set([...dailyByMonth.keys(), ...mtdByMonth.keys()])].sort().reverse();
+    const last6Months = allMonths.slice(0, 6);
+
+    lines.push("\n=== ARTHUR OUTCOMES (AI-referral pipeline for Fello) ===");
+    lines.push(`Data synced: ${syncAgo} | source: HubSpot CRM`);
+    lines.push("Arthur attracts inbound leads via ChatGPT, Perplexity, Claude mentions. LLM traffic = new contacts with AI-platform attribution.");
+    lines.push("Metrics: llm_traffic=total daily contacts | chatgpt/perplexity/claude/other=per-platform | demos_booked/held=monthly | closed_won=deals | arr_closed=deal value");
+
+    // Per-month detail (last 6 months)
+    lines.push("--- Last 6 months (per-month) ---");
+    for (const month of last6Months) {
+      const d = dailyByMonth.get(month) ?? {};
       const m = mtdByMonth.get(month) ?? {};
-      const traffic = trafficByMonth.get(month) ?? 0;
+      const traffic    = d["llm_traffic_daily"]    ?? 0;
+      const chatgpt    = d["llm_chatgpt_daily"]    ?? 0;
+      const perplexity = d["llm_perplexity_daily"] ?? 0;
+      const claude     = d["llm_claude_daily"]     ?? 0;
+      const other      = d["llm_other_daily"]      ?? 0;
       lines.push(
-        `${month}: traffic=${traffic} | demos booked=${m["demos_booked_mtd"] ?? 0} | demos held=${m["demos_held_mtd"] ?? 0} | closed-won=${m["closed_won_mtd"] ?? 0} | ARR closed=${fmt(m["arr_closed_mtd"] ?? 0)}`
+        `${month}: traffic=${traffic} (ChatGPT=${chatgpt} Perplexity=${perplexity} Claude=${claude} Other=${other})` +
+        ` | demos booked=${m["demos_booked_mtd"] ?? 0} held=${m["demos_held_mtd"] ?? 0}` +
+        ` | closed-won=${m["closed_won_mtd"] ?? 0} | ARR=${fmt(m["arr_closed_mtd"] ?? 0)}`
       );
     }
 
-    const arthurExpense = expenseMap?.get("Arthur for Fello");
-    if (arthurExpense && arthurExpense.total > 0) {
-      lines.push(`Arthur all-time OR spend: ${fmt(arthurExpense.total)} [${arthurExpense.orAllocationMethod}]`);
+    // 6-month aggregate totals
+    const sum6 = (key: string, daily: boolean) => last6Months.reduce((s, mo) => {
+      const src = daily ? dailyByMonth.get(mo) : mtdByMonth.get(mo);
+      return s + (src?.[key] ?? 0);
+    }, 0);
+    lines.push("--- Last 6 months aggregate ---");
+    lines.push(`Total traffic: ${sum6("llm_traffic_daily", true)} contacts (ChatGPT=${sum6("llm_chatgpt_daily", true)} Perplexity=${sum6("llm_perplexity_daily", true)} Claude=${sum6("llm_claude_daily", true)} Other=${sum6("llm_other_daily", true)})`);
+    lines.push(`Total demos booked: ${sum6("demos_booked_mtd", false)} | held: ${sum6("demos_held_mtd", false)}`);
+    lines.push(`Total closed-won: ${sum6("closed_won_mtd", false)} | ARR closed: ${fmt(sum6("arr_closed_mtd", false))}`);
+
+    // Month-over-month: last completed vs prior month
+    if (last6Months.length >= 2) {
+      const [curr, prev] = last6Months;
+      const dC = dailyByMonth.get(curr) ?? {};
+      const dP = dailyByMonth.get(prev) ?? {};
+      const mC = mtdByMonth.get(curr) ?? {};
+      const mP = mtdByMonth.get(prev) ?? {};
+      const trafficC = dC["llm_traffic_daily"] ?? 0;
+      const trafficP = dP["llm_traffic_daily"] ?? 0;
+      const tDelta = trafficP > 0 ? ` (${trafficC >= trafficP ? "+" : ""}${Math.round(((trafficC - trafficP) / trafficP) * 100)}% MoM)` : "";
+      const arrC = mC["arr_closed_mtd"] ?? 0;
+      const arrP = mP["arr_closed_mtd"] ?? 0;
+      const arrDelta = arrP > 0 ? ` (${arrC >= arrP ? "+" : ""}${Math.round(((arrC - arrP) / arrP) * 100)}% MoM)` : "";
+      lines.push(`--- Month-over-month: ${curr} vs ${prev} ---`);
+      lines.push(`Traffic: ${trafficC} vs ${trafficP}${tDelta}`);
+      lines.push(`Demos booked: ${mC["demos_booked_mtd"] ?? 0} vs ${mP["demos_booked_mtd"] ?? 0}`);
+      lines.push(`Closed-won: ${mC["closed_won_mtd"] ?? 0} vs ${mP["closed_won_mtd"] ?? 0}`);
+      lines.push(`ARR: ${fmt(arrC)} vs ${fmt(arrP)}${arrDelta}`);
+    }
+  }
+
+  // ── Project ROI ───────────────────────────────────────────────────────────────────
+  if (arthurOutcomes.length > 0 && expenseMap) {
+    type ARow = { metric_key: string; value: number; date: string; created_at?: string };
+    const arthurExpense = expenseMap.get("Arthur for Fello");
+
+    // Last 6 months ARR from outcomes (sum arr_closed_mtd)
+    const mtdByMonth2 = new Map<string, Record<string, number>>();
+    for (const row of arthurOutcomes as ARow[]) {
+      if (!["llm_traffic_daily","llm_chatgpt_daily","llm_perplexity_daily","llm_claude_daily","llm_other_daily"].includes(row.metric_key)) {
+        const month = row.date.substring(0, 7);
+        const m = mtdByMonth2.get(month) ?? {};
+        if (!(row.metric_key in m)) m[row.metric_key] = row.value;
+        mtdByMonth2.set(month, m);
+      }
+    }
+    const last6 = [...mtdByMonth2.keys()].sort().reverse().slice(0, 6);
+    const arrLast6 = last6.reduce((s, mo) => s + (mtdByMonth2.get(mo)?.["arr_closed_mtd"] ?? 0), 0);
+
+    if (arthurExpense && arthurExpense.direct > 0) {
+      const directSpend = arthurExpense.direct;
+      const roi = arrLast6 > 0 ? Math.round(arrLast6 / directSpend) : 0;
+      lines.push("\n=== PROJECT ROI ===");
+      lines.push("Arthur for Fello:");
+      lines.push(`  Expense (all-time direct OR): ${fmt(directSpend)}`);
+      lines.push(`  ARR Closed (last 6 months): ${fmt(arrLast6)}`);
+      lines.push(`  ROI: ${roi}x (ARR last 6 months / all-time direct OR spend)`);
+      lines.push("  Note: Uses direct OR spend only — allocated infra share excluded at this scale to avoid distorting the ROI signal.");
+      if (arrLast6 === 0) lines.push("  Note: No closed-won ARR recorded in last 6 months — ROI cannot be computed.");
     }
   }
 
@@ -380,8 +486,9 @@ CRITICAL — spend calculation rules:
 ARTHUR ROI GUIDANCE:
 - Arthur is Fello's AI agent that generates inbound leads through AI platform mentions (ChatGPT, Perplexity, Claude).
 - LLM traffic = number of new contacts whose source is attributed to an AI platform in HubSpot.
-- ROI can be calculated as: ARR closed / Arthur OR spend. Use the ARTHUR OUTCOMES section for monthly data.
+- Precomputed ROI is in the PROJECT ROI section: ARR closed (last 6 months) / all-time direct OR spend.
 - Demos booked and held are counted independently — a demo booked in one month but held in another counts in both, so held/booked ratio can exceed 100%.
+- For "which platform sends us the most demos?" — check ARTHUR OUTCOMES per-month source breakdown (ChatGPT/Perplexity/Claude/Other columns) and identify which has the highest cumulative traffic, then cross-reference with demo conversion. Traffic is a proxy since HubSpot doesn't directly attribute demos to source platform.
 
 Response formatting rules:
 - Use **bold** for key numbers and names (they render as highlights in the chat UI).
