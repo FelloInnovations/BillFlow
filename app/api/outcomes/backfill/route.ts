@@ -101,10 +101,8 @@ export async function POST(req: NextRequest) {
       (d) => closedWonIds.includes(d.stage) && d.closedate != null && d.closedate >= mStart && d.closedate <= mEnd,
     );
 
-    const wonContactIds = new Set(wonDeals.flatMap((d) => d.contactIds));
-    const arrClosed = snap.contacts
-      .filter((c) => wonContactIds.has(c.id))
-      .reduce((sum, c) => sum + c.arr, 0);
+    // Sum deal amount directly — AI-referral contacts typically lack current_arr__sync_
+    const arrClosed = wonDeals.reduce((sum, d) => sum + d.amount, 0);
 
     rows.push(
       { project_id: "arthur", metric_key: "demos_booked_mtd", value: demosBooked, date: endDate, source: "backfill" },

@@ -160,7 +160,7 @@ async function batchReadDeals(ids: string[]): Promise<HsDeal[]> {
       "/crm/v3/objects/deals/batch/read",
       {
         inputs: ids.slice(i, i + 100).map((id) => ({ id })),
-        properties: ["dealstage", "closedate"],
+        properties: ["dealstage", "closedate", "amount"],
       },
     );
     results.push(...(data.results ?? []));
@@ -179,7 +179,7 @@ export interface AiReferralSnapshot {
   }[];
   // timestamp = hs_timestamp (actual meeting time); createdate = record creation time
   meetings: { timestamp: number; createdate: number; outcome: string }[];
-  deals: { closedate: number | null; stage: string; contactIds: string[] }[];
+  deals: { closedate: number | null; stage: string; amount: number; contactIds: string[] }[];
 }
 
 export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
@@ -237,6 +237,7 @@ export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
     deals: rawDeals.map((d) => ({
       closedate:  d.properties.closedate ? new Date(d.properties.closedate).getTime() : null,
       stage:      d.properties.dealstage ?? "",
+      amount:     parseFloat(d.properties.amount ?? "0") || 0,
       contactIds: dealToContacts.get(d.id) ?? [],
     })),
   };
@@ -326,46 +327,23 @@ export async function getClosedWonMtd(date: string): Promise<{ count: number }> 
 }
 
 export async function getArrClosedMtd(date: string): Promise<{ total: number }> {
+  // Sum deal `amount` for closed-won deals linked to AI-referral contacts.
+  // Using deal amount (not contact current_arr__sync_) because AI-referral contacts
+  // typically don't have the ARR property populated in HubSpot.
   const [contacts, closedWonIds] = await Promise.all([
-    // NOTE: filtering for HAS_PROPERTY(current_arr__sync_) limits to contacts with that field set;
-    // if closed-won contacts lack the property this returns 0 → see debug endpoint for diagnosis
-    getAllContacts(
-      [AI_REFERRALS, { propertyName: "current_arr__sync_", operator: "HAS_PROPERTY" }],
-      ["current_arr__sync_"],
-    ),
+    getAllContacts([AI_REFERRALS]),
     getClosedWonStageIds(),
   ]);
-  console.log(`[getArrClosedMtd] filter=AI_REFERRALS+HAS_PROPERTY(current_arr__sync_) contacts=${contacts.length} closedWonIds=${JSON.stringify(closedWonIds)}`);
-  if (!contacts.length) { console.log(`[getArrClosedMtd] EARLY_EXIT: no AI-referral contacts have current_arr__sync_ set`); return { total: 0 }; }
-
-  const contactIds = contacts.map((c) => c.id);
-  const contactToDeals = await batchAssociationsMap(contactIds, "deals");
-  const allDealIds = [...new Set([...contactToDeals.values()].flat())];
-  console.log(`[getArrClosedMtd] contacts_with_arr=${contacts.length} total_deal_ids=${allDealIds.length}`);
-  if (!allDealIds.length) return { total: 0 };
-
-  const deals = await batchReadDeals(allDealIds);
+  if (!contacts.length) return { total: 0 };
+  const dealIds = await batchAssociations(contacts.map((c) => c.id), "deals");
+  if (!dealIds.length) return { total: 0 };
+  const deals = await batchReadDeals(dealIds);
   const { start, end } = monthRange(date);
-  console.log(`[getArrClosedMtd] window=${new Date(start).toISOString()}–${new Date(end).toISOString()} all_stages=${JSON.stringify([...new Set(deals.map(d => d.properties.dealstage))])}`);
-
-  const qualifyingDealIds = new Set(
-    deals
-      .filter((d) => {
-        const ts = d.properties.closedate ? new Date(d.properties.closedate).getTime() : 0;
-        return closedWonIds.includes(d.properties.dealstage ?? "") && ts >= start && ts <= end;
-      })
-      .map((d) => d.id),
-  );
-  console.log(`[getArrClosedMtd] qualifying_closed_won_deals=${qualifyingDealIds.size}`);
-
-  let total = 0;
-  for (const contact of contacts) {
-    const cDealIds = contactToDeals.get(contact.id) ?? [];
-    const hasWon = cDealIds.some((did) => qualifyingDealIds.has(did));
-    const arr = parseFloat(contact.properties["current_arr__sync_"] ?? "0") || 0;
-    console.log(`[getArrClosedMtd] contact=${contact.id} arr=${arr} deal_ids=${JSON.stringify(cDealIds)} has_qualifying_deal=${hasWon}`);
-    if (hasWon) total += arr;
-  }
-  console.log(`[getArrClosedMtd] result=${total}`);
+  const total = deals
+    .filter((d) => {
+      const ts = d.properties.closedate ? new Date(d.properties.closedate).getTime() : 0;
+      return closedWonIds.includes(d.properties.dealstage ?? "") && ts >= start && ts <= end;
+    })
+    .reduce((sum, d) => sum + (parseFloat(d.properties.amount ?? "0") || 0), 0);
   return { total };
 }
