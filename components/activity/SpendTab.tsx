@@ -357,7 +357,14 @@ export function SpendTab({
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 ml-4 font-mono">{k.key_name}</p>
+            <div className="flex items-center gap-1.5 mt-0.5 ml-4">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{k.key_name}</p>
+              {k.account_name === "Account 2" && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
+                  Account 2
+                </span>
+              )}
+            </div>
           </td>
           {/* Models */}
           <td className="px-5 py-3">
