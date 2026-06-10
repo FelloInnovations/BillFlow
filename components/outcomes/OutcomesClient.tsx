@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
@@ -32,6 +32,61 @@ function avgDeal(arr: number | undefined, deals: number | undefined): string {
 function sourcePct(count: number, total: number): string {
   if (!total) return "—";
   return `${((count / total) * 100).toFixed(1)}%`;
+}
+
+// ── Scope ─────────────────────────────────────────────────────────────────────
+
+type Scope = "this_month" | "last_month" | "6m" | "12m" | "all";
+
+const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
+  { value: "this_month",  label: "This Month" },
+  { value: "last_month",  label: "Last Month" },
+  { value: "6m",          label: "Last 6 Months" },
+  { value: "12m",         label: "Last 12 Months" },
+  { value: "all",         label: "All Time" },
+];
+
+function getScopeLabel(scope: Scope): string {
+  return SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
+}
+
+function getLastNMonths(n: number): Set<string> {
+  const result = new Set<string>();
+  const now = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    result.add(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+  return result;
+}
+
+function computeScoped(breakdown: MonthlyOutcomeBreakdown[], scope: Scope): OutcomeMtdSummary {
+  const now = new Date();
+  let targetMonths: Set<string>;
+
+  if (scope === "this_month") {
+    const m = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    targetMonths = new Set([m]);
+  } else if (scope === "last_month") {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    const m = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    targetMonths = new Set([m]);
+  } else if (scope === "6m") {
+    targetMonths = getLastNMonths(6);
+  } else if (scope === "12m") {
+    targetMonths = getLastNMonths(12);
+  } else {
+    targetMonths = new Set(breakdown.map((b) => b.month));
+  }
+
+  const result: OutcomeMtdSummary = {};
+  for (const b of breakdown) {
+    if (!targetMonths.has(b.month)) continue;
+    for (const [key, val] of Object.entries(b.metrics)) {
+      result[key] = ((result[key] as number) ?? 0) + (val as number);
+    }
+  }
+  return result;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -339,6 +394,17 @@ const SPARK_TILES: { label: string; key: keyof MonthlyOutcomeMetrics; color: str
   { label: "ARR Closed",   key: "arr_closed_mtd",    color: "#06b6d4", currency: true },
 ];
 
+// ── Section divider ───────────────────────────────────────────────────────────
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-4">
+      <hr className="flex-1 border-slate-100 dark:border-slate-800" />
+      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-600">{label}</span>
+      <hr className="flex-1 border-slate-100 dark:border-slate-800" />
+    </div>
+  );
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   projectId: string;
@@ -353,10 +419,10 @@ type Range = "7D" | "30D" | "MTD";
 
 // Source color palette consistent with BillFlow charts
 const SOURCE_COLORS = {
-  ChatGPT:    "#10b981", // emerald
-  Perplexity: "#818cf8", // indigo
-  Claude:     "#f59e0b", // amber
-  "Other AI": "#94a3b8", // slate
+  ChatGPT:    "#10b981",
+  Perplexity: "#818cf8",
+  Claude:     "#f59e0b",
+  "Other AI": "#94a3b8",
 } as const;
 
 export function OutcomesClient({
@@ -372,17 +438,22 @@ export function OutcomesClient({
   const [series, setSeries]                     = useState(initialSeries);
   const [lastSynced, setLastSynced]             = useState(initialLastSynced);
   const [monthlyBreakdown, setMonthlyBreakdown] = useState<MonthlyOutcomeBreakdown[]>(initialMonthlyBreakdown);
-  const [range, setRange]           = useState<Range>("MTD");
-  const [syncing, setSyncing]           = useState(false);
-  const [logOpen, setLogOpen]           = useState(false);
-  const [backfillOpen, setBackfillOpen] = useState(false);
-  const [toast, setToast]               = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [scope, setScope]                       = useState<Scope>("6m");
+  const [range, setRange]                       = useState<Range>("MTD");
+  const [syncing, setSyncing]                   = useState(false);
+  const [logOpen, setLogOpen]                   = useState(false);
+  const [backfillOpen, setBackfillOpen]         = useState(false);
+  const [toast, setToast]                       = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Scoped totals derived from monthlyBreakdown — no extra API call needed
+  const scoped = useMemo(() => computeScoped(monthlyBreakdown, scope), [monthlyBreakdown, scope]);
+  const scopeLabel = getScopeLabel(scope);
 
   const fetchData = useCallback(async (r: Range) => {
     const now = new Date();
@@ -450,30 +521,30 @@ export function OutcomesClient({
     return { date: d.substring(5), "Demos Booked": booked, "Demos Held": held };
   });
 
-  // MoM ARR delta (prior month max vs current MTD)
+  // MoM ARR delta (only shown in "this_month" scope)
   const now = new Date();
-  const prevMonthStr = String(now.getMonth()).padStart(2, "0"); // 0-padded prior month
+  const prevMonthStr   = String(now.getMonth()).padStart(2, "0");
   const prevMonthStart = `${now.getFullYear()}-${prevMonthStr}-01`;
   const prevMonthEnd   = `${now.getFullYear()}-${prevMonthStr}-31`;
   const prevArr = series
     .filter((r) => r.metric_key === "arr_closed_mtd" && r.date >= prevMonthStart && r.date <= prevMonthEnd)
     .reduce((max, r) => Math.max(max, Number(r.value)), -1);
-  const currArr  = mtd.arr_closed_mtd ?? 0;
-  const arrDelta = prevArr >= 0 ? currArr - prevArr : null;
+  const currArr  = (scoped.arr_closed_mtd as number) ?? 0;
+  const arrDelta = scope === "this_month" && prevArr >= 0 ? currArr - prevArr : null;
 
-  // Funnel
-  const llm    = mtd.llm_traffic_daily;
-  const booked = mtd.demos_booked_mtd;
-  const held   = mtd.demos_held_mtd;
-  const won    = mtd.closed_won_mtd;
-  const arr    = mtd.arr_closed_mtd;
+  // Scoped funnel values
+  const llm    = scoped.llm_traffic_daily  as number | undefined;
+  const booked = scoped.demos_booked_mtd   as number | undefined;
+  const held   = scoped.demos_held_mtd     as number | undefined;
+  const won    = scoped.closed_won_mtd     as number | undefined;
+  const arr    = scoped.arr_closed_mtd     as number | undefined;
 
-  // AI Traffic Sources card
-  const chatgptMtd    = mtd.llm_chatgpt_daily    ?? 0;
-  const perplexityMtd = mtd.llm_perplexity_daily ?? 0;
-  const claudeMtd     = mtd.llm_claude_daily     ?? 0;
-  const otherMtd      = mtd.llm_other_daily      ?? 0;
-  const totalLlmMtd   = chatgptMtd + perplexityMtd + claudeMtd + otherMtd;
+  // Scoped AI Traffic Sources
+  const chatgptScoped    = (scoped.llm_chatgpt_daily    as number) ?? 0;
+  const perplexityScoped = (scoped.llm_perplexity_daily as number) ?? 0;
+  const claudeScoped     = (scoped.llm_claude_daily     as number) ?? 0;
+  const otherScoped      = (scoped.llm_other_daily      as number) ?? 0;
+  const totalLlmScoped   = chatgptScoped + perplexityScoped + claudeScoped + otherScoped;
 
   const syncedLabel = lastSynced
     ? new Date(lastSynced).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -483,9 +554,13 @@ export function OutcomesClient({
     (d) => d.ChatGPT + d.Perplexity + d.Claude + d["Other AI"] > 0,
   );
 
+  // Sparkline tiles — last 6 months oldest→newest
+  const spark6 = monthlyBreakdown.slice(0, 6).reverse();
+  const currentMonth = now.toISOString().substring(0, 7);
+
   return (
     <div className="p-6 space-y-6 max-w-7xl">
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
@@ -496,6 +571,17 @@ export function OutcomesClient({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Scope selector */}
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value as Scope)}
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+          >
+            {SCOPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
           <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
             Last synced: {syncedLabel}
           </span>
@@ -522,7 +608,7 @@ export function OutcomesClient({
         </div>
       </div>
 
-      {/* AI Traffic Sources card */}
+      {/* ── AI Traffic Sources ─────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -530,29 +616,30 @@ export function OutcomesClient({
               AI Traffic Sources
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-              Which LLM platforms are sending AI-referral contacts — MTD
+              LLM platforms sending AI-referral contacts · {scopeLabel}
             </p>
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
-              {totalLlmMtd.toLocaleString()}
+              {totalLlmScoped.toLocaleString()}
             </p>
             <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">Total LLM Traffic</p>
           </div>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          <SourceRow label="ChatGPT"    count={chatgptMtd}    total={totalLlmMtd} color={SOURCE_COLORS.ChatGPT} />
-          <SourceRow label="Perplexity" count={perplexityMtd} total={totalLlmMtd} color={SOURCE_COLORS.Perplexity} />
-          <SourceRow label="Claude"     count={claudeMtd}     total={totalLlmMtd} color={SOURCE_COLORS.Claude} />
-          <SourceRow label="Other AI"   count={otherMtd}      total={totalLlmMtd} color={SOURCE_COLORS["Other AI"]} />
+          <SourceRow label="ChatGPT"    count={chatgptScoped}    total={totalLlmScoped} color={SOURCE_COLORS.ChatGPT} />
+          <SourceRow label="Perplexity" count={perplexityScoped} total={totalLlmScoped} color={SOURCE_COLORS.Perplexity} />
+          <SourceRow label="Claude"     count={claudeScoped}     total={totalLlmScoped} color={SOURCE_COLORS.Claude} />
+          <SourceRow label="Other AI"   count={otherScoped}      total={totalLlmScoped} color={SOURCE_COLORS["Other AI"]} />
         </div>
       </div>
 
-      {/* Conversion funnel */}
+      {/* ── Conversion Funnel ──────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-5">
-          AI Referral Funnel — MTD
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          AI Referral Funnel
         </p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">{scopeLabel}</p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <FunnelStage label="LLM Traffic"  value={llm}    metricKey="llm_traffic_daily" />
           <Arrow label={convPct(booked, llm)} />
@@ -566,14 +653,52 @@ export function OutcomesClient({
         </div>
       </div>
 
-      {/* Monthly Performance section */}
+      {/* ── ARR Card ───────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          ARR Closed
+        </p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">{scopeLabel}</p>
+        <div className="flex items-end gap-4">
+          <p className="text-4xl font-bold text-slate-900 dark:text-white tabular-nums">
+            {usd(currArr)}
+          </p>
+          {arrDelta != null && (
+            <div className={cn("flex items-center gap-1 mb-1", arrDelta >= 0 ? "text-emerald-500" : "text-rose-500")}>
+              {arrDelta >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              <span className="text-sm font-bold">
+                {arrDelta >= 0 ? "+" : ""}{usd(arrDelta)} vs last month
+              </span>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+          Sum of current_arr__sync_ for AI-referral contacts with a closed deal in scope.
+        </p>
+      </div>
+
+      <SectionDivider label="Monthly History" />
+
+      {/* ── Sparkline tiles ────────────────────────────────────────────────── */}
+      {spark6.length > 0 && (
+        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm px-6 py-5 grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {SPARK_TILES.map(({ label, key, color, currency }) => (
+            <SparkTile
+              key={key}
+              label={label}
+              total={spark6.reduce((s, m) => s + m.metrics[key], 0)}
+              data={spark6.map((m) => m.metrics[key])}
+              color={color}
+              currency={currency}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Monthly Performance table ──────────────────────────────────────── */}
       {monthlyBreakdown.length > 0 && (() => {
-        const currentMonth = new Date().toISOString().substring(0, 7);
         const usdFmt = (v: number) =>
           new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
-
-        // Last 6 months oldest→newest for sparklines
-        const spark6 = monthlyBreakdown.slice(0, 6).reverse();
 
         return (
           <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
@@ -581,22 +706,6 @@ export function OutcomesClient({
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Performance</h3>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">All months with data · newest first</p>
             </div>
-
-            {/* Sparkline tiles */}
-            <div className="px-6 py-5 grid grid-cols-2 lg:grid-cols-4 gap-6 border-b border-slate-100 dark:border-slate-800">
-              {SPARK_TILES.map(({ label, key, color, currency }) => (
-                <SparkTile
-                  key={key}
-                  label={label}
-                  total={spark6.reduce((s, m) => s + m.metrics[key], 0)}
-                  data={spark6.map(m => m.metrics[key])}
-                  color={color}
-                  currency={currency}
-                />
-              ))}
-            </div>
-
-            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -695,7 +804,9 @@ export function OutcomesClient({
         );
       })()}
 
-      {/* Time range toggle */}
+      <SectionDivider label="Daily Activity" />
+
+      {/* ── Time range toggle ──────────────────────────────────────────────── */}
       <div className="flex items-center gap-1">
         {(["7D", "30D", "MTD"] as Range[]).map((r) => (
           <button
@@ -713,9 +824,8 @@ export function OutcomesClient({
         ))}
       </div>
 
-      {/* Charts */}
+      {/* ── Charts ─────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {/* Left: AI Referral Traffic by Source — stacked area */}
         <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">
             AI Referral Traffic by Source
@@ -743,7 +853,6 @@ export function OutcomesClient({
           )}
         </div>
 
-        {/* Right: Demos Booked vs Held bar chart */}
         <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">Demos</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Daily demos booked vs. held</p>
@@ -766,30 +875,7 @@ export function OutcomesClient({
         </div>
       </div>
 
-      {/* ARR card */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 border-t-4 border-t-emerald-400 shadow-sm p-6">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
-          ARR Closed — MTD
-        </p>
-        <div className="flex items-end gap-4">
-          <p className="text-4xl font-bold text-slate-900 dark:text-white tabular-nums">
-            {usd(currArr)}
-          </p>
-          {arrDelta != null && currArr > 0 && (
-            <div className={cn("flex items-center gap-1 mb-1", arrDelta >= 0 ? "text-emerald-500" : "text-rose-500")}>
-              {arrDelta >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              <span className="text-sm font-bold">
-                {arrDelta >= 0 ? "+" : ""}{usd(arrDelta)} vs last month
-              </span>
-            </div>
-          )}
-        </div>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-          Sum of current_arr__sync_ for AI-referral contacts with a closed deal this month.
-        </p>
-      </div>
-
-      {/* Backfill modal */}
+      {/* ── Modals ─────────────────────────────────────────────────────────── */}
       {backfillOpen && (
         <BackfillModal
           onClose={() => setBackfillOpen(false)}
@@ -800,7 +886,6 @@ export function OutcomesClient({
         />
       )}
 
-      {/* Log Metrics modal */}
       {logOpen && (
         <LogModal
           projectId={projectId}
