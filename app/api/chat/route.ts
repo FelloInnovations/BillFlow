@@ -256,28 +256,29 @@ async function buildFullContext(): Promise<string> {
     lines.push("\n=== PROJECT EXPENSE SUMMARY (volume-attributed, all-time) ===");
     lines.push("OR spend on shared keys is split by actual invocation volume (falls back to equal split if no log data).");
     const sortedExpense = [...expenseMap.entries()]
-      .filter(([, e]) => e.total > 0)
+      .filter(([, e]) => e.direct > 0)
       .sort((a, b) => b[1].total - a[1].total);
     for (const [name, e] of sortedExpense) {
       const methodLabel = e.orAllocationMethod === "dedicated" ? "metered"
         : e.orAllocationMethod === "volume" ? "volume-split"
         : e.orAllocationMethod === "equal" ? "equal-split"
         : "no OR key";
-      lines.push(`${name}: ${fmt(e.total)} total (OR dedicated: ${fmt(e.orDedicated)}, OR allocated: ${fmt(e.orShared)}, tools: ${fmt(e.toolsDedicated + e.toolsShared)}) [${methodLabel}]`);
+      lines.push(`${name}: ${fmt(e.total)} total | direct: ${fmt(e.direct)} | allocated infra (est.): ${fmt(e.allocatedInfra)} (${e.infraSharePercent}% of ${fmt(e.infraTotalPool)} pool) [${methodLabel}]`);
     }
   }
 
   if (unallocated) {
-    lines.push("\n=== UNALLOCATED SPEND (org-wide, not attributed to any project) ===");
+    lines.push("\n=== UNALLOCATED SPEND (costs not attributed to any project) ===");
     lines.push(`Total unallocated: ${fmt(unallocated.total)}`);
-    lines.push(`  Shared infrastructure (Railway, Supabase, etc.): ${fmt(unallocated.sharedInfra)}`);
+    lines.push(`  Shared infrastructure distributed to projects: ${fmt(unallocated.sharedInfraAllocated)} (proportional to direct spend — NOT in this bucket)`);
+    if (unallocated.sharedTooling > 0) lines.push(`  Shared tooling (HubSpot, Slack, etc.): ${fmt(unallocated.sharedTooling)}`);
     lines.push(`  Invoice vendors with no project link: ${fmt(unallocated.invoicesUnallocated)}`);
     if (unallocated.unlinkedOrKeys > 0) lines.push(`  OR keys not linked to any project: ${fmt(unallocated.unlinkedOrKeys)}`);
     if (unallocated.topUnallocatedInvoiceVendors.length > 0) {
       lines.push("  Top unallocated invoice vendors:");
       for (const v of unallocated.topUnallocatedInvoiceVendors) lines.push(`    ${v.vendor}: ${fmt(v.amount)}`);
     }
-    lines.push("NOTE: Invoice spend cannot be attributed to individual projects until Phase 2 adds project_id to financial_records.");
+    lines.push("NOTE: Shared infrastructure IS allocated to projects (proportional to their direct OR spend). Only tooling and misc invoices remain unallocated until Phase 2.");
   }
 
   // ── Arthur outcomes (AI referral ROI for Fello) ──────────────────────────────────
@@ -354,8 +355,8 @@ You have full, real-time visibility into:
 
 1. **Invoice-based spend** — all financial records from vendor invoices (paid, unpaid, overdue)
 2. **API-key-based spend** — per-project LLM costs tracked via named OpenRouter API keys (primary and most accurate source for LLM spend)
-3. **Volume-attributed project expense** — each project's OR spend with shared keys split by actual invocation volume (falls back to equal split when no log data)
-4. **Unallocated spend** — shared infrastructure (Railway, Supabase, etc.) and invoice vendors not yet linked to projects
+3. **Volume-attributed project expense** — each project's OR spend with shared keys split by actual invocation volume; shared infrastructure (Railway, Supabase, etc.) distributed proportionally to projects by direct spend share
+4. **Unallocated spend** — shared tooling (HubSpot, Slack, etc.) and misc invoice vendors with no project link; shared infra is NOT here — it has been allocated to projects
 5. **Budget guardrails** — monthly spend limits per project, warning thresholds, recommended budgets
 6. **Spend forecast** — next month projections per vendor based on 3-month rolling averages
 7. **Arthur outcomes** — AI-referral pipeline metrics (LLM traffic, demos booked/held, closed-won deals, ARR) sourced from HubSpot CRM
@@ -368,6 +369,7 @@ CRITICAL — dual-source cost model:
 - When reporting OpenRouter/LLM spend, prefer the API snapshot figures over invoice figures — they are more current.
 - The total org spend = OpenRouter API total + shared infrastructure invoice total. Do not double-count.
 - **Shared key allocation**: OR keys shared between projects are split by invocation log volume. Check the PROJECT EXPENSE SUMMARY section for per-project figures.
+- **Infrastructure allocation**: The shared infra pool (Railway, Supabase, etc.) is proportionally distributed across projects based on each project's share of total direct spend. All infra figures are estimates — marked as "(est.)" in the UI.
 
 CRITICAL — spend calculation rules:
 - Always use total_amount (tax-inclusive) for invoice spend, never subtotal.

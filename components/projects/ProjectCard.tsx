@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import * as RTooltip from "@radix-ui/react-tooltip";
 import { Project } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { Brain, User, ChevronDown, Info } from "lucide-react";
@@ -28,10 +29,10 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function SpendDisplay({ project }: { project: Project }) {
-  const { spendBasis, totalSpend, expenseBreakdown } = project;
-  const method = expenseBreakdown?.orAllocationMethod ?? "none";
+  const expense = project.expenseBreakdown;
+  const { totalSpend } = project;
 
-  if (spendBasis === "none" || totalSpend == null) {
+  if (!expense || totalSpend == null || totalSpend === 0) {
     return (
       <div className="text-right shrink-0">
         <p className="text-xs text-slate-400 dark:text-slate-500 italic">No metered spend</p>
@@ -39,10 +40,12 @@ function SpendDisplay({ project }: { project: Project }) {
     );
   }
 
-  const badge = (() => {
-    if (method === "dedicated" || method === "none") {
-      return <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">metered</p>;
-    }
+  const showBreakdown = expense.allocatedInfra > 0;
+  const infraTooltip = `Estimated based on this project's share of direct spend (${expense.infraSharePercent.toFixed(1)}% of ${formatCurrency(expense.infraTotalPool)} shared infrastructure). Override with manual allocation coming in Phase 2.`;
+
+  const sharedKeyBadge = (() => {
+    const method = expense.orAllocationMethod;
+    if (method !== "volume" && method !== "equal") return null;
     const label   = method === "volume" ? "volume split" : "equal split";
     const tooltip = method === "volume"
       ? "Shared OR key — spend allocated by actual invocation volume."
@@ -50,7 +53,7 @@ function SpendDisplay({ project }: { project: Project }) {
     return (
       <span
         title={tooltip}
-        className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 cursor-help mt-0.5"
+        className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 cursor-help"
       >
         <Info className="w-2 h-2" />
         {label}
@@ -61,7 +64,31 @@ function SpendDisplay({ project }: { project: Project }) {
   return (
     <div className="text-right shrink-0">
       <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
-      {badge}
+
+      {showBreakdown && (
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 whitespace-nowrap">
+          Direct {formatCurrency(expense.direct)} ·{" "}
+          <RTooltip.Root delayDuration={150}>
+            <RTooltip.Trigger asChild>
+              <span className="cursor-help underline decoration-dotted decoration-slate-400">
+                Infra {formatCurrency(expense.allocatedInfra)} (est.)
+              </span>
+            </RTooltip.Trigger>
+            <RTooltip.Portal>
+              <RTooltip.Content
+                className="z-50 max-w-[260px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-200 shadow-xl leading-snug"
+                sideOffset={6}
+                side="left"
+              >
+                {infraTooltip}
+                <RTooltip.Arrow className="fill-slate-700" />
+              </RTooltip.Content>
+            </RTooltip.Portal>
+          </RTooltip.Root>
+        </p>
+      )}
+
+      {sharedKeyBadge && <div className="mt-0.5 flex justify-end">{sharedKeyBadge}</div>}
     </div>
   );
 }
@@ -197,7 +224,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced }: Prop
 
       {/* Arthur outcomes link */}
       {arthurLastSynced !== undefined && (
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center justify-between pt-1 px-5 pb-3">
           <Link
             href="/projects/arthur/outcomes"
             className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
@@ -212,7 +239,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced }: Prop
         </div>
       )}
 
-      {/* Spend bar — color-coded by basis */}
+      {/* Spend bar — color-coded by OR allocation method */}
       {spendPct > 0 && (
         <div className="h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden rounded-b-2xl">
           <div

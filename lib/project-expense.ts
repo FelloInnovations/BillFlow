@@ -5,10 +5,14 @@ import { canonicalVendor } from "@/lib/utils";
 export type ExpenseScope = "mtd" | "last_30d" | "last_6m" | "all_time";
 
 // ── Vendor classification ──────────────────────────────────────────────────────
-// Only pure hosting/platform infra is SHARED_INFRA; all other unlinked vendors
-// fall into unallocated_invoices (Oxylabs, Apify, ElevenLabs, etc.)
 const SHARED_INFRA_CANONICAL = new Set([
   "Railway", "Supabase", "Vercel", "Cloudflare", "AWS", "GCP",
+]);
+
+// Tooling vendors: not correlated with API usage, so not proportionally split.
+// They stay in the Unallocated card until Phase 2 manual allocation.
+const SHARED_TOOLING_CANONICAL = new Set([
+  "HubSpot", "Slack", "GitHub", "Linear", "Notion", "Figma",
 ]);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,22 +26,33 @@ export interface SharedKeyDetail {
 
 export interface ProjectExpense {
   projectName: string;
+  // Direct spend components (measured / tracked)
   orDedicated: number;
   orShared: number;
   orAllocationMethod: "dedicated" | "volume" | "equal" | "none";
   toolsDedicated: number;
   toolsShared: number;
   invoicesDirect: number; // always 0 until Phase 2 adds project_id to financial_records
-  total: number;
+  direct: number;         // sum of all direct components above
+  // Proportional infrastructure allocation (estimated)
+  allocatedInfra: number;
+  infraSharePercent: number;   // this project's % of total direct (e.g. 30.5)
+  infraTotalPool: number;      // total shared infra pool
+  infraAllocationMethod: "proportional_to_direct_spend" | "equal_split";
+  // Grand total shown on card
+  total: number; // direct + allocatedInfra
   sharedKeyDetails: SharedKeyDetail[];
 }
 
 export interface UnallocatedSpend {
-  sharedInfra: number;
+  // These categories are NOT proportionally split — kept visible as-is
+  sharedTooling: number;
   unlinkedOrKeys: number;
   invoicesUnallocated: number;
-  total: number;
-  topSharedInfraVendors: { vendor: string; amount: number }[];
+  total: number; // sum of above three
+  // Reference only — already distributed to project cards
+  sharedInfraAllocated: number;
+  topSharedToolingVendors: { vendor: string; amount: number }[];
   topUnallocatedInvoiceVendors: { vendor: string; amount: number }[];
 }
 
@@ -101,6 +116,8 @@ interface RawExpenseData {
   attributableVendorTotals: Map<string, number>;
   sharedInfraTotal: number;
   sharedInfraByVendor: Map<string, number>;
+  sharedToolingTotal: number;
+  sharedToolingByVendor: Map<string, number>;
   unallocatedInvoiceVendors: Map<string, number>;
 }
 
@@ -204,8 +221,9 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     }
   }
 
-  // Categorize financial records
+  // Categorize financial records into four buckets
   const sharedInfraByVendor = new Map<string, number>();
+  const sharedToolingByVendor = new Map<string, number>();
   const attributableVendorTotals = new Map<string, number>();
   const unallocatedInvoiceVendors = new Map<string, number>();
 
@@ -216,6 +234,8 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     if (canonical === "OpenRouter") continue; // tracked via OR snapshots
     if (SHARED_INFRA_CANONICAL.has(canonical)) {
       sharedInfraByVendor.set(canonical, (sharedInfraByVendor.get(canonical) ?? 0) + amount);
+    } else if (SHARED_TOOLING_CANONICAL.has(canonical)) {
+      sharedToolingByVendor.set(canonical, (sharedToolingByVendor.get(canonical) ?? 0) + amount);
     } else if (toolToProjects.has(canonical)) {
       attributableVendorTotals.set(canonical, (attributableVendorTotals.get(canonical) ?? 0) + amount);
     } else {
@@ -223,7 +243,8 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     }
   }
 
-  const sharedInfraTotal = [...sharedInfraByVendor.values()].reduce((s, v) => s + v, 0);
+  const sharedInfraTotal  = [...sharedInfraByVendor.values()].reduce((s, v) => s + v, 0);
+  const sharedToolingTotal = [...sharedToolingByVendor.values()].reduce((s, v) => s + v, 0);
 
   const data: RawExpenseData = {
     orKeySpend,
@@ -236,6 +257,8 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     attributableVendorTotals,
     sharedInfraTotal,
     sharedInfraByVendor,
+    sharedToolingTotal,
+    sharedToolingByVendor,
     unallocatedInvoiceVendors,
   };
 
@@ -276,12 +299,12 @@ function allocateSharedKey(
   };
 }
 
-// ── Internal per-project computation ─────────────────────────────────────────
-function computeProjectExpense(
+// ── Direct spend only (no infra) — used internally by getAllProjectsExpense ───
+function computeDirectSpend(
   projectName: string,
   scope: ExpenseScope,
   raw: RawExpenseData,
-): ProjectExpense {
+): Omit<ProjectExpense, "allocatedInfra" | "infraSharePercent" | "infraTotalPool" | "infraAllocationMethod" | "total"> {
   const keys = raw.projectToKeys.get(projectName) ?? [];
   let orDedicated = 0;
   let orShared = 0;
@@ -307,7 +330,6 @@ function computeProjectExpense(
       }
     }
   } else {
-    // Date-scoped: sum invocation log cost_usd directly
     for (const k of keys) {
       const sharedProjects = raw.keyToProjects.get(k) ?? [projectName];
       const thisProjectCost = raw.invocationByProjectKey.get(`${projectName}::${k}`) ?? 0;
@@ -337,40 +359,88 @@ function computeProjectExpense(
     else orAllocationMethod = "equal";
   }
 
-  const total = Math.round((orDedicated + orShared + toolsDedicated + toolsShared) * 100) / 100;
+  const direct = orDedicated + orShared + toolsDedicated + toolsShared;
 
   return {
     projectName,
-    orDedicated:   Math.round(orDedicated   * 100) / 100,
-    orShared:      Math.round(orShared       * 100) / 100,
+    orDedicated:    Math.round(orDedicated    * 100) / 100,
+    orShared:       Math.round(orShared        * 100) / 100,
     orAllocationMethod,
-    toolsDedicated: Math.round(toolsDedicated * 100) / 100,
-    toolsShared:    Math.round(toolsShared    * 100) / 100,
+    toolsDedicated: Math.round(toolsDedicated  * 100) / 100,
+    toolsShared:    Math.round(toolsShared     * 100) / 100,
     invoicesDirect: 0,
-    total,
+    direct:         Math.round(direct          * 100) / 100,
     sharedKeyDetails,
   };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+export async function getAllProjectsExpense(
+  scope: ExpenseScope = "all_time",
+): Promise<Map<string, ProjectExpense>> {
+  const cacheKey = `expenses:${scope}`;
+  const cached = getCache<Map<string, ProjectExpense>>(cacheKey);
+  if (cached) return cached;
+
+  const raw = await loadRawData(scope);
+
+  // Pass 1: direct spend per project
+  const directMap = new Map<string, ReturnType<typeof computeDirectSpend>>();
+  for (const p of raw.projects) {
+    directMap.set(p.name, computeDirectSpend(p.name, scope, raw));
+  }
+
+  const totalDirect = [...directMap.values()].reduce((s, e) => s + e.direct, 0);
+  const numProjects = raw.projects.length;
+  const useEqualSplit = totalDirect === 0;
+
+  // Pass 2: add proportional infra allocation
+  const result = new Map<string, ProjectExpense>();
+  for (const [name, base] of directMap) {
+    const shareRatio = useEqualSplit
+      ? 1 / Math.max(1, numProjects)
+      : base.direct / totalDirect;
+
+    const allocatedInfra = Math.round(shareRatio * raw.sharedInfraTotal * 100) / 100;
+    const infraSharePercent = Math.round(shareRatio * 1000) / 10; // one decimal
+
+    result.set(name, {
+      ...base,
+      allocatedInfra,
+      infraSharePercent,
+      infraTotalPool:       Math.round(raw.sharedInfraTotal * 100) / 100,
+      infraAllocationMethod: useEqualSplit ? "equal_split" : "proportional_to_direct_spend",
+      total: Math.round((base.direct + allocatedInfra) * 100) / 100,
+    });
+  }
+
+  // Dev-mode reconciliation check: Σ(total) must equal totalDirect + sharedInfra
+  if (process.env.NODE_ENV === "development") {
+    const sumTotal   = [...result.values()].reduce((s, e) => s + e.total, 0);
+    const expected   = totalDirect + raw.sharedInfraTotal;
+    if (Math.abs(sumTotal - expected) > 0.10) {
+      console.warn(`[project-expense] reconciliation mismatch: sum=${sumTotal.toFixed(2)} expected=${expected.toFixed(2)}`);
+    }
+  }
+
+  setCache(cacheKey, result);
+  return result;
+}
+
 export async function getProjectExpense(
   projectName: string,
   scope: ExpenseScope = "all_time",
 ): Promise<ProjectExpense> {
-  const raw = await loadRawData(scope);
-  return computeProjectExpense(projectName, scope, raw);
-}
-
-export async function getAllProjectsExpense(
-  scope: ExpenseScope = "all_time",
-): Promise<Map<string, ProjectExpense>> {
-  const raw = await loadRawData(scope);
-  const result = new Map<string, ProjectExpense>();
-  for (const p of raw.projects) {
-    result.set(p.name, computeProjectExpense(p.name, scope, raw));
-  }
-  return result;
+  const all = await getAllProjectsExpense(scope);
+  return all.get(projectName) ?? {
+    projectName,
+    orDedicated: 0, orShared: 0, orAllocationMethod: "none",
+    toolsDedicated: 0, toolsShared: 0, invoicesDirect: 0, direct: 0,
+    allocatedInfra: 0, infraSharePercent: 0, infraTotalPool: 0,
+    infraAllocationMethod: "proportional_to_direct_spend",
+    total: 0, sharedKeyDetails: [],
+  };
 }
 
 export async function getUnallocatedSpend(
@@ -389,7 +459,7 @@ export async function getUnallocatedSpend(
 
   const invoicesUnallocated = [...raw.unallocatedInvoiceVendors.values()].reduce((s, v) => s + v, 0);
 
-  const topSharedInfraVendors = [...raw.sharedInfraByVendor.entries()]
+  const topSharedToolingVendors = [...raw.sharedToolingByVendor.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([vendor, amount]) => ({ vendor, amount: Math.round(amount * 100) / 100 }));
@@ -400,11 +470,12 @@ export async function getUnallocatedSpend(
     .map(([vendor, amount]) => ({ vendor, amount: Math.round(amount * 100) / 100 }));
 
   const result: UnallocatedSpend = {
-    sharedInfra:            Math.round(raw.sharedInfraTotal * 100) / 100,
-    unlinkedOrKeys:         Math.round(unlinkedOrKeys        * 100) / 100,
-    invoicesUnallocated:    Math.round(invoicesUnallocated   * 100) / 100,
-    total:                  Math.round((raw.sharedInfraTotal + unlinkedOrKeys + invoicesUnallocated) * 100) / 100,
-    topSharedInfraVendors,
+    sharedTooling:          Math.round(raw.sharedToolingTotal * 100) / 100,
+    unlinkedOrKeys:         Math.round(unlinkedOrKeys         * 100) / 100,
+    invoicesUnallocated:    Math.round(invoicesUnallocated    * 100) / 100,
+    total:                  Math.round((raw.sharedToolingTotal + unlinkedOrKeys + invoicesUnallocated) * 100) / 100,
+    sharedInfraAllocated:   Math.round(raw.sharedInfraTotal   * 100) / 100,
+    topSharedToolingVendors,
     topUnallocatedInvoiceVendors,
   };
 
