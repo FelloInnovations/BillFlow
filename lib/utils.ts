@@ -28,6 +28,18 @@ export function isOverdue(dueDate: string | null, status: string): boolean {
   return new Date(dueDate) < new Date();
 }
 
+export function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "never";
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1)  return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 // Normalise DB vendor_name to a canonical key for matching.
 // Legacy LLM providers (Anthropic, xAI, OpenAI, etc.) are now routed via OpenRouter
 // and are grouped under the "OpenRouter" canonical name.

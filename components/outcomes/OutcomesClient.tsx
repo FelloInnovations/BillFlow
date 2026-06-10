@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as RTooltip from "@radix-ui/react-tooltip";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { RefreshCw, CheckCircle2, X, Info } from "lucide-react";
+import { RefreshCw, CheckCircle2, X, Info, MoreHorizontal } from "lucide-react";
 import { MonthlyOutcomeBreakdown, MonthlyOutcomeMetrics, OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 const usd = (v: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
@@ -429,6 +429,48 @@ function VisualArrow({ ratio, isLast = false }: { ratio: SubInfo; isLast?: boole
   );
 }
 
+// ── More (⋯) dropdown menu ────────────────────────────────────────────────────
+function MoreMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutsideClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", onOutsideClick);
+    return () => document.removeEventListener("mousedown", onOutsideClick);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center justify-center h-[30px] w-[30px] rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+        aria-label="More options"
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-20 py-1 overflow-hidden">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MoreMenuItem({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+    >
+      {children}
+    </button>
+  );
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   projectId: string;
@@ -549,9 +591,7 @@ export function OutcomesClient({
   const otherS      = (scoped.llm_other_daily      as number) ?? 0;
   const totalLlmS   = chatgptS + perplexityS + claudeS + otherS;
 
-  const syncedLabel = lastSynced
-    ? new Date(lastSynced).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-    : "Never";
+  const syncedLabel = `Last synced ${formatRelativeTime(lastSynced)}`;
 
   const hasTrafficData = trafficData.some(
     (d) => d.ChatGPT + d.Perplexity + d.Claude + d["Other AI"] > 0,
@@ -589,7 +629,7 @@ export function OutcomesClient({
               className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
               {SCOPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">Last synced: {syncedLabel}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">{syncedLabel}</span>
             <button onClick={syncNow} disabled={syncing}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors">
               <RefreshCw className={cn("w-3.5 h-3.5", syncing && "animate-spin")} />
@@ -599,10 +639,9 @@ export function OutcomesClient({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
               Log Metrics
             </button>
-            <button onClick={() => setBackfillOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-              Backfill
-            </button>
+            <MoreMenu>
+              <MoreMenuItem onClick={() => { setBackfillOpen(true); }}>Backfill Historical Data</MoreMenuItem>
+            </MoreMenu>
           </div>
         </div>
 
