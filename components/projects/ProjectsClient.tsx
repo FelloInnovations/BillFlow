@@ -177,6 +177,12 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
               {projects.length} projects · {headerSpend()}
             </p>
           </div>
+          <Link
+            href="/projects/setup"
+            className="text-xs text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 font-medium transition-colors mt-1"
+          >
+            Setup →
+          </Link>
         </div>
 
         {/* Controls */}

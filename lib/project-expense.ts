@@ -93,9 +93,11 @@ interface RawExpenseData {
   orKeySpend: Map<string, number>;
   keyToProjects: Map<string, string[]>;
   projectToKeys: Map<string, string[]>;
-  projects: { name: string; status: string | null }[];
+  projects: { name: string; status: string | null; aliases: string[] }[];
+  aliasToProject: Map<string, string>;
   invocationByProjectKey: Map<string, number>;
   invocationByKey: Map<string, number>;
+  unlinkedInvocationNames: Map<string, { count: number; spend: number }>;
   toolToProjects: Map<string, string[]>;
   attributableVendorTotals: Map<string, number>;
   invoicesDirectByProject: Map<string, { total: number; count: number; items: { vendor: string; amount: number }[] }>;
@@ -130,7 +132,7 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     { data: toolOverrideRows },
     { data: invocationRows },
   ] = await Promise.all([
-    supabase.from("agents_portfolio").select("agents_projects, status, openrouter_api_key"),
+    supabase.from("agents_portfolio").select("agents_projects, status, openrouter_api_key, project_name_aliases"),
     supabase.from("openrouter_usage_snapshots").select("key_name, month, usage_total"),
     supabase
       .from("financial_records")
@@ -154,13 +156,14 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
   const keyToProjects = new Map<string, string[]>();
   const projectToKeys = new Map<string, string[]>();
   const seenProjects = new Set<string>();
-  const projects: { name: string; status: string | null }[] = [];
+  const projects: { name: string; status: string | null; aliases: string[] }[] = [];
 
   for (const row of portfolioRows ?? []) {
     const name = ((row.agents_projects as string) ?? "").trim();
     if (!name || seenProjects.has(name.toLowerCase())) continue;
     seenProjects.add(name.toLowerCase());
-    projects.push({ name, status: row.status ?? null });
+    const aliases = (row.project_name_aliases as string[] | null) ?? [];
+    projects.push({ name, status: row.status ?? null, aliases });
 
     if (!row.openrouter_api_key) continue;
     const keys = (row.openrouter_api_key as string)
@@ -173,17 +176,40 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     }
   }
 
-  // Invocation log: aggregate by project+key and by key
+  // Alias resolution map: lowercased name/alias → canonical portfolio name
+  const aliasToProject = new Map<string, string>();
+  for (const p of projects) {
+    aliasToProject.set(p.name.toLowerCase(), p.name);
+    for (const alias of p.aliases) {
+      aliasToProject.set(alias.toLowerCase(), p.name);
+    }
+  }
+
+  // Invocation log: aggregate by (canonical project)+key and by key.
+  // Log project_name is resolved via aliases before keying into the map.
   const invocationByProjectKey = new Map<string, number>();
   const invocationByKey = new Map<string, number>();
+  const unlinkedInvocationNames = new Map<string, { count: number; spend: number }>();
+
   for (const row of invocationRows ?? []) {
-    const pName = ((row.project_name as string) ?? "").trim();
+    const rawPName = ((row.project_name as string) ?? "").trim();
     const kName = ((row.key_name as string) ?? "").trim().toLowerCase();
     const cost = Number(row.cost_usd ?? 0);
-    if (pName && kName) {
-      const pk = `${pName}::${kName}`;
+
+    const canonicalPName = rawPName
+      ? (aliasToProject.get(rawPName.toLowerCase()) ?? null)
+      : null;
+
+    if (canonicalPName && kName) {
+      const pk = `${canonicalPName}::${kName}`;
       invocationByProjectKey.set(pk, (invocationByProjectKey.get(pk) ?? 0) + cost);
+    } else if (rawPName && !canonicalPName) {
+      const u = unlinkedInvocationNames.get(rawPName) ?? { count: 0, spend: 0 };
+      u.count += 1;
+      u.spend += cost;
+      unlinkedInvocationNames.set(rawPName, u);
     }
+
     if (kName) {
       invocationByKey.set(kName, (invocationByKey.get(kName) ?? 0) + cost);
     }
@@ -249,8 +275,10 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     keyToProjects,
     projectToKeys,
     projects,
+    aliasToProject,
     invocationByProjectKey,
     invocationByKey,
+    unlinkedInvocationNames,
     toolToProjects,
     attributableVendorTotals,
     invoicesDirectByProject,
@@ -453,4 +481,88 @@ export async function getUnallocatedSpend(
 
   setCache(cacheKey, result);
   return result;
+}
+
+// ── Cache invalidation ────────────────────────────────────────────────────────
+export function clearExpenseCache(): void {
+  _cache.clear();
+}
+
+// ── Unlinked invocation activity ──────────────────────────────────────────────
+// Returns log project_name values that don't match any portfolio project by name
+// or alias, with invocation counts and spend estimates.
+
+export interface UnlinkedProjectEntry {
+  name: string;
+  invocation_count: number;
+  estimated_spend: number;
+  sample_dates: string[];
+}
+
+export interface UnlinkedInvocationActivity {
+  unlinked_project_names: UnlinkedProjectEntry[];
+  total_unlinked_spend: number;
+}
+
+export async function getUnlinkedInvocationActivity(): Promise<UnlinkedInvocationActivity> {
+  const supabase = serviceClient();
+
+  const [{ data: portfolioRows }, { data: invocationRows }] = await Promise.all([
+    supabase
+      .from("agents_portfolio")
+      .select("agents_projects, project_name_aliases"),
+    supabase
+      .from("api_invocation_logs")
+      .select("project_name, cost_usd, invoked_at"),
+  ]);
+
+  // Build alias resolution map
+  const aliasToProject = new Map<string, string>();
+  const seenProjects = new Set<string>();
+  for (const row of portfolioRows ?? []) {
+    const name = ((row.agents_projects as string) ?? "").trim();
+    if (!name || seenProjects.has(name.toLowerCase())) continue;
+    seenProjects.add(name.toLowerCase());
+    aliasToProject.set(name.toLowerCase(), name);
+    const aliases = (row.project_name_aliases as string[] | null) ?? [];
+    for (const alias of aliases) {
+      if (alias.trim()) aliasToProject.set(alias.trim().toLowerCase(), name);
+    }
+  }
+
+  // Collect unlinked entries
+  const unlinked = new Map<string, { count: number; spend: number; dates: Set<string> }>();
+  for (const row of invocationRows ?? []) {
+    const rawPName = ((row.project_name as string) ?? "").trim();
+    if (!rawPName) continue;
+    if (aliasToProject.has(rawPName.toLowerCase())) continue;
+
+    const cost = Number(row.cost_usd ?? 0);
+    const date = (row.invoked_at as string)?.substring(0, 10) ?? "";
+    const u = unlinked.get(rawPName) ?? { count: 0, spend: 0, dates: new Set<string>() };
+    u.count += 1;
+    u.spend += cost;
+    if (date) u.dates.add(date);
+    unlinked.set(rawPName, u);
+  }
+
+  const entries: UnlinkedProjectEntry[] = [...unlinked.entries()]
+    .map(([name, u]) => {
+      const sortedDates = [...u.dates].sort();
+      const sample_dates = sortedDates.length <= 2
+        ? sortedDates
+        : [sortedDates[0], sortedDates[sortedDates.length - 1]];
+      return {
+        name,
+        invocation_count: u.count,
+        estimated_spend: Math.round(u.spend * 100) / 100,
+        sample_dates,
+      };
+    })
+    .sort((a, b) => b.estimated_spend - a.estimated_spend);
+
+  return {
+    unlinked_project_names: entries,
+    total_unlinked_spend: Math.round(entries.reduce((s, e) => s + e.estimated_spend, 0) * 100) / 100,
+  };
 }
