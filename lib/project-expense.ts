@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { canonicalVendor } from "@/lib/utils";
 
 // ── Scope ─────────────────────────────────────────────────────────────────────
-export type ExpenseScope = "mtd" | "last_30d" | "last_6m" | "all_time";
+export type ExpenseScope = "mtd" | "last_30d" | "last_3m" | "last_6m" | "last_12m" | "all_time";
 
 // ── Vendor classification ──────────────────────────────────────────────────────
 export const SHARED_INFRA_CANONICAL = new Set([
@@ -94,7 +94,12 @@ function scopeDateRange(scope: ExpenseScope): { from: string; to: string } | nul
     const d = new Date(now);
     d.setUTCDate(d.getUTCDate() - 30);
     from = d.toISOString().split("T")[0];
+  } else if (scope === "last_3m") {
+    from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1)).toISOString().split("T")[0];
+  } else if (scope === "last_12m") {
+    from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1)).toISOString().split("T")[0];
   } else {
+    // last_6m default
     const d = new Date(now);
     d.setUTCMonth(d.getUTCMonth() - 6);
     from = d.toISOString().split("T")[0];

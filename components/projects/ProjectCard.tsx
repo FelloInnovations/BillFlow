@@ -28,7 +28,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function SpendDisplay({ project }: { project: Project }) {
+function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: number }) {
   const expense = project.expenseBreakdown;
   const { totalSpend } = project;
 
@@ -68,7 +68,14 @@ function SpendDisplay({ project }: { project: Project }) {
 
   return (
     <div className="text-right shrink-0">
-      <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
+      <div className="flex items-center justify-end gap-1.5">
+        <p className="font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalSpend)}</p>
+        {pctOfTotal != null && (
+          <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+            {pctOfTotal.toFixed(1)}%
+          </span>
+        )}
+      </div>
 
       {showBreakdown && (
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 whitespace-nowrap">
@@ -111,6 +118,7 @@ interface Props {
   index: number;
   maxSpend: number;
   arthurLastSynced?: string | null;
+  pctOfTotal?: number;
 }
 
 function timeAgo(ts: string): string {
@@ -122,7 +130,7 @@ function timeAgo(ts: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function ProjectCard({ project, index, maxSpend, arthurLastSynced }: Props) {
+export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfTotal }: Props) {
   const spendPct = project.totalSpend != null && maxSpend > 0
     ? (project.totalSpend / maxSpend) * 100 : 0;
 
@@ -188,7 +196,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced }: Prop
               </div>
             )}
           </div>
-          <SpendDisplay project={project} />
+          <SpendDisplay project={project} pctOfTotal={pctOfTotal} />
         </div>
 
         {/* LLMs */}

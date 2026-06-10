@@ -10,9 +10,9 @@ const STARTERS = [
   "Overview of this month's spend",
   "Which projects cost the most?",
   "How is Arthur performing this quarter?",
-  "What's the ROI on Arthur?",
-  "Which AI platform sends us the most demos?",
-  "Show me unallocated invoices.",
+  "Which invoices need to be allocated?",
+  "How much of our spend is estimated vs manually allocated?",
+  "Show me Arthur's true cost including manually allocated invoices.",
 ];
 
 interface Message {

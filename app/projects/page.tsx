@@ -109,8 +109,8 @@ export default async function ProjectsPage() {
     <ProjectsClient
       initialProjects={sorted}
       initialMaxSpend={maxSpend}
+      initialUnallocated={unallocated}
       arthurLastSynced={arthurLastSynced}
-      unallocated={unallocated}
     />
   );
 }

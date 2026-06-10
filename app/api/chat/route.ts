@@ -267,9 +267,12 @@ async function buildFullContext(): Promise<string> {
     const infraPool = sortedExpense[0]?.[1].infraTotalPool ?? 0;
     const totalDirect = sortedExpense.reduce((s, [, e]) => s + e.direct, 0);
 
+    const manualInvoiceCount = sortedExpense.filter(([, e]) => e.invoicesDirect > 0).length;
+
     lines.push("\n=== PROJECT EXPENSE SUMMARY (volume-attributed, all-time) ===");
     lines.push(`Methodology: OR spend on shared keys split by invocation volume (equal-split fallback). Shared infrastructure (${fmt(infraPool)}) allocated proportionally — each project's share = (project direct / ${fmt(totalDirect)} total direct) × infra pool.`);
     lines.push(`Global totals: attributed ${fmt(attributedTotal)} | unallocated ${unallocated ? fmt(unallocated.total) : "?"} | grand total ${unallocated ? fmt(attributedTotal + unallocated.total) : "?"}`);
+    lines.push(`Manual invoice attribution: ${manualInvoiceCount} of ${sortedExpense.length} projects have manually allocated invoices. The rest use proportional infra estimates only.`);
     lines.push("---");
 
     for (const [name, e] of sortedExpense) {
@@ -279,7 +282,14 @@ async function buildFullContext(): Promise<string> {
         : e.orAllocationMethod === "volume" ? "volume-split"
         : e.orAllocationMethod === "equal" ? "equal-split"
         : "no OR key";
-      lines.push(`${name}${statusStr}: total=${fmt(e.total)} | direct=${fmt(e.direct)} | infra est.=${fmt(e.allocatedInfra)} (${e.infraSharePercent}% of pool) | OR method=${methodLabel}`);
+      const orTotal = e.orDedicated + e.orShared;
+      const toolsTotal = e.toolsDedicated + e.toolsShared;
+      const breakdownParts = [
+        `OR=${fmt(orTotal)}`,
+        e.invoicesDirect > 0 ? `invoices=${fmt(e.invoicesDirect)} (manual)` : `invoices=$0`,
+        toolsTotal > 0 ? `tools=${fmt(toolsTotal)}` : null,
+      ].filter(Boolean).join(" ");
+      lines.push(`${name}${statusStr}: total=${fmt(e.total)} | direct=${fmt(e.direct)} (${breakdownParts}) | infra est.=${fmt(e.allocatedInfra)} (${e.infraSharePercent}% of pool) | OR method=${methodLabel}`);
     }
   }
 
