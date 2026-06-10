@@ -576,7 +576,7 @@ export function OutcomesClient({
         <HeroStatCard
           label="ARR Closed"
           value={usd(arr)}
-          sub={{ text: avgDealStr, warn: false }}
+          sub={{ text: "Sum of deal amount for AI-referral contacts with closed-won deals in scope. Falls back to deal amount when current_arr__sync_ is not set.", warn: false }}
           accentEmerald
         />
       </div>
