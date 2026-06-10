@@ -5,13 +5,11 @@ import { canonicalVendor } from "@/lib/utils";
 export type ExpenseScope = "mtd" | "last_30d" | "last_6m" | "all_time";
 
 // ── Vendor classification ──────────────────────────────────────────────────────
-const SHARED_INFRA_CANONICAL = new Set([
+export const SHARED_INFRA_CANONICAL = new Set([
   "Railway", "Supabase", "Vercel", "Cloudflare", "AWS", "GCP",
 ]);
 
-// Tooling vendors: not correlated with API usage, so not proportionally split.
-// They stay in the Unallocated card until Phase 2 manual allocation.
-const SHARED_TOOLING_CANONICAL = new Set([
+export const SHARED_TOOLING_CANONICAL = new Set([
   "HubSpot", "Slack", "GitHub", "Linear", "Notion", "Figma",
 ]);
 
@@ -32,7 +30,7 @@ export interface ProjectExpense {
   orAllocationMethod: "dedicated" | "volume" | "equal" | "none";
   toolsDedicated: number;
   toolsShared: number;
-  invoicesDirect: number; // always 0 until Phase 2 adds project_id to financial_records
+  invoicesDirect: number; // manually attributed invoices (cost_type='project_specific' or project-specific infra/tooling)
   direct: number;         // sum of all direct components above
   // Proportional infrastructure allocation (estimated)
   allocatedInfra: number;
@@ -114,6 +112,7 @@ interface RawExpenseData {
   invocationByKey: Map<string, number>;
   toolToProjects: Map<string, string[]>;
   attributableVendorTotals: Map<string, number>;
+  invoicesDirectByProject: Map<string, number>; // project_id → manually-attributed invoice total
   sharedInfraTotal: number;
   sharedInfraByVendor: Map<string, number>;
   sharedToolingTotal: number;
@@ -154,7 +153,7 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
       .select("key_name, month, usage_total"),
     supabase
       .from("financial_records")
-      .select("vendor_name, total_amount")
+      .select("vendor_name, total_amount, project_id, cost_type")
       .not("vendor_name", "is", null)
       .not("vendor_name", "ilike", "%makemytrip%"),
     supabase
@@ -221,25 +220,51 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     }
   }
 
-  // Categorize financial records into four buckets
+  // Categorize financial records into buckets
   const sharedInfraByVendor = new Map<string, number>();
   const sharedToolingByVendor = new Map<string, number>();
   const attributableVendorTotals = new Map<string, number>();
   const unallocatedInvoiceVendors = new Map<string, number>();
+  const invoicesDirectByProject = new Map<string, number>();
 
   for (const r of financialRows ?? []) {
     if (!r.vendor_name) continue;
     const canonical = canonicalVendor(r.vendor_name as string);
     const amount = Number(r.total_amount ?? 0);
     if (canonical === "OpenRouter") continue; // tracked via OR snapshots
-    if (SHARED_INFRA_CANONICAL.has(canonical)) {
-      sharedInfraByVendor.set(canonical, (sharedInfraByVendor.get(canonical) ?? 0) + amount);
-    } else if (SHARED_TOOLING_CANONICAL.has(canonical)) {
-      sharedToolingByVendor.set(canonical, (sharedToolingByVendor.get(canonical) ?? 0) + amount);
-    } else if (toolToProjects.has(canonical)) {
-      attributableVendorTotals.set(canonical, (attributableVendorTotals.get(canonical) ?? 0) + amount);
-    } else {
+
+    const costType = r.cost_type as string | null;
+    const projectId = r.project_id as string | null;
+
+    if (costType === "project_specific" && projectId) {
+      // Manually attributed to a specific project
+      invoicesDirectByProject.set(projectId, (invoicesDirectByProject.get(projectId) ?? 0) + amount);
+    } else if (costType === "shared_infrastructure") {
+      if (projectId) {
+        // Dedicated infra for a project — goes to project direct, not the shared pool
+        invoicesDirectByProject.set(projectId, (invoicesDirectByProject.get(projectId) ?? 0) + amount);
+      } else {
+        sharedInfraByVendor.set(canonical, (sharedInfraByVendor.get(canonical) ?? 0) + amount);
+      }
+    } else if (costType === "shared_tooling") {
+      if (projectId) {
+        invoicesDirectByProject.set(projectId, (invoicesDirectByProject.get(projectId) ?? 0) + amount);
+      } else {
+        sharedToolingByVendor.set(canonical, (sharedToolingByVendor.get(canonical) ?? 0) + amount);
+      }
+    } else if (costType === "unallocated") {
       unallocatedInvoiceVendors.set(canonical, (unallocatedInvoiceVendors.get(canonical) ?? 0) + amount);
+    } else {
+      // cost_type IS NULL — vendor-based classification (backward compat)
+      if (SHARED_INFRA_CANONICAL.has(canonical)) {
+        sharedInfraByVendor.set(canonical, (sharedInfraByVendor.get(canonical) ?? 0) + amount);
+      } else if (SHARED_TOOLING_CANONICAL.has(canonical)) {
+        sharedToolingByVendor.set(canonical, (sharedToolingByVendor.get(canonical) ?? 0) + amount);
+      } else if (toolToProjects.has(canonical)) {
+        attributableVendorTotals.set(canonical, (attributableVendorTotals.get(canonical) ?? 0) + amount);
+      } else {
+        unallocatedInvoiceVendors.set(canonical, (unallocatedInvoiceVendors.get(canonical) ?? 0) + amount);
+      }
     }
   }
 
@@ -255,6 +280,7 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     invocationByKey,
     toolToProjects,
     attributableVendorTotals,
+    invoicesDirectByProject,
     sharedInfraTotal,
     sharedInfraByVendor,
     sharedToolingTotal,
@@ -352,6 +378,8 @@ function computeDirectSpend(
     else toolsShared += vendorSpend / projects.length;
   }
 
+  const invoicesDirect = raw.invoicesDirectByProject.get(projectName) ?? 0;
+
   let orAllocationMethod: ProjectExpense["orAllocationMethod"] = "none";
   if (keys.length > 0) {
     if (!anyShared) orAllocationMethod = "dedicated";
@@ -359,7 +387,7 @@ function computeDirectSpend(
     else orAllocationMethod = "equal";
   }
 
-  const direct = orDedicated + orShared + toolsDedicated + toolsShared;
+  const direct = orDedicated + orShared + toolsDedicated + toolsShared + invoicesDirect;
 
   return {
     projectName,
@@ -368,7 +396,7 @@ function computeDirectSpend(
     orAllocationMethod,
     toolsDedicated: Math.round(toolsDedicated  * 100) / 100,
     toolsShared:    Math.round(toolsShared     * 100) / 100,
-    invoicesDirect: 0,
+    invoicesDirect: Math.round(invoicesDirect  * 100) / 100,
     direct:         Math.round(direct          * 100) / 100,
     sharedKeyDetails,
   };

@@ -13,6 +13,8 @@ type FinancialRow = {
   invoice_date: string | null;
   due_date: string | null;
   currency: string | null;
+  cost_type: string | null;
+  project_id: string | null;
 };
 
 async function buildFullContext(): Promise<string> {
@@ -21,7 +23,7 @@ async function buildFullContext(): Promise<string> {
   // ── 1. Direct query for ALL financial records — no date filter, no status filter ──
   const { data: records } = await supabase
     .from("financial_records")
-    .select("vendor_name, total_amount, subtotal, tax_amount, payment_status, invoice_date, due_date, currency")
+    .select("vendor_name, total_amount, subtotal, tax_amount, payment_status, invoice_date, due_date, currency, cost_type, project_id")
     .not("vendor_name", "ilike", "%makemytrip%")
     .order("invoice_date", { ascending: false });
 
@@ -292,7 +294,38 @@ async function buildFullContext(): Promise<string> {
       lines.push("  Top unallocated invoice vendors:");
       for (const v of unallocated.topUnallocatedInvoiceVendors) lines.push(`    ${v.vendor}: ${fmt(v.amount)}`);
     }
-    lines.push("NOTE: Shared infrastructure IS allocated to projects (proportional to their direct OR spend). Only tooling and misc invoices remain unallocated until Phase 2.");
+    lines.push("NOTE: Shared infrastructure IS allocated to projects (proportional to direct OR spend). Invoices can now be manually allocated via the Financial Records page — see MANUALLY ALLOCATED INVOICES and UNALLOCATED INVOICES sections below.");
+  }
+
+  // ── Manually allocated invoices (project_specific) ────────────────────────────────
+  const allocatedRows = rows.filter((r) => r.cost_type === "project_specific" && r.project_id);
+  if (allocatedRows.length > 0) {
+    const byProject = new Map<string, number>();
+    for (const r of allocatedRows) {
+      const p = r.project_id as string;
+      byProject.set(p, (byProject.get(p) ?? 0) + parseFloat(String(r.total_amount ?? 0)));
+    }
+    lines.push("\n=== MANUALLY ALLOCATED INVOICES (cost_type=project_specific) ===");
+    lines.push(`${allocatedRows.length} invoices manually attributed to specific projects.`);
+    for (const [project, total] of [...byProject.entries()].sort((a, b) => b[1] - a[1])) {
+      lines.push(`  ${project}: ${fmt(total)}`);
+    }
+  }
+
+  // ── Unallocated invoices (cost_type IS NULL or 'unallocated') ─────────────────────
+  const unallocatedInvoiceRows = rows.filter((r) => !r.cost_type || r.cost_type === "unallocated");
+  if (unallocatedInvoiceRows.length > 0) {
+    const byVendor = new Map<string, number>();
+    for (const r of unallocatedInvoiceRows) {
+      if (!r.vendor_name) continue;
+      byVendor.set(r.vendor_name, (byVendor.get(r.vendor_name) ?? 0) + parseFloat(String(r.total_amount ?? 0)));
+    }
+    const topUnalloc = [...byVendor.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const totalUnallocInvoice = [...byVendor.values()].reduce((s, v) => s + v, 0);
+    lines.push("\n=== UNALLOCATED INVOICES (cost_type IS NULL or 'unallocated') ===");
+    lines.push(`${unallocatedInvoiceRows.length} invoices not yet attributed to a project or category. Total: ${fmt(totalUnallocInvoice)}`);
+    lines.push("To allocate these, go to Financial Records and click 'Allocate →' on each row.");
+    for (const [vendor, total] of topUnalloc) lines.push(`  ${vendor}: ${fmt(total)}`);
   }
 
   // ── Arthur outcomes (AI referral pipeline for Fello) ─────────────────────────────

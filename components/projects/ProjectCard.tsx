@@ -40,8 +40,13 @@ function SpendDisplay({ project }: { project: Project }) {
     );
   }
 
-  const showBreakdown = expense.allocatedInfra > 0;
-  const infraTooltip = `Estimated based on this project's share of direct spend (${expense.infraSharePercent.toFixed(1)}% of ${formatCurrency(expense.infraTotalPool)} shared infrastructure). Override with manual allocation coming in Phase 2.`;
+  const showBreakdown = expense.allocatedInfra > 0 || expense.invoicesDirect > 0;
+  const infraLabel = expense.allocatedInfra > 0
+    ? `Infra ${formatCurrency(expense.allocatedInfra)} (est.)`
+    : null;
+  const infraTooltip = expense.allocatedInfra > 0
+    ? `Estimated based on this project's share of direct spend (${expense.infraSharePercent.toFixed(1)}% of ${formatCurrency(expense.infraTotalPool)} shared infrastructure pool). Manually allocated project-specific invoices are already in Direct.`
+    : null;
 
   const sharedKeyBadge = (() => {
     const method = expense.orAllocationMethod;
@@ -67,24 +72,32 @@ function SpendDisplay({ project }: { project: Project }) {
 
       {showBreakdown && (
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 whitespace-nowrap">
-          Direct {formatCurrency(expense.direct)} ·{" "}
-          <RTooltip.Root delayDuration={150}>
-            <RTooltip.Trigger asChild>
-              <span className="cursor-help underline decoration-dotted decoration-slate-400">
-                Infra {formatCurrency(expense.allocatedInfra)} (est.)
-              </span>
-            </RTooltip.Trigger>
-            <RTooltip.Portal>
-              <RTooltip.Content
-                className="z-50 max-w-[260px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-200 shadow-xl leading-snug"
-                sideOffset={6}
-                side="left"
-              >
-                {infraTooltip}
-                <RTooltip.Arrow className="fill-slate-700" />
-              </RTooltip.Content>
-            </RTooltip.Portal>
-          </RTooltip.Root>
+          Direct {formatCurrency(expense.direct)}
+          {expense.invoicesDirect > 0 && (
+            <> · <span className="text-indigo-400">Invoices {formatCurrency(expense.invoicesDirect)}</span></>
+          )}
+          {infraLabel && (
+            <>
+              {" · "}
+              <RTooltip.Root delayDuration={150}>
+                <RTooltip.Trigger asChild>
+                  <span className="cursor-help underline decoration-dotted decoration-slate-400">
+                    {infraLabel}
+                  </span>
+                </RTooltip.Trigger>
+                <RTooltip.Portal>
+                  <RTooltip.Content
+                    className="z-50 max-w-[260px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-200 shadow-xl leading-snug"
+                    sideOffset={6}
+                    side="left"
+                  >
+                    {infraTooltip}
+                    <RTooltip.Arrow className="fill-slate-700" />
+                  </RTooltip.Content>
+                </RTooltip.Portal>
+              </RTooltip.Root>
+            </>
+          )}
         </p>
       )}
 

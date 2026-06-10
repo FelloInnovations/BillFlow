@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CostType } from "@/types";
 
 interface Props {
   onClose: () => void;
@@ -10,6 +11,13 @@ interface Props {
 }
 
 const today = () => new Date().toISOString().split("T")[0];
+
+const COST_TYPE_OPTIONS: { value: CostType; label: string }[] = [
+  { value: "project_specific",      label: "Project Specific" },
+  { value: "shared_infrastructure", label: "Shared Infrastructure" },
+  { value: "shared_tooling",        label: "Shared Tooling" },
+  { value: "unallocated",           label: "Unallocated" },
+];
 
 const INITIAL_FORM = {
   vendorName:     "",
@@ -22,6 +30,9 @@ const INITIAL_FORM = {
   currency:       "USD",
   paymentStatus:  "pending",
   description:    "",
+  costType:       "" as "" | CostType,
+  projectId:      "",
+  projectSearch:  "",
 };
 
 type Form = typeof INITIAL_FORM;
@@ -50,10 +61,19 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
   const [totalIsAuto, setTotalIsAuto] = useState(true);  // auto-calc until user overrides
   const [saving, setSaving]           = useState(false);
   const [discardPrompt, setDiscardPrompt] = useState(false);
+  const [projects, setProjects]       = useState<string[]>([]);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   // Focus vendor name on mount
   useEffect(() => { firstInputRef.current?.focus(); }, []);
+
+  // Load project names for dropdown
+  useEffect(() => {
+    fetch("/api/projects/names")
+      .then((r) => r.json())
+      .then((j) => setProjects(j.names ?? []))
+      .catch(() => {});
+  }, []);
 
   // Auto-calculate total when subtotal or tax changes (unless total was manually set)
   useEffect(() => {
@@ -102,6 +122,8 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
     if (!form.subtotal || isNaN(sub) || sub < 0) e.subtotal = "Subtotal must be a positive number";
     const total = parseFloat(form.totalAmount);
     if (!form.totalAmount || isNaN(total) || total < 0) e.totalAmount = "Total must be a positive number";
+    if (!form.costType) e.costType = "Cost type is required";
+    if (form.costType === "project_specific" && !form.projectId) e.projectId = "Please select a project";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -124,6 +146,8 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
           currency:       form.currency,
           payment_status: form.paymentStatus,
           description:    form.description.trim() || null,
+          cost_type:      form.costType || null,
+          project_id:     form.costType === "project_specific" ? form.projectId : null,
         }),
       });
       if (res.ok) {
@@ -307,6 +331,83 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                 className={cn(inputCls, "resize-none")}
               />
             </div>
+
+            {/* Cost Type */}
+            <div>
+              <Label>Cost Type *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {COST_TYPE_OPTIONS.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={cn(
+                      "flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors text-sm",
+                      form.costType === opt.value
+                        ? "border-indigo-500 bg-indigo-950/40 text-indigo-300"
+                        : "border-slate-700 text-slate-400 hover:border-slate-600"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="costType"
+                      value={opt.value}
+                      checked={form.costType === opt.value}
+                      onChange={() => {
+                        setField("costType", opt.value);
+                        if (opt.value !== "project_specific") {
+                          setField("projectId", "");
+                          setField("projectSearch", "");
+                        }
+                      }}
+                      className="accent-indigo-400"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+              <FieldError msg={errors.costType} />
+            </div>
+
+            {/* Project (when project_specific) */}
+            {form.costType === "project_specific" && (
+              <div>
+                <Label>Project *</Label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={form.projectSearch}
+                    onChange={(e) => {
+                      setField("projectSearch", e.target.value);
+                      setField("projectId", "");
+                    }}
+                    placeholder="Search projects…"
+                    className={cn(inputCls, errors.projectId && "border-red-500 focus:ring-red-500")}
+                  />
+                  {form.projectSearch && !form.projectId && (
+                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden max-h-36 overflow-y-auto">
+                      {projects
+                        .filter((p) => p.toLowerCase().includes(form.projectSearch.toLowerCase()))
+                        .map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => {
+                              setField("projectId", p);
+                              setField("projectSearch", p);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                          >
+                            {p}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+                {form.projectId && (
+                  <p className="mt-1 text-xs text-indigo-400">Selected: {form.projectId}</p>
+                )}
+                <FieldError msg={errors.projectId} />
+              </div>
+            )}
           </div>
 
           {/* Footer */}

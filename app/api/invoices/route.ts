@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
       currency:       body.currency         ?? "USD",
       payment_status: body.payment_status   ?? "pending",
       description:    body.description      ?? null,
+      project_id:     body.project_id       ?? null,
+      cost_type:      body.cost_type        ?? null,
+      allocated_at:   body.cost_type        ? new Date().toISOString() : null,
+      allocated_by:   body.cost_type        ? "manual" : null,
       email_id:       null,
       email_subject:  null,
       email_from:     null,
@@ -33,6 +37,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const vendor = searchParams.get("vendor");
   const status = searchParams.get("status");
+  const costType = searchParams.get("costType");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const page = parseInt(searchParams.get("page") ?? "1", 10);
@@ -54,6 +59,8 @@ export async function GET(req: NextRequest) {
   }
   if (status === "unpaid") q = q.neq("payment_status", "paid");
   else if (status) q = q.eq("payment_status", status);
+  if (costType === "unallocated") q = q.or("cost_type.is.null,cost_type.eq.unallocated");
+  else if (costType) q = q.eq("cost_type", costType);
   if (dateFrom) q = q.gte("invoice_date", dateFrom);
   if (dateTo) q = q.lte("invoice_date", dateTo);
 

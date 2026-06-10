@@ -15,6 +15,8 @@ export interface HubspotTicket {
   owner: string | null;
 }
 
+export type CostType = "project_specific" | "shared_infrastructure" | "shared_tooling" | "unallocated";
+
 export interface FinancialRecord {
   id: string;
   created_at: string;
@@ -33,6 +35,10 @@ export interface FinancialRecord {
   currency: string;
   payment_status: "pending" | "paid" | "overdue";
   description: string | null;
+  project_id: string | null;
+  cost_type: CostType | null;
+  allocated_at: string | null;
+  allocated_by: string | null;
 }
 
 export interface SharedInfraService {

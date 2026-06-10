@@ -2,9 +2,10 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { FinancialRecord, PaginatedResult } from "@/types";
+import { FinancialRecord, PaginatedResult, CostType } from "@/types";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { InvoiceDrawer } from "./InvoiceDrawer";
+import { AllocationDialog } from "./AllocationDialog";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,14 @@ interface Props {
 }
 
 const STATUS_OPTIONS = ["", "unpaid", "pending", "paid", "overdue"];
+
+const COST_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "",                    label: "All Allocations" },
+  { value: "unallocated",         label: "Unallocated" },
+  { value: "project_specific",    label: "Project Specific" },
+  { value: "shared_infrastructure", label: "Shared Infrastructure" },
+  { value: "shared_tooling",      label: "Shared Tooling" },
+];
 
 // ── Checkbox ──────────────────────────────────────────────────────────────────
 function Checkbox({
@@ -61,13 +70,7 @@ function Checkbox({
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
-function Toast({
-  msg,
-  type,
-}: {
-  msg: string;
-  type: "success" | "error";
-}) {
+function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
   return (
     <div
       className={cn(
@@ -87,6 +90,204 @@ function Toast({
   );
 }
 
+// ── AllocationBadge ───────────────────────────────────────────────────────────
+function AllocationBadge({
+  record,
+  onAllocate,
+}: {
+  record: FinancialRecord;
+  onAllocate: (e: React.MouseEvent) => void;
+}) {
+  const { cost_type, project_id } = record;
+
+  if (cost_type === "project_specific" && project_id) {
+    return (
+      <button
+        onClick={onAllocate}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800 hover:ring-indigo-400 transition-shadow max-w-[140px] truncate"
+        title={project_id}
+      >
+        {project_id}
+      </button>
+    );
+  }
+
+  if (cost_type === "shared_infrastructure") {
+    return (
+      <button
+        onClick={onAllocate}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-slate-400 transition-shadow"
+      >
+        Shared Infra
+      </button>
+    );
+  }
+
+  if (cost_type === "shared_tooling") {
+    return (
+      <button
+        onClick={onAllocate}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-slate-400 transition-shadow"
+      >
+        Shared Tooling
+      </button>
+    );
+  }
+
+  // unallocated or null
+  return (
+    <button
+      onClick={onAllocate}
+      className="text-xs text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+    >
+      Allocate →
+    </button>
+  );
+}
+
+// ── BulkAllocationDialog ──────────────────────────────────────────────────────
+const BULK_COST_TYPE_OPTIONS: { value: CostType; label: string; description: string }[] = [
+  { value: "project_specific",      label: "Project Specific",      description: "Directly attributed to a single project" },
+  { value: "shared_infrastructure", label: "Shared Infrastructure", description: "Platform costs (Railway, Supabase, Vercel, etc.)" },
+  { value: "shared_tooling",        label: "Shared Tooling",        description: "Team tools (HubSpot, Slack, GitHub, etc.)" },
+  { value: "unallocated",           label: "Unallocated",           description: "Exclude from project attribution" },
+];
+
+function BulkAllocationDialog({
+  count,
+  onClose,
+  onConfirm,
+}: {
+  count: number;
+  onClose: () => void;
+  onConfirm: (costType: CostType, projectId: string | null) => void;
+}) {
+  const [costType, setCostType] = useState<CostType>("unallocated");
+  const [projectId, setProjectId] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
+  const [projects, setProjects] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/projects/names")
+      .then((r) => r.json())
+      .then((j) => setProjects(j.names ?? []))
+      .catch(() => {});
+  }, []);
+
+  const filteredProjects = projects.filter((p) =>
+    p.toLowerCase().includes(projectSearch.toLowerCase())
+  );
+
+  function handleConfirm() {
+    if (costType === "project_specific" && !projectId) {
+      setError("Please select a project.");
+      return;
+    }
+    onConfirm(costType, costType === "project_specific" ? projectId : null);
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+        <div
+          className="pointer-events-auto w-full max-w-[420px] flex flex-col rounded-2xl bg-[#0e1219] border border-slate-700 shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-100">Bulk Allocate</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Applying to {count} invoice{count !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="px-5 py-4 space-y-2 max-h-[60vh] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+            {BULK_COST_TYPE_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className={cn(
+                  "flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
+                  costType === opt.value
+                    ? "border-indigo-500 bg-indigo-950/40"
+                    : "border-slate-700 hover:border-slate-600"
+                )}
+              >
+                <input
+                  type="radio"
+                  name="bulkCostType"
+                  value={opt.value}
+                  checked={costType === opt.value}
+                  onChange={() => { setCostType(opt.value); setError(null); }}
+                  className="mt-0.5 accent-indigo-400"
+                />
+                <div>
+                  <p className="text-sm font-medium text-slate-200">{opt.label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>
+                </div>
+              </label>
+            ))}
+
+            {costType === "project_specific" && (
+              <div className="mt-1">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Project *</p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={projectSearch}
+                    onChange={(e) => { setProjectSearch(e.target.value); setProjectId(""); setError(null); }}
+                    placeholder="Search projects…"
+                    className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+                  />
+                  {projectSearch && !projectId && filteredProjects.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden max-h-36 overflow-y-auto">
+                      {filteredProjects.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => { setProjectId(p); setProjectSearch(p); }}
+                          className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {projectId && <p className="mt-1 text-xs text-indigo-400">Selected: {projectId}</p>}
+              </div>
+            )}
+            {error && <p className="text-xs text-red-400">{error}</p>}
+          </div>
+
+          <div className="px-5 py-4 border-t border-slate-800 flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2 rounded-lg border border-slate-700 text-slate-400 text-sm font-medium hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition-colors"
+            >
+              Allocate {count}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export function RecordsTable({ initial, vendors: initialVendors }: Props) {
   const searchParams = useSearchParams();
@@ -99,6 +300,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
   const vendorRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState({
     status: initialStatus,
+    costType: "",
     dateFrom: "",
     dateTo: "",
     page: 1,
@@ -116,7 +318,12 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
   const [markingPaid, setMarkingPaid] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Clear selection on data change (page / filter change)
+  // ── Allocation dialog ──
+  const [allocationTarget, setAllocationTarget] = useState<FinancialRecord | null>(null);
+  const [showBulkAllocate, setShowBulkAllocate] = useState(false);
+  const [bulkAllocating, setBulkAllocating] = useState(false);
+
+  // Clear selection on data change
   useEffect(() => {
     setCheckedIds(new Set());
     setConfirming(false);
@@ -129,10 +336,10 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Apply URL-provided status filter on mount (server data is unfiltered)
+  // Apply URL-provided status filter on mount
   useEffect(() => {
     if (initialStatus) {
-      fetchData({ status: initialStatus, dateFrom: "", dateTo: "", page: 1 }, []);
+      fetchData({ status: initialStatus, costType: "", dateFrom: "", dateTo: "", page: 1 }, []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -162,6 +369,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
     const params = new URLSearchParams();
     if (sv.length > 0) params.set("vendor", sv.join(","));
     if (f.status) params.set("status", f.status);
+    if (f.costType) params.set("costType", f.costType);
     if (f.dateFrom) params.set("dateFrom", f.dateFrom);
     if (f.dateTo) params.set("dateTo", f.dateTo);
     params.set("page", String(f.page));
@@ -209,7 +417,6 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
 
   function handleInvoiceSaved() {
     setShowAddModal(false);
-    // Reset to page 1 so the new invoice (ordered by date desc) appears at top
     const next = { ...filters, page: 1 };
     setFilters(next);
     fetchVendors();
@@ -233,6 +440,16 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
       next.delete(id);
       return next;
     });
+  }
+
+  // ── Local state update on allocation ──
+  function handleAllocationSaved(updated: FinancialRecord) {
+    setData((prev) => ({
+      ...prev,
+      data: prev.data.map((r) => (r.id === updated.id ? updated : r)),
+    }));
+    setAllocationTarget(null);
+    setToast({ msg: "Invoice allocated", type: "success" });
   }
 
   // ── Selection helpers ──
@@ -291,14 +508,45 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           type: "success",
         });
       } else {
-        setToast({
-          msg: "Failed to update invoices — please try again",
-          type: "error",
-        });
+        setToast({ msg: "Failed to update invoices — please try again", type: "error" });
         setConfirming(false);
       }
     } finally {
       setMarkingPaid(false);
+    }
+  }
+
+  // ── Bulk allocate ──
+  async function handleBulkAllocate(costType: CostType, projectId: string | null) {
+    const ids = [...checkedIds];
+    setBulkAllocating(true);
+    try {
+      const res = await fetch("/api/invoices/bulk-allocate", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, cost_type: costType, project_id: projectId }),
+      });
+      if (res.ok) {
+        const { records } = await res.json();
+        setData((prev) => ({
+          ...prev,
+          data: prev.data.map((r) => {
+            const updated = (records as FinancialRecord[])?.find((u) => u.id === r.id);
+            return updated ? { ...r, ...updated } : r;
+          }),
+        }));
+        setCheckedIds(new Set());
+        setShowBulkAllocate(false);
+        setToast({
+          msg: `${ids.length} invoice${ids.length > 1 ? "s" : ""} allocated`,
+          type: "success",
+        });
+      } else {
+        setToast({ msg: "Failed to allocate — please try again", type: "error" });
+        setShowBulkAllocate(false);
+      }
+    } finally {
+      setBulkAllocating(false);
     }
   }
 
@@ -390,6 +638,21 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             ))}
           </select>
 
+          <select
+            value={filters.costType}
+            onChange={(e) => applyFilter("costType", e.target.value)}
+            className={cn(
+              "text-sm border rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors",
+              filters.costType
+                ? "border-indigo-400 dark:border-indigo-500 text-indigo-700 dark:text-indigo-300"
+                : "border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+            )}
+          >
+            {COST_TYPE_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
           <input
             type="date"
             value={filters.dateFrom}
@@ -437,7 +700,6 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50">
-              {/* Checkbox header */}
               <th className="pl-4 pr-2 py-3.5 w-10">
                 <Checkbox
                   checked={allChecked}
@@ -446,7 +708,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                   onChange={toggleSelectAll}
                 />
               </th>
-              {["Vendor", "Invoice #", "Date", "Due Date", "Amount", "Status"].map((h) => (
+              {["Vendor", "Invoice #", "Date", "Due Date", "Amount", "Status", "Allocation"].map((h) => (
                 <th
                   key={h}
                   className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider"
@@ -475,7 +737,6 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                     setSelected(row);
                   }}
                 >
-                  {/* Checkbox cell — stops propagation so click doesn't open drawer */}
                   <td
                     className="pl-4 pr-2 py-3.5 w-10"
                     onClick={(e) => {
@@ -542,6 +803,20 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                       </button>
                     )}
                   </td>
+
+                  {/* Allocation cell */}
+                  <td
+                    className="px-5 py-3.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <AllocationBadge
+                      record={row}
+                      onAllocate={(e) => {
+                        e.stopPropagation();
+                        setAllocationTarget(row);
+                      }}
+                    />
+                  </td>
                 </tr>
               );
             })}
@@ -549,7 +824,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             {data.data.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-4 py-10 text-center text-slate-400 dark:text-slate-500"
                 >
                   No records found
@@ -625,6 +900,13 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                 Mark as Paid
               </button>
               <button
+                onClick={() => setShowBulkAllocate(true)}
+                disabled={bulkAllocating}
+                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition-colors"
+              >
+                {bulkAllocating ? "Allocating…" : "Allocate"}
+              </button>
+              <button
                 onClick={() => setCheckedIds(new Set())}
                 className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
               >
@@ -650,6 +932,24 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
         <AddInvoiceModal
           onClose={() => setShowAddModal(false)}
           onSaved={handleInvoiceSaved}
+        />
+      )}
+
+      {/* ── Allocation dialog (single) ── */}
+      {allocationTarget && (
+        <AllocationDialog
+          invoice={allocationTarget}
+          onClose={() => setAllocationTarget(null)}
+          onAllocated={handleAllocationSaved}
+        />
+      )}
+
+      {/* ── Bulk allocation dialog ── */}
+      {showBulkAllocate && (
+        <BulkAllocationDialog
+          count={selCount}
+          onClose={() => setShowBulkAllocate(false)}
+          onConfirm={handleBulkAllocate}
         />
       )}
     </div>

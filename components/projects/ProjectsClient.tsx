@@ -66,7 +66,7 @@ function UnallocatedCard({ data }: { data: UnallocatedSpend }) {
 
       <p className="text-[10px] text-slate-400 dark:text-slate-500 italic border-t border-slate-200 dark:border-slate-700 pt-2 leading-snug">
         Shared infrastructure ({formatCurrency(data.sharedInfraAllocated)}) has been allocated proportionally to projects.
-        To allocate the costs above manually, see Phase 2 (coming soon).
+        To attribute costs above to a project, use the Allocate button on the Financial Records page.
       </p>
     </div>
   );
