@@ -13,23 +13,24 @@ const usd = (v: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
 
 function fmt(key: string, v: number | undefined | null): string {
-  if (v == null || v === 0) return "—";
+  if (v == null) return "—";
   if (key === "arr_closed_mtd") return usd(v);
   return v.toLocaleString();
 }
 
 function convPct(numerator: number | undefined, denominator: number | undefined): string {
-  if (!numerator || !denominator) return "—";
+  if (denominator == null || denominator === 0) return "—";
+  if (numerator == null) return "—";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
 }
 
 function avgDeal(arr: number | undefined, deals: number | undefined): string {
-  if (!arr || !deals) return "—";
-  return `${usd(arr / deals)}/deal`;
+  if (!deals) return "—";
+  return `${usd((arr ?? 0) / deals)}/deal`;
 }
 
 function sourcePct(count: number, total: number): string {
-  if (!count || !total) return "—";
+  if (!total) return "—";
   return `${((count / total) * 100).toFixed(1)}%`;
 }
 
@@ -494,7 +495,7 @@ export function OutcomesClient({
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
-              {totalLlmMtd > 0 ? totalLlmMtd.toLocaleString() : "—"}
+              {totalLlmMtd.toLocaleString()}
             </p>
             <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">Total LLM Traffic</p>
           </div>
@@ -603,7 +604,7 @@ export function OutcomesClient({
         </p>
         <div className="flex items-end gap-4">
           <p className="text-4xl font-bold text-slate-900 dark:text-white tabular-nums">
-            {currArr > 0 ? usd(currArr) : "—"}
+            {usd(currArr)}
           </p>
           {arrDelta != null && currArr > 0 && (
             <div className={cn("flex items-center gap-1 mb-1", arrDelta >= 0 ? "text-emerald-500" : "text-rose-500")}>
