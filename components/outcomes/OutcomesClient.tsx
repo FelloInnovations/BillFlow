@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import * as RTooltip from "@radix-ui/react-tooltip";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { RefreshCw, CheckCircle2, X } from "lucide-react";
+import { RefreshCw, CheckCircle2, X, Info } from "lucide-react";
 import { MonthlyOutcomeBreakdown, MonthlyOutcomeMetrics, OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,25 @@ function computeScoped(breakdown: MonthlyOutcomeBreakdown[], scope: Scope): Outc
     }
   }
   return result;
+}
+
+// ── Tooltip wrapper (Fix 4 / Fix 6) ──────────────────────────────────────────
+
+function Tip({ content, children }: { content: string; children: React.ReactElement }) {
+  return (
+    <RTooltip.Root delayDuration={200}>
+      <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
+      <RTooltip.Portal>
+        <RTooltip.Content
+          className="z-50 max-w-[280px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-200 shadow-xl leading-snug"
+          sideOffset={6}
+        >
+          {content}
+          <RTooltip.Arrow className="fill-slate-700" />
+        </RTooltip.Content>
+      </RTooltip.Portal>
+    </RTooltip.Root>
+  );
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -262,39 +282,17 @@ function SourceRow({ label, count, total, color }: { label: string; count: numbe
   );
 }
 
-// ── Sparkline helpers ─────────────────────────────────────────────────────────
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  if (data.length < 2) return <div className="h-7" />;
+// ── Sparkline (Fix 1) ─────────────────────────────────────────────────────────
+function Sparkline({ data, color, height = 28 }: { data: number[]; color: string; height?: number }) {
+  if (data.length < 2) return <div style={{ height }} />;
   return (
-    <ResponsiveContainer width="100%" height={28}>
+    <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data.map((v, i) => ({ i, v }))} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
         <Area type="monotone" dataKey="v" stroke={color} fill={color} fillOpacity={0.15} strokeWidth={1.5} dot={false} isAnimationActive={false} />
       </AreaChart>
     </ResponsiveContainer>
   );
 }
-
-function SparkTile({ label, total, data, color, currency = false }: {
-  label: string; total: number; data: number[]; color: string; currency?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{label}</p>
-      <p className="text-xl font-bold text-slate-900 dark:text-white tabular-nums leading-tight">
-        {currency ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(total) : total.toLocaleString()}
-      </p>
-      <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-2">last 6 months</p>
-      <Sparkline data={data} color={color} />
-    </div>
-  );
-}
-
-const SPARK_TILES: { label: string; key: keyof MonthlyOutcomeMetrics; color: string; currency?: boolean }[] = [
-  { label: "LLM Traffic",  key: "llm_traffic_daily", color: "#6366f1" },
-  { label: "Demos Held",   key: "demos_held_mtd",    color: "#10b981" },
-  { label: "Closed Won",   key: "closed_won_mtd",    color: "#f59e0b" },
-  { label: "ARR Closed",   key: "arr_closed_mtd",    color: "#06b6d4", currency: true },
-];
 
 // ── Section divider ───────────────────────────────────────────────────────────
 function SectionDivider({ label }: { label: string }) {
@@ -307,8 +305,13 @@ function SectionDivider({ label }: { label: string }) {
   );
 }
 
-// ── Hero stat card (Part B) ───────────────────────────────────────────────────
-const COHORT_TOOLTIP = "Exceeds 100% because Demos Booked and Demos Held are independent monthly counts — a demo booked in one month and held in another will count in both metrics.";
+// ── Hero stat helpers ─────────────────────────────────────────────────────────
+
+// Fix 6: updated tooltip text
+const COHORT_TOOLTIP = "Demos Booked and Demos Held are measured independently per month. A demo booked in one month but held in another counts in both — so this ratio can exceed 100%.";
+
+// Fix 4: ARR card info tooltip
+const ARR_INFO_TOOLTIP = "Sum of deal amount for AI-referral contacts with closed-won deals in scope. Falls back to deal amount when current_arr__sync_ is not set.";
 
 interface SubInfo { text: string; warn: boolean }
 
@@ -319,18 +322,47 @@ function heroRatio(n: number | undefined, d: number | undefined): SubInfo {
   return { text: `${pct.toFixed(1)}%`, warn: pct > 100 };
 }
 
+// Fix 5: derive informative LLM Traffic subtitle
+function topSourceSub(chatgpt: number, perplexity: number, claude: number, other: number): string {
+  const total = chatgpt + perplexity + claude + other;
+  if (!total) return "—";
+  const sources = [
+    { name: "ChatGPT",    count: chatgpt },
+    { name: "Perplexity", count: perplexity },
+    { name: "Claude",     count: claude },
+    { name: "Other AI",   count: other },
+  ];
+  const max = Math.max(...sources.map((s) => s.count));
+  if (max === 0) return "—";
+  const tops = sources.filter((s) => s.count === max);
+  if (tops.length > 1) return "Multiple sources";
+  return `${((tops[0].count / total) * 100).toFixed(1)}% from ${tops[0].name}`;
+}
+
+// Fix 1 + Fix 4: hero card with inline sparkline and optional label tooltip
 function HeroStatCard({
-  label, value, sub, accentEmerald = false,
+  label, value, sub, accentEmerald = false, sparkData, sparkColor, labelTooltip,
 }: {
-  label: string; value: string; sub?: SubInfo; accentEmerald?: boolean;
+  label: string;
+  value: string;
+  sub?: SubInfo;
+  accentEmerald?: boolean;
+  sparkData?: number[];
+  sparkColor?: string;
+  labelTooltip?: string;
 }) {
   return (
     <div className={cn(
       "rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5",
       accentEmerald && "border-t-2 border-t-emerald-400",
     )}>
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1">
         {label}
+        {labelTooltip && (
+          <Tip content={labelTooltip}>
+            <Info className="w-3 h-3 text-slate-400 dark:text-slate-500 cursor-help shrink-0" />
+          </Tip>
+        )}
       </p>
       <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
         {value}
@@ -340,16 +372,25 @@ function HeroStatCard({
           "text-xs mt-1.5",
           sub.warn ? "text-amber-500 dark:text-amber-400" : "text-slate-400 dark:text-slate-500",
         )}>
-          {sub.warn
-            ? <span title={COHORT_TOOLTIP} className="cursor-help inline-flex items-center gap-1">{sub.text} <span className="text-[10px]">⚠</span></span>
-            : sub.text}
+          {sub.warn ? (
+            <Tip content={COHORT_TOOLTIP}>
+              <span className="cursor-help inline-flex items-center gap-1">
+                {sub.text} <span className="text-[10px]">⚠</span>
+              </span>
+            </Tip>
+          ) : sub.text}
         </p>
+      )}
+      {sparkData && sparkColor && sparkData.length >= 2 && (
+        <div className="mt-3">
+          <Sparkline data={sparkData} color={sparkColor} height={40} />
+        </div>
       )}
     </div>
   );
 }
 
-// ── Visual funnel (Part C) ────────────────────────────────────────────────────
+// ── Visual funnel ─────────────────────────────────────────────────────────────
 function VisualStage({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -361,22 +402,26 @@ function VisualStage({ label }: { label: string }) {
   );
 }
 
+// Fix 6: use Radix Tooltip instead of title attribute
 function VisualArrow({ ratio, isLast = false }: { ratio: SubInfo; isLast?: boolean }) {
+  void isLast;
   const color = ratio.warn ? "#f59e0b" : "#818cf8";
+  const labelSpan = (
+    <span
+      className={cn(
+        "text-[10px] font-bold whitespace-nowrap",
+        ratio.warn ? "text-amber-500 dark:text-amber-400 cursor-help" : "text-indigo-400",
+      )}
+    >
+      {ratio.text}{ratio.warn && " ⚠"}
+    </span>
+  );
   return (
     <div className="flex flex-col items-center gap-0.5 shrink-0">
-      <span
-        className={cn(
-          "text-[10px] font-bold whitespace-nowrap",
-          ratio.warn ? "text-amber-500 dark:text-amber-400 cursor-help" : "text-indigo-400",
-        )}
-        title={ratio.warn ? COHORT_TOOLTIP : undefined}
-      >
-        {ratio.text}{ratio.warn && " ⚠"}
-      </span>
+      {ratio.warn ? <Tip content={COHORT_TOOLTIP}>{labelSpan}</Tip> : labelSpan}
       <svg width="28" height="14" viewBox="0 0 28 14">
         <path
-          d={isLast ? "M0 7 H22 M16 2 L26 7 L16 12" : "M0 7 H22 M16 2 L26 7 L16 12"}
+          d="M0 7 H22 M16 2 L26 7 L16 12"
           stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"
         />
       </svg>
@@ -429,7 +474,7 @@ export function OutcomesClient({
     return () => clearTimeout(t);
   }, [toast]);
 
-  const scoped    = useMemo(() => computeScoped(monthlyBreakdown, scope), [monthlyBreakdown, scope]);
+  const scoped     = useMemo(() => computeScoped(monthlyBreakdown, scope), [monthlyBreakdown, scope]);
   const scopeLabel = getScopeLabel(scope);
 
   const fetchData = useCallback(async (r: Range) => {
@@ -496,7 +541,7 @@ export function OutcomesClient({
   const won    = (scoped.closed_won_mtd    as number) ?? 0;
   const arr    = (scoped.arr_closed_mtd    as number) ?? 0;
 
-  const avgDealStr = won > 0 ? `${usd(arr / won)} / deal` : "—";
+  const avgDealStr = won > 0 ? `${usd(arr / won)}/deal` : "—";
 
   const chatgptS    = (scoped.llm_chatgpt_daily    as number) ?? 0;
   const perplexityS = (scoped.llm_perplexity_daily as number) ?? 0;
@@ -512,268 +557,276 @@ export function OutcomesClient({
     (d) => d.ChatGPT + d.Perplexity + d.Claude + d["Other AI"] > 0,
   );
 
+  // Fix 1: last 6 months oldest-first for hero sparklines
   const spark6       = monthlyBreakdown.slice(0, 6).reverse();
   const currentMonth = new Date().toISOString().substring(0, 7);
 
-  // Hero stat sub-labels (Part D: >100% = amber + tooltip)
+  const heroSparks = {
+    llm:    spark6.map((m) => m.metrics.llm_traffic_daily),
+    booked: spark6.map((m) => m.metrics.demos_booked_mtd),
+    held:   spark6.map((m) => m.metrics.demos_held_mtd),
+    won:    spark6.map((m) => m.metrics.closed_won_mtd),
+    arr:    spark6.map((m) => m.metrics.arr_closed_mtd),
+  };
+
+  // Hero sub-labels
   const bookedSub = heroRatio(booked, llm);
   const heldSub   = heroRatio(held, booked);
   const wonSub    = heroRatio(won, held);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl">
+    <RTooltip.Provider delayDuration={200}>
+      <div className="p-6 space-y-6 max-w-7xl">
 
-      {/* ── Section 1: Header ─────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Arthur — Business Outcomes</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">AI referral funnel · HubSpot</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={scope} onChange={(e) => setScope(e.target.value as Scope)}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
-            {SCOPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">Last synced: {syncedLabel}</span>
-          <button onClick={syncNow} disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors">
-            <RefreshCw className={cn("w-3.5 h-3.5", syncing && "animate-spin")} />
-            Sync Now
-          </button>
-          <button onClick={() => setLogOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-            Log Metrics
-          </button>
-          <button onClick={() => setBackfillOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-            Backfill
-          </button>
-        </div>
-      </div>
-
-      {/* ── Section 2: Hero Stats Row ─────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
-        <HeroStatCard
-          label="LLM Traffic"
-          value={llm.toLocaleString()}
-          sub={{ text: scopeLabel, warn: false }}
-        />
-        <HeroStatCard
-          label="Demos Booked"
-          value={booked.toLocaleString()}
-          sub={{ text: bookedSub.text === "—" ? "—" : `${bookedSub.text} of traffic`, warn: bookedSub.warn }}
-        />
-        <HeroStatCard
-          label="Demos Held"
-          value={held.toLocaleString()}
-          sub={{ text: heldSub.text === "—" ? "—" : `${heldSub.text} of booked`, warn: heldSub.warn }}
-        />
-        <HeroStatCard
-          label="Closed Won"
-          value={won.toLocaleString()}
-          sub={{ text: wonSub.text === "—" ? "—" : `${wonSub.text} of held`, warn: wonSub.warn }}
-        />
-        <HeroStatCard
-          label="ARR Closed"
-          value={usd(arr)}
-          sub={{ text: "Sum of deal amount for AI-referral contacts with closed-won deals in scope. Falls back to deal amount when current_arr__sync_ is not set.", warn: false }}
-          accentEmerald
-        />
-      </div>
-
-      {/* ── Section 3: Traffic Sources + Visual Funnel ────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        {/* Left 40%: AI Traffic Sources (compact, no giant total) */}
-        <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-            AI Traffic Sources
-          </p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{scopeLabel}</p>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            <SourceRow label="ChatGPT"    count={chatgptS}    total={totalLlmS} color={SOURCE_COLORS.ChatGPT} />
-            <SourceRow label="Perplexity" count={perplexityS} total={totalLlmS} color={SOURCE_COLORS.Perplexity} />
-            <SourceRow label="Claude"     count={claudeS}     total={totalLlmS} color={SOURCE_COLORS.Claude} />
-            <SourceRow label="Other AI"   count={otherS}      total={totalLlmS} color={SOURCE_COLORS["Other AI"]} />
+        {/* ── Section 1: Header ───────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Arthur — Business Outcomes</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">AI referral funnel · HubSpot</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={scope} onChange={(e) => setScope(e.target.value as Scope)}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+              {SCOPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">Last synced: {syncedLabel}</span>
+            <button onClick={syncNow} disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors">
+              <RefreshCw className={cn("w-3.5 h-3.5", syncing && "animate-spin")} />
+              Sync Now
+            </button>
+            <button onClick={() => setLogOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+              Log Metrics
+            </button>
+            <button onClick={() => setBackfillOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+              Backfill
+            </button>
           </div>
         </div>
 
-        {/* Right 60%: Visual funnel — labels + arrows only (values are in hero row) */}
-        <div className="lg:col-span-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex flex-col justify-between">
-          <div>
+        {/* ── Section 2: Hero Stats Row (Fix 1: inline sparklines) ────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+          {/* Fix 5: LLM Traffic subtitle = top source breakdown */}
+          <HeroStatCard
+            label="LLM Traffic"
+            value={llm.toLocaleString()}
+            sub={{ text: topSourceSub(chatgptS, perplexityS, claudeS, otherS), warn: false }}
+            sparkData={heroSparks.llm}
+            sparkColor="#6366f1"
+          />
+          <HeroStatCard
+            label="Demos Booked"
+            value={booked.toLocaleString()}
+            sub={{ text: bookedSub.text === "—" ? "—" : `${bookedSub.text} of traffic`, warn: bookedSub.warn }}
+            sparkData={heroSparks.booked}
+            sparkColor="#818cf8"
+          />
+          <HeroStatCard
+            label="Demos Held"
+            value={held.toLocaleString()}
+            sub={{ text: heldSub.text === "—" ? "—" : `${heldSub.text} of booked`, warn: heldSub.warn }}
+            sparkData={heroSparks.held}
+            sparkColor="#10b981"
+          />
+          <HeroStatCard
+            label="Closed Won"
+            value={won.toLocaleString()}
+            sub={{ text: wonSub.text === "—" ? "—" : `${wonSub.text} of held`, warn: wonSub.warn }}
+            sparkData={heroSparks.won}
+            sparkColor="#f59e0b"
+          />
+          {/* Fix 4: single-line subtitle + ⓘ tooltip for fallback explanation */}
+          <HeroStatCard
+            label="ARR Closed"
+            value={usd(arr)}
+            sub={{ text: avgDealStr, warn: false }}
+            accentEmerald
+            sparkData={heroSparks.arr}
+            sparkColor="#06b6d4"
+            labelTooltip={ARR_INFO_TOOLTIP}
+          />
+        </div>
+
+        {/* ── Section 3: Traffic Sources + Visual Funnel ──────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+          {/* Left 40%: AI Traffic Sources */}
+          <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-              AI Referral Funnel
+              AI Traffic Sources
             </p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">{scopeLabel}</p>
-            <div className="flex flex-wrap items-center justify-center gap-2 py-2">
-              <VisualStage label="LLM Traffic" />
-              <VisualArrow ratio={bookedSub.text === "—" ? { text: "—", warn: false } : { text: `${bookedSub.text}`, warn: bookedSub.warn }} />
-              <VisualStage label="Demos Booked" />
-              <VisualArrow ratio={heldSub.text === "—" ? { text: "—", warn: false } : { text: `${heldSub.text}`, warn: heldSub.warn }} />
-              <VisualStage label="Demos Held" />
-              <VisualArrow ratio={wonSub.text === "—" ? { text: "—", warn: false } : { text: `${wonSub.text}`, warn: wonSub.warn }} />
-              <VisualStage label="Closed Won" />
-              <VisualArrow ratio={{ text: won > 0 ? usd(arr / won).replace("$", "$") + "/deal" : "—", warn: false }} isLast />
-              <VisualStage label="ARR Closed" />
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{scopeLabel}</p>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              <SourceRow label="ChatGPT"    count={chatgptS}    total={totalLlmS} color={SOURCE_COLORS.ChatGPT} />
+              <SourceRow label="Perplexity" count={perplexityS} total={totalLlmS} color={SOURCE_COLORS.Perplexity} />
+              <SourceRow label="Claude"     count={claudeS}     total={totalLlmS} color={SOURCE_COLORS.Claude} />
+              <SourceRow label="Other AI"   count={otherS}      total={totalLlmS} color={SOURCE_COLORS["Other AI"]} />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 italic mt-4 leading-snug border-t border-slate-100 dark:border-slate-800 pt-3">
-            Demos Booked and Demos Held are measured independently per month — a demo booked in one month and held in another will count in both metrics.
-          </p>
+
+          {/* Right 60%: Visual funnel — labels + arrows only */}
+          <div className="lg:col-span-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                AI Referral Funnel
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">{scopeLabel}</p>
+              <div className="flex flex-wrap items-center justify-center gap-2 py-2">
+                <VisualStage label="LLM Traffic" />
+                <VisualArrow ratio={bookedSub.text === "—" ? { text: "—", warn: false } : { text: bookedSub.text, warn: bookedSub.warn }} />
+                <VisualStage label="Demos Booked" />
+                <VisualArrow ratio={heldSub.text === "—" ? { text: "—", warn: false } : { text: heldSub.text, warn: heldSub.warn }} />
+                <VisualStage label="Demos Held" />
+                <VisualArrow ratio={wonSub.text === "—" ? { text: "—", warn: false } : { text: wonSub.text, warn: wonSub.warn }} />
+                <VisualStage label="Closed Won" />
+                <VisualArrow ratio={{ text: won > 0 ? `${usd(arr / won)}/deal` : "—", warn: false }} isLast />
+                <VisualStage label="ARR Closed" />
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 italic mt-4 leading-snug border-t border-slate-100 dark:border-slate-800 pt-3">
+              Demos Booked and Demos Held are measured independently per month — a demo booked in one month and held in another will count in both metrics.
+            </p>
+          </div>
         </div>
-      </div>
 
-      <SectionDivider label="Monthly History" />
+        {/* Fix 1 + Fix 2: standalone sparkline row and "Monthly History" divider removed */}
 
-      {/* ── Section 4: Sparkline tiles ────────────────────────────────── */}
-      {spark6.length > 0 && (
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm px-6 py-5 grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {SPARK_TILES.map(({ label, key, color, currency }) => (
-            <SparkTile
-              key={key}
-              label={label}
-              total={spark6.reduce((s, m) => s + m.metrics[key], 0)}
-              data={spark6.map((m) => m.metrics[key])}
-              color={color}
-              currency={currency}
-            />
+        {/* ── Section 4: Monthly Performance table ────────────────────── */}
+        {monthlyBreakdown.length > 0 && (() => {
+          const usdFmt = (v: number) =>
+            new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
+          return (
+            <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Performance</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">All months with data · newest first</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Month</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide whitespace-nowrap">LLM Traffic</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap border-l border-slate-100 dark:border-slate-800">ChatGPT</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Perplexity</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Claude</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Other</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Demos Booked</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Demos Held</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Closed Won</th>
+                      <th className="text-right px-6 py-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide whitespace-nowrap">ARR Closed</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {monthlyBreakdown.map((row) => {
+                      const isCurrent = row.month === currentMonth;
+                      const m = row.metrics;
+                      return (
+                        <tr key={row.month} className={cn(
+                          "hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors",
+                          isCurrent && "bg-indigo-50/40 dark:bg-indigo-950/20",
+                        )}>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <span className={cn("font-medium text-slate-800 dark:text-slate-200", isCurrent && "font-semibold")}>{row.monthLabel}</span>
+                            {isCurrent && (
+                              <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 uppercase tracking-wide align-middle">current</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{m.llm_traffic_daily.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap border-l border-slate-100 dark:border-slate-800">{m.llm_chatgpt_daily.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_perplexity_daily.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_claude_daily.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_other_daily.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.demos_booked_mtd.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.demos_held_mtd.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.closed_won_mtd.toLocaleString()}</td>
+                          <td className="px-6 py-3 text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{usdFmt(m.arr_closed_mtd)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+
+        <SectionDivider label="Daily Activity" />
+
+        {/* ── Section 5: Range toggle ──────────────────────────────────── */}
+        <div className="flex items-center gap-1">
+          {(["7D", "30D", "MTD"] as Range[]).map((r) => (
+            <button key={r} onClick={() => handleRangeChange(r)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-colors",
+                range === r ? "bg-indigo-600 text-white" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800",
+              )}>
+              {r}
+            </button>
           ))}
         </div>
-      )}
 
-      {/* ── Section 4 cont: Monthly Performance table ─────────────────── */}
-      {monthlyBreakdown.length > 0 && (() => {
-        const usdFmt = (v: number) =>
-          new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
-        return (
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Performance</h3>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">All months with data · newest first</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800">
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Month</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide whitespace-nowrap">LLM Traffic</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap border-l border-slate-100 dark:border-slate-800">ChatGPT</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Perplexity</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Claude</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Other</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Demos Booked</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Demos Held</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Closed Won</th>
-                    <th className="text-right px-6 py-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide whitespace-nowrap">ARR Closed</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {monthlyBreakdown.map((row) => {
-                    const isCurrent = row.month === currentMonth;
-                    const m = row.metrics;
-                    return (
-                      <tr key={row.month} className={cn(
-                        "hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors",
-                        isCurrent && "bg-indigo-50/40 dark:bg-indigo-950/20",
-                      )}>
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          <span className={cn("font-medium text-slate-800 dark:text-slate-200", isCurrent && "font-semibold")}>{row.monthLabel}</span>
-                          {isCurrent && (
-                            <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 uppercase tracking-wide align-middle">current</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{m.llm_traffic_daily.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap border-l border-slate-100 dark:border-slate-800">{m.llm_chatgpt_daily.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_perplexity_daily.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_claude_daily.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_other_daily.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.demos_booked_mtd.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.demos_held_mtd.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.closed_won_mtd.toLocaleString()}</td>
-                        <td className="px-6 py-3 text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{usdFmt(m.arr_closed_mtd)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+        {/* ── Section 5: Charts ───────────────────────────────────────── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">AI Referral Traffic by Source</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Daily contacts by originating LLM platform</p>
+            {hasTrafficData ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={trafficData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="ChatGPT"    stackId="s" stroke={SOURCE_COLORS.ChatGPT}    fill={SOURCE_COLORS.ChatGPT}    fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="Perplexity" stackId="s" stroke={SOURCE_COLORS.Perplexity} fill={SOURCE_COLORS.Perplexity} fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="Claude"     stackId="s" stroke={SOURCE_COLORS.Claude}     fill={SOURCE_COLORS.Claude}     fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="Other AI"   stackId="s" stroke={SOURCE_COLORS["Other AI"]} fill={SOURCE_COLORS["Other AI"]} fillOpacity={0.35} strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">No data for this range</div>
+            )}
           </div>
-        );
-      })()}
 
-      <SectionDivider label="Daily Activity" />
-
-      {/* ── Section 5: Range toggle ───────────────────────────────────── */}
-      <div className="flex items-center gap-1">
-        {(["7D", "30D", "MTD"] as Range[]).map((r) => (
-          <button key={r} onClick={() => handleRangeChange(r)}
-            className={cn(
-              "px-3 py-1.5 text-xs font-bold rounded-lg transition-colors",
-              range === r ? "bg-indigo-600 text-white" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800",
-            )}>
-            {r}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Section 5: Charts ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">AI Referral Traffic by Source</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Daily contacts by originating LLM platform</p>
-          {hasTrafficData ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={trafficData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Area type="monotone" dataKey="ChatGPT"    stackId="s" stroke={SOURCE_COLORS.ChatGPT}    fill={SOURCE_COLORS.ChatGPT}    fillOpacity={0.35} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="Perplexity" stackId="s" stroke={SOURCE_COLORS.Perplexity} fill={SOURCE_COLORS.Perplexity} fillOpacity={0.35} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="Claude"     stackId="s" stroke={SOURCE_COLORS.Claude}     fill={SOURCE_COLORS.Claude}     fillOpacity={0.35} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="Other AI"   stackId="s" stroke={SOURCE_COLORS["Other AI"]} fill={SOURCE_COLORS["Other AI"]} fillOpacity={0.35} strokeWidth={1.5} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">No data for this range</div>
-          )}
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">Demos</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Daily demos booked vs. held</p>
+            {demosData.some((d) => d["Demos Booked"] > 0 || d["Demos Held"] > 0) ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={demosData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="Demos Booked" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Demos Held"   fill="#10b981" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">No data for this range</div>
+            )}
+          </div>
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">Demos</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Daily demos booked vs. held</p>
-          {demosData.some((d) => d["Demos Booked"] > 0 || d["Demos Held"] > 0) ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={demosData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Demos Booked" fill="#6366f1" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="Demos Held"   fill="#10b981" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-[220px] text-sm text-slate-400">No data for this range</div>
-          )}
-        </div>
+        {/* ── Modals ──────────────────────────────────────────────────── */}
+        {backfillOpen && (
+          <BackfillModal
+            onClose={() => setBackfillOpen(false)}
+            onDone={() => { setToast({ msg: "Backfill complete", type: "success" }); fetchData(range); }}
+          />
+        )}
+        {logOpen && (
+          <LogModal
+            projectId={projectId} config={config}
+            onClose={() => setLogOpen(false)}
+            onSaved={() => { setLogOpen(false); setToast({ msg: "Metrics logged successfully", type: "success" }); fetchData(range); }}
+          />
+        )}
+        {toast && <Toast msg={toast.msg} type={toast.type} />}
       </div>
-
-      {/* ── Modals ─────────────────────────────────────────────────────── */}
-      {backfillOpen && (
-        <BackfillModal
-          onClose={() => setBackfillOpen(false)}
-          onDone={() => { setToast({ msg: "Backfill complete", type: "success" }); fetchData(range); }}
-        />
-      )}
-      {logOpen && (
-        <LogModal
-          projectId={projectId} config={config}
-          onClose={() => setLogOpen(false)}
-          onSaved={() => { setLogOpen(false); setToast({ msg: "Metrics logged successfully", type: "success" }); fetchData(range); }}
-        />
-      )}
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
-    </div>
+    </RTooltip.Provider>
   );
 }
