@@ -34,11 +34,33 @@ const TOOLTIP_CONTENT_CLS =
 function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: number }) {
   const expense = project.expenseBreakdown;
   const { totalSpend } = project;
+  const method = expense?.breakdown.openrouter.allocationMethod ?? "none";
 
+  // No linked OR key → "No spend data" with explanation tooltip
+  if (method === "none") {
+    return (
+      <div className="text-right shrink-0">
+        <RTooltip.Root delayDuration={150}>
+          <RTooltip.Trigger asChild>
+            <p className="text-xs text-slate-400 dark:text-slate-500 italic cursor-help">No spend data</p>
+          </RTooltip.Trigger>
+          <RTooltip.Portal>
+            <RTooltip.Content className={TOOLTIP_CONTENT_CLS} sideOffset={6} side="left">
+              No OpenRouter API key linked to this project. Spend cannot be tracked here.
+              <RTooltip.Arrow className="fill-slate-700" />
+            </RTooltip.Content>
+          </RTooltip.Portal>
+        </RTooltip.Root>
+      </div>
+    );
+  }
+
+  // Has a linked key but zero recorded spend
   if (!expense || totalSpend == null || totalSpend === 0) {
     return (
       <div className="text-right shrink-0">
-        <p className="text-xs text-slate-400 dark:text-slate-500 italic">No spend data</p>
+        <p className="font-bold text-slate-900 dark:text-white text-sm">$0.00</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">OpenRouter $0.00</p>
       </div>
     );
   }

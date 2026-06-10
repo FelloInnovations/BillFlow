@@ -141,16 +141,14 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     invQuery,
   ]);
 
-  // Latest cumulative snapshot per key
-  const latestSnap = new Map<string, { month: string; total: number }>();
+  // Sum ALL monthly snapshot rows per key — usage_total is per-month spend, not cumulative.
+  // Taking only the latest row was the bug: it showed only the most recent month.
+  const orKeySpend = new Map<string, number>();
   for (const snap of snapshots ?? []) {
     const k = (snap.key_name as string).toLowerCase();
-    const month = snap.month as string;
     const total = Number(snap.usage_total ?? 0);
-    const existing = latestSnap.get(k);
-    if (!existing || month > existing.month) latestSnap.set(k, { month, total });
+    orKeySpend.set(k, (orKeySpend.get(k) ?? 0) + total);
   }
-  const orKeySpend = new Map([...latestSnap.entries()].map(([k, v]) => [k, v.total]));
 
   // Deduplicated project list + bidirectional key maps
   const keyToProjects = new Map<string, string[]>();
@@ -373,6 +371,22 @@ export async function getAllProjectsExpense(
   const result = new Map<string, ProjectExpense>();
   for (const p of raw.projects) {
     result.set(p.name, computeProjectExpense(p.name, scope, raw));
+  }
+
+  // Reconciliation: Σ(project OR) + unlinked OR ≈ snapshot grand total.
+  // Catches regressions where the aggregation drifts from the Activity page source.
+  if (scope === "all_time") {
+    const projectOrTotal = [...result.values()].reduce((s, e) => s + e.breakdown.openrouter.value, 0);
+    const unlinkedOrTotal = [...raw.orKeySpend.entries()]
+      .filter(([k]) => !raw.keyToProjects.has(k))
+      .reduce((s, [, v]) => s + v, 0);
+    const snapshotTotal = [...raw.orKeySpend.values()].reduce((s, v) => s + v, 0);
+    const diff = Math.abs((projectOrTotal + unlinkedOrTotal) - snapshotTotal);
+    if (diff > 5.0) {
+      console.error(
+        `[project-expense] reconciliation mismatch: projects=$${projectOrTotal.toFixed(2)} + unlinked=$${unlinkedOrTotal.toFixed(2)} = $${(projectOrTotal + unlinkedOrTotal).toFixed(2)} vs snapshots=$${snapshotTotal.toFixed(2)} (diff=$${diff.toFixed(2)}) — check loadRawData snapshot aggregation`,
+      );
+    }
   }
 
   setCache(cacheKey, result);
