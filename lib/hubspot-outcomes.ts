@@ -4,6 +4,17 @@ function authHeader() {
   return { Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_TOKEN}` };
 }
 
+async function hsGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { ...authHeader(), "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`HubSpot GET ${path}: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 async function hsPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -39,6 +50,30 @@ function monthRange(date: string): { start: number; end: number } {
     start: Date.UTC(y, m - 1, 1, 0, 0, 0, 0),
     end:   Date.UTC(y, m - 1, d, 23, 59, 59, 999),
   };
+}
+
+// Cache closed-won stage IDs (fetched once per cold start; this portal uses numeric IDs)
+let _closedWonStageIds: string[] | null = null;
+
+export async function getClosedWonStageIds(): Promise<string[]> {
+  if (_closedWonStageIds) return _closedWonStageIds;
+  try {
+    const data = await hsGet<{
+      results: { stages: { id: string; metadata?: { probability?: string } }[] }[];
+    }>("/crm/v3/pipelines/deals");
+    const ids: string[] = [];
+    for (const pipeline of data.results ?? []) {
+      for (const stage of pipeline.stages ?? []) {
+        if (stage.metadata?.probability === "1.0") {
+          ids.push(stage.id);
+        }
+      }
+    }
+    _closedWonStageIds = ids.length ? ids : ["closedwon"];
+  } catch {
+    _closedWonStageIds = ["closedwon"];
+  }
+  return _closedWonStageIds;
 }
 
 // Total count only — single request, uses HubSpot's total field
@@ -110,7 +145,7 @@ async function batchReadMeetings(ids: string[]): Promise<HsMeeting[]> {
       "/crm/v3/objects/meetings/batch/read",
       {
         inputs: ids.slice(i, i + 100).map((id) => ({ id })),
-        properties: ["hs_meeting_outcome", "createdate"],
+        properties: ["hs_meeting_outcome", "createdate", "hs_timestamp"],
       },
     );
     results.push(...(data.results ?? []));
@@ -142,7 +177,8 @@ export interface AiReferralSnapshot {
     platform: "chatgpt" | "perplexity" | "claude" | "other";
     arr: number;
   }[];
-  meetings: { createdate: number; outcome: string }[];
+  // timestamp = hs_timestamp (actual meeting time); createdate = record creation time
+  meetings: { timestamp: number; createdate: number; outcome: string }[];
   deals: { closedate: number | null; stage: string; contactIds: string[] }[];
 }
 
@@ -193,7 +229,8 @@ export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
       };
     }),
     meetings: rawMeetings.map((m) => ({
-      createdate: parseInt(m.properties.createdate ?? "0", 10),
+      timestamp:  parseInt(m.properties.hs_timestamp ?? "0", 10),
+      createdate: parseInt(m.properties.createdate   ?? "0", 10),
       outcome:    m.properties.hs_meeting_outcome ?? "",
     })),
     deals: rawDeals.map((d) => ({
@@ -232,10 +269,10 @@ export async function getLlmBreakdown(
   const counts = { chatgpt: 0, perplexity: 0, claude: 0, other: 0 };
   for (const c of contacts) {
     const src = (c.properties.hs_analytics_source_data_1 ?? "").toLowerCase();
-    if (src.includes("chatgpt"))      counts.chatgpt++;
+    if (src.includes("chatgpt"))         counts.chatgpt++;
     else if (src.includes("perplexity")) counts.perplexity++;
-    else if (src.includes("claude"))  counts.claude++;
-    else                              counts.other++;
+    else if (src.includes("claude"))     counts.claude++;
+    else                                 counts.other++;
   }
   return counts;
 }
@@ -247,8 +284,9 @@ export async function getDemosBookedMtd(date: string): Promise<{ count: number }
   if (!meetingIds.length) return { count: 0 };
   const meetings = await batchReadMeetings(meetingIds);
   const { start, end } = monthRange(date);
+  // Filter by hs_timestamp (actual meeting time) so we count demos scheduled for this month
   const count = meetings.filter((m) => {
-    const ts = parseInt(m.properties.createdate ?? "0", 10);
+    const ts = parseInt(m.properties.hs_timestamp ?? "0", 10);
     return m.properties.hs_meeting_outcome === "SCHEDULED" && ts >= start && ts <= end;
   }).length;
   return { count };
@@ -261,15 +299,19 @@ export async function getDemosHeldMtd(date: string): Promise<{ count: number }> 
   if (!meetingIds.length) return { count: 0 };
   const meetings = await batchReadMeetings(meetingIds);
   const { start, end } = monthRange(date);
+  // Filter by hs_timestamp (actual meeting time) so we count demos held this month
   const count = meetings.filter((m) => {
-    const ts = parseInt(m.properties.createdate ?? "0", 10);
+    const ts = parseInt(m.properties.hs_timestamp ?? "0", 10);
     return m.properties.hs_meeting_outcome === "COMPLETED" && ts >= start && ts <= end;
   }).length;
   return { count };
 }
 
 export async function getClosedWonMtd(date: string): Promise<{ count: number }> {
-  const contacts = await getAllContacts([AI_REFERRALS]);
+  const [contacts, closedWonIds] = await Promise.all([
+    getAllContacts([AI_REFERRALS]),
+    getClosedWonStageIds(),
+  ]);
   if (!contacts.length) return { count: 0 };
   const dealIds = await batchAssociations(contacts.map((c) => c.id), "deals");
   if (!dealIds.length) return { count: 0 };
@@ -277,16 +319,19 @@ export async function getClosedWonMtd(date: string): Promise<{ count: number }> 
   const { start, end } = monthRange(date);
   const count = deals.filter((d) => {
     const ts = d.properties.closedate ? new Date(d.properties.closedate).getTime() : 0;
-    return d.properties.dealstage === "closedwon" && ts >= start && ts <= end;
+    return closedWonIds.includes(d.properties.dealstage ?? "") && ts >= start && ts <= end;
   }).length;
   return { count };
 }
 
 export async function getArrClosedMtd(date: string): Promise<{ total: number }> {
-  const contacts = await getAllContacts(
-    [AI_REFERRALS, { propertyName: "current_arr__sync_", operator: "HAS_PROPERTY" }],
-    ["current_arr__sync_"],
-  );
+  const [contacts, closedWonIds] = await Promise.all([
+    getAllContacts(
+      [AI_REFERRALS, { propertyName: "current_arr__sync_", operator: "HAS_PROPERTY" }],
+      ["current_arr__sync_"],
+    ),
+    getClosedWonStageIds(),
+  ]);
   if (!contacts.length) return { total: 0 };
 
   const contactIds = contacts.map((c) => c.id);
@@ -300,7 +345,7 @@ export async function getArrClosedMtd(date: string): Promise<{ total: number }> 
     deals
       .filter((d) => {
         const ts = d.properties.closedate ? new Date(d.properties.closedate).getTime() : 0;
-        return d.properties.dealstage === "closedwon" && ts >= start && ts <= end;
+        return closedWonIds.includes(d.properties.dealstage ?? "") && ts >= start && ts <= end;
       })
       .map((d) => d.id),
   );

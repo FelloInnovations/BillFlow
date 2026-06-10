@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getAllAiReferralData } from "@/lib/hubspot-outcomes";
+import { getAllAiReferralData, getClosedWonStageIds } from "@/lib/hubspot-outcomes";
 
 function serviceClient() {
   return createClient(
@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Single bulk fetch from HubSpot — no per-date calls
-  const snap = await getAllAiReferralData();
+  const [snap, closedWonIds] = await Promise.all([
+    getAllAiReferralData(),
+    getClosedWonStageIds(),
+  ]);
 
   // Tally daily contact arrivals per date
   const dailyMap = new Map<string, { chatgpt: number; perplexity: number; claude: number; other: number }>();
@@ -84,16 +87,18 @@ export async function POST(req: NextRequest) {
     const mStart = Date.UTC(ey, em - 1, 1, 0, 0, 0, 0);
     const mEnd   = Date.UTC(ey, em - 1, ed, 23, 59, 59, 999);
 
+    // Use hs_timestamp (actual meeting time) not createdate (record creation time)
     const demosBooked = snap.meetings.filter(
-      (m) => m.outcome === "SCHEDULED" && m.createdate >= mStart && m.createdate <= mEnd,
+      (m) => m.outcome === "SCHEDULED" && m.timestamp >= mStart && m.timestamp <= mEnd,
     ).length;
 
     const demosHeld = snap.meetings.filter(
-      (m) => m.outcome === "COMPLETED" && m.createdate >= mStart && m.createdate <= mEnd,
+      (m) => m.outcome === "COMPLETED" && m.timestamp >= mStart && m.timestamp <= mEnd,
     ).length;
 
+    // This portal uses numeric stage IDs; closedWonIds resolved from /crm/v3/pipelines/deals
     const wonDeals = snap.deals.filter(
-      (d) => d.stage === "closedwon" && d.closedate != null && d.closedate >= mStart && d.closedate <= mEnd,
+      (d) => closedWonIds.includes(d.stage) && d.closedate != null && d.closedate >= mStart && d.closedate <= mEnd,
     );
 
     const wonContactIds = new Set(wonDeals.flatMap((d) => d.contactIds));
