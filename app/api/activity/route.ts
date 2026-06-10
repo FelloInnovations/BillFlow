@@ -13,11 +13,11 @@ export async function GET() {
       .neq("openrouter_api_key", ""),
     supabase
       .from("openrouter_usage_snapshots")
-      .select("key_name, month, usage_total")
+      .select("key_name, month, usage_total, account_name")
       .order("month", { ascending: true }),
     supabase
       .from("api_invocation_logs")
-      .select("key_name, model")
+      .select("key_name, model, account_name")
       .not("model", "is", null),
     supabase
       .from("openrouter_usage_snapshots")
@@ -78,12 +78,17 @@ export async function GET() {
 
   // Group snapshots by exact key_name — skip keys not in portfolio allowlist or hidden
   const snapshotsByKey: Record<string, { month: string; usage_total: number }[]> = {};
+  const accountNameByKey: Record<string, string | null> = {};
   for (const snap of snapshots) {
     const k = snap.key_name as string;
     if (!allowedKeyNames.has(k)) continue;
     if (hiddenOrKeys.has(k)) continue;
     if (!snapshotsByKey[k]) snapshotsByKey[k] = [];
     snapshotsByKey[k].push({ month: snap.month as string, usage_total: Number(snap.usage_total) });
+    // Take first non-null account_name seen for this key
+    if (accountNameByKey[k] == null && snap.account_name != null) {
+      accountNameByKey[k] = snap.account_name as string;
+    }
   }
 
   const currentMonth = new Date().toISOString().substring(0, 7);
@@ -134,6 +139,7 @@ export async function GET() {
 
     return {
       key_name:            keyName,
+      account_name:        accountNameByKey[keyName] ?? null,
       project_name:        projectInfo?.name ?? keyName,
       project_status:      projectInfo?.status ?? null,
       monthly,

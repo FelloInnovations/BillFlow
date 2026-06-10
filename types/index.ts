@@ -146,6 +146,7 @@ export interface ForecastResult {
 
 export interface ActivityKeyData {
   key_name: string;
+  account_name: string | null;
   project_name: string;
   project_status: string | null;
   monthly: { month: string; spend: number }[];
