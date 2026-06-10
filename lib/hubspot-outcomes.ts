@@ -229,8 +229,9 @@ export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
       };
     }),
     meetings: rawMeetings.map((m) => ({
-      timestamp:  parseInt(m.properties.hs_timestamp ?? "0", 10),
-      createdate: parseInt(m.properties.createdate   ?? "0", 10),
+      // hs_timestamp is ISO string ("2026-04-22T19:00:00Z"); createdate is epoch ms string
+      timestamp:  m.properties.hs_timestamp ? new Date(m.properties.hs_timestamp).getTime() : 0,
+      createdate: parseInt(m.properties.createdate ?? "0", 10),
       outcome:    m.properties.hs_meeting_outcome ?? "",
     })),
     deals: rawDeals.map((d) => ({
@@ -284,9 +285,9 @@ export async function getDemosBookedMtd(date: string): Promise<{ count: number }
   if (!meetingIds.length) return { count: 0 };
   const meetings = await batchReadMeetings(meetingIds);
   const { start, end } = monthRange(date);
-  // Filter by hs_timestamp (actual meeting time) so we count demos scheduled for this month
+  // hs_timestamp is ISO string — parse with Date, not parseInt
   const count = meetings.filter((m) => {
-    const ts = parseInt(m.properties.hs_timestamp ?? "0", 10);
+    const ts = m.properties.hs_timestamp ? new Date(m.properties.hs_timestamp).getTime() : 0;
     return m.properties.hs_meeting_outcome === "SCHEDULED" && ts >= start && ts <= end;
   }).length;
   return { count };
@@ -299,9 +300,9 @@ export async function getDemosHeldMtd(date: string): Promise<{ count: number }> 
   if (!meetingIds.length) return { count: 0 };
   const meetings = await batchReadMeetings(meetingIds);
   const { start, end } = monthRange(date);
-  // Filter by hs_timestamp (actual meeting time) so we count demos held this month
+  // hs_timestamp is ISO string — parse with Date, not parseInt
   const count = meetings.filter((m) => {
-    const ts = parseInt(m.properties.hs_timestamp ?? "0", 10);
+    const ts = m.properties.hs_timestamp ? new Date(m.properties.hs_timestamp).getTime() : 0;
     return m.properties.hs_meeting_outcome === "COMPLETED" && ts >= start && ts <= end;
   }).length;
   return { count };
