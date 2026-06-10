@@ -133,6 +133,77 @@ async function batchReadDeals(ids: string[]): Promise<HsDeal[]> {
   return results;
 }
 
+// ── Bulk snapshot (used by backfill) ─────────────────────────────────────────
+
+export interface AiReferralSnapshot {
+  contacts: {
+    id: string;
+    createdate: string;
+    platform: "chatgpt" | "perplexity" | "claude" | "other";
+    arr: number;
+  }[];
+  meetings: { createdate: number; outcome: string }[];
+  deals: { closedate: number | null; stage: string; contactIds: string[] }[];
+}
+
+export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
+  const raw = await getAllContacts(
+    [AI_REFERRALS],
+    ["createdate", "hs_analytics_source_data_1", "current_arr__sync_"],
+  );
+
+  if (!raw.length) return { contacts: [], meetings: [], deals: [] };
+
+  const ids = raw.map((c) => c.id);
+
+  const [meetingMap, dealMap] = await Promise.all([
+    batchAssociationsMap(ids, "meetings"),
+    batchAssociationsMap(ids, "deals"),
+  ]);
+
+  const meetingIds = [...new Set([...meetingMap.values()].flat())];
+  const dealIds    = [...new Set([...dealMap.values()].flat())];
+
+  const [rawMeetings, rawDeals] = await Promise.all([
+    meetingIds.length ? batchReadMeetings(meetingIds) : Promise.resolve([]),
+    dealIds.length    ? batchReadDeals(dealIds)       : Promise.resolve([]),
+  ]);
+
+  const dealToContacts = new Map<string, string[]>();
+  for (const [contactId, dids] of dealMap) {
+    for (const did of dids) {
+      const arr = dealToContacts.get(did) ?? [];
+      arr.push(contactId);
+      dealToContacts.set(did, arr);
+    }
+  }
+
+  return {
+    contacts: raw.map((c) => {
+      const src = (c.properties.hs_analytics_source_data_1 ?? "").toLowerCase();
+      const platform: AiReferralSnapshot["contacts"][number]["platform"] =
+        src.includes("chatgpt")     ? "chatgpt"    :
+        src.includes("perplexity")  ? "perplexity" :
+        src.includes("claude")      ? "claude"     : "other";
+      return {
+        id: c.id,
+        createdate: c.properties.createdate ?? "",
+        platform,
+        arr: parseFloat(c.properties["current_arr__sync_"] ?? "0") || 0,
+      };
+    }),
+    meetings: rawMeetings.map((m) => ({
+      createdate: parseInt(m.properties.createdate ?? "0", 10),
+      outcome:    m.properties.hs_meeting_outcome ?? "",
+    })),
+    deals: rawDeals.map((d) => ({
+      closedate:  d.properties.closedate ? new Date(d.properties.closedate).getTime() : null,
+      stage:      d.properties.dealstage ?? "",
+      contactIds: dealToContacts.get(d.id) ?? [],
+    })),
+  };
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function getLlmTrafficCount(date: string): Promise<{ total: number }> {
