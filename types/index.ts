@@ -148,6 +148,7 @@ export interface ActivityKeyData {
   key_name: string;
   account_name: string | null;
   project_name: string;
+  project_names: string[];
   project_status: string | null;
   monthly: { month: string; spend: number }[];
   total: number;

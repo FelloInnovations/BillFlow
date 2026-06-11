@@ -41,17 +41,12 @@ export function formatRelativeTime(dateStr: string | null | undefined): string {
 }
 
 // Normalise DB vendor_name to a canonical key for matching.
-// Legacy LLM providers (Anthropic, xAI, OpenAI, etc.) are now routed via OpenRouter
-// and are grouped under the "OpenRouter" canonical name.
 export function canonicalVendor(name: string): string {
   const lower = name.toLowerCase();
-  // OpenRouter + legacy LLM providers now routed through it
   if (lower.includes("openrouter")) return "OpenRouter";
-  if (lower.includes("anthropic")) return "OpenRouter";
-  if (lower.includes("openai")) return "OpenRouter";
-  if (lower.includes("perplexity")) return "OpenRouter";
-  if (lower.includes("google") || lower.includes("gemini")) return "OpenRouter";
-  if (lower.includes("x.ai") || lower.includes("xai")) return "OpenRouter";
+  if (lower.includes("anthropic")) return "Anthropic";
+  if (lower.includes("openai")) return "OpenAI";
+  if (lower.includes("x.ai") || lower.includes("xai")) return "xAI";
   // Services
   if (lower.includes("scraperapi") || lower.includes("scraper api") || lower.includes("scraper") || lower.includes("saas.group")) return "ScraperAPI";
   if (lower.includes("oxylabs")) return "Oxylabs";

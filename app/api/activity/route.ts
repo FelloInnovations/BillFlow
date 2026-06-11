@@ -61,18 +61,20 @@ export async function GET() {
     modelsByKey[k].add(row.model as string);
   }
 
-  // key → project mapping — handle comma-separated keys in openrouter_api_key
-  const keyToProject: Record<string, { name: string; status: string | null }> = {};
+  // key → all projects mapping — handle comma-separated keys in openrouter_api_key
+  const keyToProjects: Record<string, { name: string; status: string | null }[]> = {};
   for (const p of projects) {
     if (!p.openrouter_api_key) continue;
     for (const raw of p.openrouter_api_key.split(",")) {
       const k = raw.trim();
-      if (k) keyToProject[k] = { name: p.agents_projects, status: p.status };
+      if (!k) continue;
+      if (!keyToProjects[k]) keyToProjects[k] = [];
+      keyToProjects[k].push({ name: p.agents_projects, status: p.status });
     }
   }
 
   // Authorized key set from portfolio (defense in depth — DB should already be clean after migration 15)
-  const allowedKeyNames = new Set(Object.keys(keyToProject));
+  const allowedKeyNames = new Set(Object.keys(keyToProjects));
   // Keys hidden via hidden_tools (stored as "OpenRouter:keyname")
   const hiddenOrKeys = hiddenOrKeyNames(hiddenKeys);
 
@@ -97,13 +99,15 @@ export async function GET() {
   // Only keys that have snapshot data — keys with no activity don't appear
   const keys = Object.entries(snapshotsByKey).map(([keyName, rawSnaps]) => {
     // Case-insensitive portfolio lookup (OR keys are exact-case, portfolio may differ)
-    const projectInfo =
-      keyToProject[keyName] ??
-      keyToProject[
-        Object.keys(keyToProject).find(
+    const projectInfos =
+      keyToProjects[keyName] ??
+      keyToProjects[
+        Object.keys(keyToProjects).find(
           (k) => k.toLowerCase() === keyName.toLowerCase()
         ) ?? ""
-      ];
+      ] ?? [];
+    const projectInfo = projectInfos[0] ?? null;
+    const projectNames = projectInfos.map((p) => p.name).filter(Boolean) as string[];
 
     const keySnaps = rawSnaps.sort((a, b) => a.month.localeCompare(b.month));
 
@@ -141,6 +145,7 @@ export async function GET() {
       key_name:            keyName,
       account_name:        accountNameByKey[keyName] ?? null,
       project_name:        projectInfo?.name ?? keyName,
+      project_names:       projectNames.length > 0 ? projectNames : [projectInfo?.name ?? keyName],
       project_status:      projectInfo?.status ?? null,
       monthly,
       total,

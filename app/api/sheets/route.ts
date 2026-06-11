@@ -82,7 +82,7 @@ export async function GET() {
       if (spend !== undefined) {
         const shareCount = keyToProjects.get(k)?.length ?? 1;
         if (shareCount > 1) anyShared = true;
-        total += spend / Math.max(1, shareCount);
+        total += spend;
         anyResolved = true;
       }
     }

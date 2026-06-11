@@ -350,7 +350,13 @@ export function SpendTab({
           <td className="px-5 py-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={cn("w-2 h-2 rounded-full shrink-0", statusDot(k))} />
-              <span className="font-medium text-slate-800 dark:text-slate-200 text-sm">{k.project_name}</span>
+              {(k.project_names?.length ?? 0) > 1 ? (
+                <span className="font-medium text-slate-800 dark:text-slate-200 text-sm">
+                  {k.project_names.join(" · ")}
+                </span>
+              ) : (
+                <span className="font-medium text-slate-800 dark:text-slate-200 text-sm">{k.project_name}</span>
+              )}
               {k.project_status && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 uppercase">
                   {k.project_status}
