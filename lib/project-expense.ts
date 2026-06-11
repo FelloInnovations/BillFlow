@@ -99,7 +99,7 @@ async function loadRawData(scope: ExpenseScope): Promise<RawExpenseData> {
     { data: toolOverrideRows },
   ] = await Promise.all([
     supabase.from("agents_portfolio").select("agents_projects, status, openrouter_api_key"),
-    supabase.from("openrouter_usage_snapshots").select("key_name, month, usage_total"),
+    supabase.from("openrouter_usage_snapshots").select("key_name, month, usage_total").limit(50000),
     supabase
       .from("financial_records")
       .select("vendor_name, total_amount, project_id, cost_type")

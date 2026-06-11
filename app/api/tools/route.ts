@@ -122,41 +122,40 @@ export async function GET() {
     canonicalMonthly.set(canonical, monthMap);
   }
 
-  // ── OR per-key spend: cumulative snapshots + live refresh ───────────────
-  // Snapshots store CUMULATIVE all-time usage per key per month.
-  // Total  = latest snapshot's usage_total for that key.
-  // Trend  = deltas between consecutive monthly snapshots.
-  // Live   = get-openrouter-usage returns key.usage (cumulative) for the
-  //          current key; current-month delta = liveTotal - latestSnapshot.
+  // ── OR per-key spend: monthly snapshots + live partial-month refresh ───────
+  // usage_total is PER-MONTH spend (not cumulative).
+  // All-time total = sum of all monthly rows per key.
+  // Monthly trend  = each row's value directly.
+  // Live refresh   = edge fn returns cumulative OR total; delta vs snapshot sum
+  //                  captures partial current-month spend not yet snapshotted.
 
   // Group and sort snapshots by key → sorted by month ascending
-  const keySnaps = new Map<string, { month: string; cumulative: number }[]>();
+  const keySnaps = new Map<string, { month: string; spend: number }[]>();
   for (const snap of snapshots ?? []) {
     const k = snap.key_name as string;
     if (!keySnaps.has(k)) keySnaps.set(k, []);
-    keySnaps.get(k)!.push({ month: snap.month as string, cumulative: Number(snap.usage_total) });
+    keySnaps.get(k)!.push({ month: snap.month as string, spend: Number(snap.usage_total) });
   }
   for (const snaps of keySnaps.values()) snaps.sort((a, b) => a.month.localeCompare(b.month));
 
   const orKeyTotals  = new Map<string, number>();
   const orKeyMonthly = new Map<string, Map<string, number>>();
 
-  // Build totals and monthly deltas from snapshot history
+  // Build totals and monthly trend from snapshot history
   for (const [keyName, snaps] of keySnaps.entries()) {
     const toolKey = `OpenRouter:${keyName}`;
-    // Total = most recent cumulative value
-    orKeyTotals.set(toolKey, snaps[snaps.length - 1].cumulative);
-    // Monthly trend = deltas between consecutive cumulative snapshots
+    // Total = sum of all per-month rows
+    orKeyTotals.set(toolKey, snaps.reduce((s, snap) => s + snap.spend, 0));
+    // Monthly trend = each month's per-month spend value
     const monthMap = new Map<string, number>();
-    for (let i = 0; i < snaps.length; i++) {
-      const delta = i === 0 ? snaps[i].cumulative : snaps[i].cumulative - snaps[i - 1].cumulative;
-      if (delta > 0) monthMap.set(yyyyMmToLabel(snaps[i].month), delta);
+    for (const snap of snaps) {
+      if (snap.spend > 0) monthMap.set(yyyyMmToLabel(snap.month), snap.spend);
     }
     orKeyMonthly.set(toolKey, monthMap);
   }
 
-  // Live refresh: call get-openrouter-usage (now uses key.usage, not activity API)
-  // Updates the current total and adds a current-month delta entry if usage increased.
+  // Live refresh: edge fn returns cumulative OR total; use delta vs snapshot sum
+  // to capture partial current-month spend not yet written to snapshots.
   await Promise.allSettled(
     [...keyToProjects.keys()].map(async (keyName) => {
       const toolKey = `OpenRouter:${keyName}`;
@@ -169,16 +168,15 @@ export async function GET() {
         const liveTotal: number = orData.usage_total ?? 0;
         if (liveTotal <= 0) return;
 
-        // Update total with fresh data
-        orKeyTotals.set(toolKey, liveTotal);
-
-        // Current-month delta = liveTotal minus the latest stored cumulative
-        const snaps = keySnaps.get(keyName) ?? [];
-        const prevCumulative = snaps.length > 0 ? snaps[snaps.length - 1].cumulative : 0;
-        const delta = Math.max(0, liveTotal - prevCumulative);
+        // Partial current-month spend = live cumulative minus snapshot sum
+        const snapshotSum = orKeyTotals.get(toolKey) ?? 0;
+        const delta = Math.max(0, liveTotal - snapshotSum);
         if (delta > 0) {
+          orKeyTotals.set(toolKey, snapshotSum + delta);
           const monthMap = orKeyMonthly.get(toolKey) ?? new Map<string, number>();
-          monthMap.set(yyyyMmToLabel(currentMonth), delta);
+          monthMap.set(yyyyMmToLabel(currentMonth),
+            (monthMap.get(yyyyMmToLabel(currentMonth)) ?? 0) + delta
+          );
           orKeyMonthly.set(toolKey, monthMap);
         }
       } catch {

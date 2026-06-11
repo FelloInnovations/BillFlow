@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 export async function fetchOrKeySpend(): Promise<Map<string, number>> {
   const { data } = await supabase
     .from("openrouter_usage_snapshots")
-    .select("key_name, usage_total");
+    .select("key_name, usage_total")
+    .limit(50000);
 
   if (!data?.length) return new Map();
 
