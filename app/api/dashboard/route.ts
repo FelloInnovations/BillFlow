@@ -84,7 +84,7 @@ export async function GET() {
     // OpenRouter per-key monthly snapshots (last 12 months)
     supabase
       .from("openrouter_usage_snapshots")
-      .select("month, usage_total")
+      .select("key_name, month, usage_total")
       .gte("month", twelveMonthsAgo.substring(0, 7)),
 
     // Live-today rows: partial current-day spend not yet in snapshots
@@ -97,10 +97,16 @@ export async function GET() {
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
 
-  // Sum OR snapshots by YYYY-MM period
+  // Sum OR snapshots by YYYY-MM period — deduplicate by (key_name, month) so shared
+  // keys are counted once even if the snapshot table has duplicate rows for a key.
   const orByMonth: Record<string, number> = {};
+  const seenKeyMonth = new Set<string>();
   for (const row of orSnapshotsRes.data ?? []) {
+    const key = (row.key_name as string) ?? "";
     const period = row.month as string;
+    const dk = `${key}::${period}`;
+    if (seenKeyMonth.has(dk)) continue;
+    seenKeyMonth.add(dk);
     orByMonth[period] = (orByMonth[period] ?? 0) + Number(row.usage_total ?? 0);
   }
 
