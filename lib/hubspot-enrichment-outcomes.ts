@@ -281,7 +281,7 @@ export async function getAgentsEnrichedTotal(): Promise<{ count: number }> {
       .schema("mad")
       .from("agents")
       .select("*", { count: "exact", head: true });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(`mad.agents query failed: ${error.message} | code: ${error.code} | hint: ${error.hint} | details: ${error.details}`);
     return { count: count ?? 0 };
   } catch (err) {
     logErr("getAgentsEnrichedTotal", err);
@@ -301,7 +301,7 @@ export async function getAgentsEnrichedPeriod(
       .select("*", { count: "exact", head: true })
       .gte("created_at", `${fromDate}T00:00:00Z`)
       .lte("created_at", `${toDate}T23:59:59Z`);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(`mad.agents period query failed: ${error.message} | code: ${error.code} | hint: ${error.hint} | details: ${error.details}`);
     return { count: count ?? 0 };
   } catch (err) {
     logErr("getAgentsEnrichedPeriod", err);

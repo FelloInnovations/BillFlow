@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     logErr("bulk fetch (getAllEnrichedData / getClosedWonStageIds / getAgentsEnrichedTotal)", err);
     return NextResponse.json(
-      { error: "bulk fetch failed", detail: String(err) },
+      { error: err instanceof Error ? err.message : JSON.stringify(err) },
       { status: 500 },
     );
   }
