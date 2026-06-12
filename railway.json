@@ -11,6 +11,11 @@
         "name": "outcomes-sync-daily",
         "schedule": "0 1 * * *",
         "command": "curl -sf -H \"x-sync-secret: $OUTCOMES_SYNC_SECRET\" $NEXT_PUBLIC_BASE_URL/api/outcomes/sync"
+      },
+      {
+        "name": "outcomes-sync-enrichment-daily",
+        "schedule": "15 1 * * *",
+        "command": "curl -sf -H \"x-sync-secret: $OUTCOMES_SYNC_SECRET\" $NEXT_PUBLIC_BASE_URL/api/outcomes/sync-enrichment"
       }
     ]
   }

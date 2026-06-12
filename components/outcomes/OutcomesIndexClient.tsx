@@ -12,6 +12,15 @@ const PLATFORMS = [
   { key: "llm_other_daily",      label: "Other AI",   bar: "bg-slate-400",   text: "text-slate-500 dark:text-slate-400"    },
 ] as const;
 
+interface PortfolioTotals {
+  llm_traffic: number;
+  agents_enriched: number;
+  demos_booked: { value: number; deduped: boolean };
+  demos_held:   { value: number; deduped: boolean };
+  closed_won:   { value: number; deduped: boolean };
+  arr_closed:   { value: number; deduped: boolean };
+}
+
 function timeAgo(ts: string): string {
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
   if (diff < 1) return "just now";
@@ -41,34 +50,133 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// Enrichment project card — shows its own metric set (no AI traffic funnel)
+function EnrichmentProjectCard({ project }: { project: ProjectOutcomeSummary }) {
+  const { mtd } = project;
+  const enrichedTotal   = (mtd.agents_enriched_total  as number) ?? 0;
+  const pushed          = (mtd.agents_pushed_hubspot  as number) ?? 0;
+  const demosBooked     = (mtd.demos_booked_mtd       as number) ?? 0;
+  const demosHeld       = (mtd.demos_held_mtd         as number) ?? 0;
+  const closedWon       = (mtd.closed_won_mtd         as number) ?? 0;
+  const arrClosed       = (mtd.arr_closed_mtd         as number) ?? 0;
+
+  const funnelSteps = [
+    { label: "Enriched",  value: enrichedTotal, currency: false },
+    { label: "Pushed",    value: pushed,        currency: false },
+    { label: "Booked",    value: demosBooked,   currency: false },
+    { label: "Held",      value: demosHeld,     currency: false },
+    { label: "Won",       value: closedWon,     currency: false },
+    { label: "ARR",       value: arrClosed,     currency: true  },
+  ];
+
+  return (
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2.5">
+          <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+            Enrichment
+          </h2>
+          {project.projectStatus && <StatusBadge status={project.projectStatus} />}
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400">
+            MAD ID Pipeline
+          </span>
+        </div>
+        <Link
+          href="/projects/enrichment/outcomes"
+          className="text-sm font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors shrink-0"
+        >
+          View Details →
+        </Link>
+      </div>
+
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+          Funnel &middot; All Time → MTD
+        </p>
+        <div className="flex items-center gap-1 flex-wrap">
+          {funnelSteps.map(({ label, value, currency }, i) => (
+            <div key={label} className="flex items-center gap-1">
+              <div className="text-center min-w-[3.5rem]">
+                <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                  {currency ? formatCurrency(value) : value.toLocaleString()}
+                </div>
+                <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">
+                  {label}
+                </div>
+              </div>
+              {i < funnelSteps.length - 1 && (
+                <span className="text-slate-300 dark:text-slate-600 text-[11px] font-bold">→</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {project.lastSynced && (
+        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+            Last synced {timeAgo(project.lastSynced)}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function OutcomesIndexClient() {
   const [projects, setProjects] = useState<ProjectOutcomeSummary[]>([]);
+  const [portfolioTotals, setPortfolioTotals] = useState<PortfolioTotals | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/outcomes?scope=last_6m")
       .then((r) => r.json())
-      .then((data) => setProjects(Array.isArray(data) ? data : []))
+      .then((data) => {
+        // Handle both old array format and new {projects, portfolioTotals} format
+        if (Array.isArray(data)) {
+          setProjects(data);
+        } else {
+          setProjects(Array.isArray(data.projects) ? data.projects : []);
+          setPortfolioTotals(data.portfolioTotals ?? null);
+        }
+      })
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
   }, []);
 
-  const totals = projects.reduce(
-    (acc, p) => ({
-      llmTraffic:  acc.llmTraffic  + ((p.mtd.llm_traffic_daily  as number) ?? 0),
-      demosBooked: acc.demosBooked + ((p.mtd.demos_booked_mtd   as number) ?? 0),
-      closedWon:   acc.closedWon   + ((p.mtd.closed_won_mtd     as number) ?? 0),
-      arrClosed:   acc.arrClosed   + ((p.mtd.arr_closed_mtd     as number) ?? 0),
-    }),
-    { llmTraffic: 0, demosBooked: 0, closedWon: 0, arrClosed: 0 },
-  );
+  const pt = portfolioTotals;
 
-  const statCards = [
-    { label: "LLM Traffic",  value: totals.llmTraffic.toLocaleString(), sub: "contacts in last 6 months" },
-    { label: "Demos Booked", value: totals.demosBooked.toString(),       sub: "meetings scheduled in last 6 months" },
-    { label: "Closed Won",   value: totals.closedWon.toString(),          sub: "deals closed in last 6 months" },
-    { label: "ARR Closed",   value: formatCurrency(totals.arrClosed),     sub: "revenue in last 6 months" },
-  ];
+  const statCards = pt ? [
+    {
+      label: "LLM Traffic",
+      value: pt.llm_traffic.toLocaleString(),
+      sub: "AI-referral contacts · last 6 months",
+    },
+    {
+      label: "Agents Enriched",
+      value: pt.agents_enriched.toLocaleString(),
+      sub: "all-time MAD ID coverage",
+    },
+    {
+      label: "Demos Booked",
+      value: pt.demos_booked.value.toString(),
+      sub: pt.demos_booked.deduped ? "deduped contacts · last 6 months" : "combined · last 6 months",
+    },
+    {
+      label: "Closed Won",
+      value: pt.closed_won.value.toString(),
+      sub: pt.closed_won.deduped ? "deduped contacts · last 6 months" : "combined · last 6 months",
+    },
+    {
+      label: "ARR Closed",
+      value: formatCurrency(pt.arr_closed.value),
+      sub: pt.arr_closed.deduped ? "deduped revenue · last 6 months" : "combined revenue · last 6 months",
+    },
+  ] : [];
+
+  // Split projects: enrichment gets special card, others get standard card
+  const enrichmentProject = projects.find((p) => p.projectId === "enrichment");
+  const standardProjects  = projects.filter((p) => p.projectId !== "enrichment");
 
   return (
     <main className="flex-1 min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
@@ -80,7 +188,6 @@ export function OutcomesIndexClient() {
         </p>
       </div>
 
-      {/* Loading / content */}
       <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : "transition-opacity"}>
         {projects.length === 0 && !loading ? (
           <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-16 text-center">
@@ -98,24 +205,27 @@ export function OutcomesIndexClient() {
         ) : (
           <>
             {/* Portfolio summary cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {statCards.map(({ label, value, sub }) => (
-                <div
-                  key={label}
-                  className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5"
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
-                    {label}
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>
-                </div>
-              ))}
-            </div>
+            {statCards.length > 0 && (
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                {statCards.map(({ label, value, sub }) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5"
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                      {label}
+                    </p>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Per-project cards */}
             <div className="space-y-4">
-              {projects.map((project) => {
+              {/* Standard projects (Arthur-style with AI traffic funnel) */}
+              {standardProjects.map((project) => {
                 const { mtd, projectId } = project;
                 const traffic     = (mtd.llm_traffic_daily  as number) ?? 0;
                 const demosBooked = (mtd.demos_booked_mtd   as number) ?? 0;
@@ -140,7 +250,6 @@ export function OutcomesIndexClient() {
                     key={projectId}
                     className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6"
                   >
-                    {/* Card header */}
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-2.5">
                         <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
@@ -210,7 +319,6 @@ export function OutcomesIndexClient() {
                       </div>
                     </div>
 
-                    {/* Footer */}
                     {project.lastSynced && (
                       <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
                         <p className="text-[11px] text-slate-400 dark:text-slate-500">
@@ -221,6 +329,11 @@ export function OutcomesIndexClient() {
                   </div>
                 );
               })}
+
+              {/* Enrichment project card */}
+              {enrichmentProject && (
+                <EnrichmentProjectCard project={enrichmentProject} />
+              )}
             </div>
           </>
         )}

@@ -266,17 +266,8 @@ export interface OutcomeSyncResult {
   errors:   { metric_key: string; error: string }[];
 }
 
-export interface MonthlyOutcomeMetrics {
-  llm_traffic_daily: number;
-  llm_chatgpt_daily: number;
-  llm_perplexity_daily: number;
-  llm_claude_daily: number;
-  llm_other_daily: number;
-  demos_booked_mtd: number;
-  demos_held_mtd: number;
-  closed_won_mtd: number;
-  arr_closed_mtd: number;
-}
+// Dynamic per-metric record — supports any project's metric keys (Arthur, Enrichment, etc.)
+export type MonthlyOutcomeMetrics = Record<string, number>;
 
 export interface MonthlyOutcomeBreakdown {
   month: string;       // "2026-06"

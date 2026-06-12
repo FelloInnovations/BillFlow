@@ -1,0 +1,357 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import { formatCurrency } from "@/lib/utils";
+import {
+  OutcomeMetricConfig,
+  OutcomeMtdSummary,
+  MonthlyOutcomeBreakdown,
+} from "@/types";
+
+// ── Sparkline ─────────────────────────────────────────────────────────────────
+function Sparkline({ data, color = "#6366f1" }: { data: number[]; color?: string }) {
+  if (data.length < 2) return null;
+  const max = Math.max(...data, 1);
+  const w = 80; const h = 28;
+  const pts = data
+    .map((v, i) => `${(i / (data.length - 1)) * w},${h - (v / max) * h}`)
+    .join(" ");
+  return (
+    <svg width={w} height={h} className="opacity-70">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ── HeroStatCard ──────────────────────────────────────────────────────────────
+function HeroStatCard({
+  label,
+  value,
+  sparkData,
+  isCurrency = false,
+  accent = "indigo",
+  note,
+}: {
+  label: string;
+  value: number;
+  sparkData?: number[];
+  isCurrency?: boolean;
+  accent?: "indigo" | "emerald" | "amber" | "violet" | "sky";
+  note?: string;
+}) {
+  const accentColor = {
+    indigo: "#6366f1",
+    emerald: "#10b981",
+    amber: "#f59e0b",
+    violet: "#8b5cf6",
+    sky: "#0ea5e9",
+  }[accent];
+
+  const display = isCurrency ? formatCurrency(value) : value.toLocaleString();
+
+  return (
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex flex-col gap-1">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        {label}
+      </p>
+      <div className="flex items-end justify-between gap-2 mt-1">
+        <p className="text-2xl font-bold text-slate-900 dark:text-white leading-none">{display}</p>
+        {sparkData && sparkData.length >= 2 && (
+          <Sparkline data={sparkData} color={accentColor} />
+        )}
+      </div>
+      {note && (
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{note}</p>
+      )}
+    </div>
+  );
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
+  return (
+    <div className={`fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 text-sm font-semibold shadow-lg ${
+      type === "success"
+        ? "bg-emerald-500 text-white"
+        : "bg-red-500 text-white"
+    }`}>
+      {msg}
+    </div>
+  );
+}
+
+// ── BackfillModal ─────────────────────────────────────────────────────────────
+function BackfillModal({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    if (!from || !to) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/outcomes/backfill-enrichment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-sync-secret": "",
+        },
+        body: JSON.stringify({ from, to }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Backfill failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-80">
+        <h3 className="font-bold text-slate-900 dark:text-white mb-4">Backfill Enrichment Metrics</h3>
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">From</label>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">To</label>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+        </div>
+        {err && <p className="text-xs text-red-500 mb-3">{err}</p>}
+        <div className="flex gap-2">
+          <button
+            onClick={run}
+            disabled={loading || !from || !to}
+            className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold py-2 transition-colors"
+          >
+            {loading ? "Running…" : "Run Backfill"}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Metric accent color ───────────────────────────────────────────────────────
+function accentFor(key: string): "indigo" | "emerald" | "amber" | "violet" | "sky" {
+  if (key === "agents_enriched_total") return "violet";
+  if (key === "agents_enriched_period") return "sky";
+  if (key === "agents_pushed_hubspot")  return "indigo";
+  if (key.includes("arr"))              return "amber";
+  if (key.includes("closed_won"))       return "emerald";
+  return "indigo";
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+export interface EnrichmentOutcomesClientProps {
+  initialConfig:           OutcomeMetricConfig[];
+  initialMtd:              OutcomeMtdSummary;
+  initialMonthlyBreakdown: MonthlyOutcomeBreakdown[];
+  initialLastSynced:       string | null;
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+export function EnrichmentOutcomesClient({
+  initialConfig,
+  initialMtd,
+  initialMonthlyBreakdown,
+  initialLastSynced,
+}: EnrichmentOutcomesClientProps) {
+  const [config]           = useState(initialConfig);
+  const [mtd, setMtd]      = useState(initialMtd);
+  const [monthly, setMonthly] = useState(initialMonthlyBreakdown);
+  const [lastSynced, setLastSynced] = useState(initialLastSynced);
+  const [backfillOpen, setBackfillOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/outcomes/enrichment");
+      if (!res.ok) return;
+      const d = await res.json();
+      setMtd(d.mtd ?? {});
+      setMonthly(d.monthlyBreakdown ?? []);
+      setLastSynced(d.lastSynced ?? null);
+    } catch { /* ignore */ }
+  }, []);
+
+  async function syncNow() {
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/outcomes/sync-enrichment?secret=${process.env.NEXT_PUBLIC_OUTCOMES_SYNC_SECRET ?? ""}`);
+      if (!res.ok) throw new Error("Sync failed");
+      setToast({ msg: "Sync complete", type: "success" });
+      await fetchData();
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : "Sync failed", type: "error" });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  }
+
+  // Build sparkline data per metric key from monthly breakdown
+  const sparkMap = new Map<string, number[]>();
+  for (const key of config.map((c) => c.metric_key)) {
+    const pts = [...monthly]
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map((b) => (b.metrics[key] as number) ?? 0);
+    if (pts.some((v) => v > 0)) sparkMap.set(key, pts);
+  }
+
+  function timeAgo(ts: string) {
+    const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
+    if (diff < 1) return "just now";
+    if (diff < 60) return `${diff}m ago`;
+    const h = Math.floor(diff / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+
+  return (
+    <div className="flex-1 min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Enrichment — Outcomes
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            MAD-ID enriched agent pipeline metrics
+            {lastSynced && (
+              <span className="ml-2 text-slate-400 dark:text-slate-500">
+                · Synced {timeAgo(lastSynced)}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={syncNow}
+            disabled={syncing}
+            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+          >
+            {syncing ? "Syncing…" : "Sync Now"}
+          </button>
+          <button
+            onClick={() => setBackfillOpen(true)}
+            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+          >
+            Backfill
+          </button>
+        </div>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+        {config.map((c) => {
+          const value = (mtd[c.metric_key] as number) ?? 0;
+          const isCurrency = c.metric_key === "arr_closed_mtd";
+          const note =
+            c.metric_key === "agents_enriched_total" ? "all-time" :
+            c.metric_key === "agents_enriched_period" ? "this month" :
+            "month-to-date";
+          return (
+            <HeroStatCard
+              key={c.metric_key}
+              label={c.label}
+              value={value}
+              sparkData={sparkMap.get(c.metric_key)}
+              isCurrency={isCurrency}
+              accent={accentFor(c.metric_key)}
+              note={note}
+            />
+          );
+        })}
+      </div>
+
+      {/* Monthly breakdown table */}
+      {monthly.length > 0 && (
+        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Breakdown</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800">
+                  <th className="text-left px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Month
+                  </th>
+                  {config.map((c) => (
+                    <th
+                      key={c.metric_key}
+                      className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap"
+                    >
+                      {c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                {monthly.map((row) => (
+                  <tr key={row.month} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                      {row.monthLabel}
+                    </td>
+                    {config.map((c) => {
+                      const val = (row.metrics[c.metric_key] as number) ?? 0;
+                      const isCur = c.metric_key === "arr_closed_mtd";
+                      return (
+                        <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
+                          {isCur ? formatCurrency(val) : val.toLocaleString()}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modals / toasts */}
+      {backfillOpen && (
+        <BackfillModal
+          onClose={() => setBackfillOpen(false)}
+          onDone={() => {
+            setBackfillOpen(false);
+            setToast({ msg: "Backfill complete", type: "success" });
+            fetchData();
+          }}
+        />
+      )}
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
+    </div>
+  );
+}

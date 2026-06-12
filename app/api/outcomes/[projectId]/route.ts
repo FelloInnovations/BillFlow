@@ -25,18 +25,13 @@ function buildMonthlyBreakdown(
 
   return Object.entries(byMonth)
     .map(([month, keys]) => {
-      const metrics: MonthlyOutcomeMetrics = {
-        llm_traffic_daily: 0, llm_chatgpt_daily: 0, llm_perplexity_daily: 0,
-        llm_claude_daily: 0, llm_other_daily: 0, demos_booked_mtd: 0,
-        demos_held_mtd: 0, closed_won_mtd: 0, arr_closed_mtd: 0,
-      };
+      const metrics: MonthlyOutcomeMetrics = {};
       for (const [key, rows] of Object.entries(keys)) {
-        if (!(key in metrics)) continue;
-        const m = metrics as unknown as Record<string, number>;
         if (DAILY_KEYS.has(key)) {
-          m[key] = rows.reduce((s, r) => s + r.value, 0);
+          metrics[key] = rows.reduce((s, r) => s + r.value, 0);
         } else {
-          m[key] = [...rows].sort((a, b) => b.date.localeCompare(a.date))[0]?.value ?? 0;
+          // Latest snapshot per month
+          metrics[key] = [...rows].sort((a, b) => b.date.localeCompare(a.date))[0]?.value ?? 0;
         }
       }
       const [y, mo] = month.split("-").map(Number);

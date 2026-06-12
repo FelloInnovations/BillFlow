@@ -3,10 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   getLlmTrafficCount,
   getLlmBreakdown,
-  getDemosBookedMtd,
-  getDemosHeldMtd,
-  getClosedWonMtd,
-  getArrClosedMtd,
+  getAllAiReferralMtdMetrics,
 } from "@/lib/hubspot-outcomes";
 import { OutcomeSyncResult } from "@/types";
 
@@ -20,15 +17,22 @@ function serviceClient() {
 
 async function upsertMetric(
   supabase: ReturnType<typeof serviceClient>,
-  projectId: string,
   dateStr: string,
   key: string,
   value: number,
+  contactIds?: string[] | Record<string, number> | null,
 ) {
-  const { error } = await supabase.from("project_outcome_metrics").upsert(
-    { project_id: projectId, metric_key: key, value, date: dateStr, source: "hubspot" },
-    { onConflict: "project_id,metric_key,date" },
-  );
+  const row: Record<string, unknown> = {
+    project_id: "arthur",
+    metric_key:  key,
+    value,
+    date:        dateStr,
+    source:      "hubspot",
+  };
+  if (contactIds !== undefined) row.contact_ids = contactIds ?? null;
+  const { error } = await supabase
+    .from("project_outcome_metrics")
+    .upsert(row, { onConflict: "project_id,metric_key,date" });
   if (error) throw new Error(error.message);
 }
 
@@ -51,7 +55,7 @@ export async function GET(req: NextRequest) {
   // ── LLM total ────────────────────────────────────────────────────────────
   try {
     const { total } = await getLlmTrafficCount(dateStr);
-    await upsertMetric(supabase, "arthur", dateStr, "llm_traffic_daily", total);
+    await upsertMetric(supabase, dateStr, "llm_traffic_daily", total);
     result.upserted.push({ metric_key: "llm_traffic_daily", value: total });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -69,7 +73,7 @@ export async function GET(req: NextRequest) {
       ["llm_other_daily",      breakdown.other],
     ];
     for (const [key, value] of entries) {
-      await upsertMetric(supabase, "arthur", dateStr, key, value);
+      await upsertMetric(supabase, dateStr, key, value);
       result.upserted.push({ metric_key: key, value });
     }
   } catch (err) {
@@ -80,23 +84,26 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── MTD metrics (each independent) ───────────────────────────────────────
-  const mtdMetrics: { key: string; fn: () => Promise<{ count: number } | { total: number }> }[] = [
-    { key: "demos_booked_mtd", fn: () => getDemosBookedMtd(dateStr) },
-    { key: "demos_held_mtd",   fn: () => getDemosHeldMtd(dateStr) },
-    { key: "closed_won_mtd",   fn: () => getClosedWonMtd(dateStr) },
-    { key: "arr_closed_mtd",   fn: () => getArrClosedMtd(dateStr) },
-  ];
+  // ── MTD metrics — one bulk HubSpot fetch, returns all 4 with contact_ids ──
+  try {
+    const { demosBooked, demosHeld, closedWon, arrClosed } =
+      await getAllAiReferralMtdMetrics(dateStr);
 
-  for (const { key, fn } of mtdMetrics) {
-    try {
-      const res = await fn();
-      const value = "count" in res ? res.count : res.total;
-      await upsertMetric(supabase, "arthur", dateStr, key, value);
-      result.upserted.push({ metric_key: key, value });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[outcomes/sync] ${key}:`, msg);
+    await upsertMetric(supabase, dateStr, "demos_booked_mtd", demosBooked.count, demosBooked.contactIds);
+    result.upserted.push({ metric_key: "demos_booked_mtd", value: demosBooked.count });
+
+    await upsertMetric(supabase, dateStr, "demos_held_mtd", demosHeld.count, demosHeld.contactIds);
+    result.upserted.push({ metric_key: "demos_held_mtd", value: demosHeld.count });
+
+    await upsertMetric(supabase, dateStr, "closed_won_mtd", closedWon.count, closedWon.contactIds);
+    result.upserted.push({ metric_key: "closed_won_mtd", value: closedWon.count });
+
+    await upsertMetric(supabase, dateStr, "arr_closed_mtd", arrClosed.total, arrClosed.arrPerContact);
+    result.upserted.push({ metric_key: "arr_closed_mtd", value: arrClosed.total });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[outcomes/sync] mtd_metrics:", msg);
+    for (const key of ["demos_booked_mtd", "demos_held_mtd", "closed_won_mtd", "arr_closed_mtd"]) {
       result.errors.push({ metric_key: key, error: msg });
     }
   }

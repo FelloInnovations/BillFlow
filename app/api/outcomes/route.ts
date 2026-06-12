@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { OutcomeMtdSummary, ProjectOutcomeSummary } from "@/types";
 
+// Keys that are summed across all rows in a date range
 const DAILY_KEYS = new Set([
   "llm_traffic_daily",
   "llm_chatgpt_daily",
@@ -11,6 +12,14 @@ const DAILY_KEYS = new Set([
   "llm_claude_daily",
   "llm_other_daily",
 ]);
+
+// Keys where the portfolio-level value = latest snapshot (not sum across months)
+const LATEST_KEYS = new Set([
+  "agents_enriched_total",
+]);
+
+// Keys that may have contact_ids for cross-project deduplication
+const DEDUP_KEYS = ["demos_booked_mtd", "demos_held_mtd", "closed_won_mtd", "arr_closed_mtd"] as const;
 
 function serviceClient() {
   return createClient(
@@ -64,12 +73,12 @@ export async function GET(req: NextRequest) {
   const projectIds = [
     ...new Set((configRows ?? []).map((r: { project_id: string }) => r.project_id)),
   ];
-  if (projectIds.length === 0) return NextResponse.json([] as ProjectOutcomeSummary[]);
+  if (projectIds.length === 0) return NextResponse.json({ projects: [], portfolioTotals: null });
 
   const [{ data: metricRows }, { data: syncRows }] = await Promise.all([
     supabase
       .from("project_outcome_metrics")
-      .select("project_id, metric_key, date, value")
+      .select("project_id, metric_key, date, value, contact_ids")
       .in("project_id", projectIds)
       .gte("date", from)
       .lte("date", to)
@@ -81,27 +90,49 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false }),
   ]);
 
-  // Aggregate per project:
-  // - Daily keys: sum all rows in range
-  // - MTD snapshot keys: take latest value per month then sum across months
-  const dailySums:    Record<string, Record<string, number>> = {};
+  // Aggregate per project
+  const dailySums:     Record<string, Record<string, number>> = {};
   const latestByMonth: Record<string, Record<string, Record<string, number>>> = {};
-  //                     pid         month       metric   value
+  const latestGlobal:  Record<string, Record<string, { date: string; value: number }>> = {};
+
+  // For dedup: track latest contact_ids per (pid, key, month)
+  const latestContactIds: Record<string, Record<string, Record<string, {
+    date: string;
+    ids: unknown;  // string[] for count keys, Record<string,number> for arr
+  }>>> = {};
 
   for (const row of metricRows ?? []) {
     const pid   = row.project_id as string;
     const month = (row.date as string).substring(0, 7);
     const key   = row.metric_key as string;
     const val   = Number(row.value ?? 0);
+    const cids  = row.contact_ids;  // jsonb — string[] | Record<string,number> | null
 
     if (DAILY_KEYS.has(key)) {
       if (!dailySums[pid]) dailySums[pid] = {};
       dailySums[pid][key] = (dailySums[pid][key] ?? 0) + val;
+    } else if (LATEST_KEYS.has(key)) {
+      if (!latestGlobal[pid]) latestGlobal[pid] = {};
+      if (!latestGlobal[pid][key] || row.date > latestGlobal[pid][key].date) {
+        latestGlobal[pid][key] = { date: row.date, value: val };
+      }
     } else {
-      // rows ordered date ASC → later dates overwrite earlier = latest snapshot per month
+      // MTD: rows ordered ASC → later dates overwrite earlier = latest snapshot per month
       if (!latestByMonth[pid]) latestByMonth[pid] = {};
       if (!latestByMonth[pid][month]) latestByMonth[pid][month] = {};
       latestByMonth[pid][month][key] = val;
+
+      // Track latest contact_ids for dedup keys
+      if (cids !== null && cids !== undefined && DEDUP_KEYS.some((dk) => dk === key)) {
+        if (!latestContactIds[pid]) latestContactIds[pid] = {};
+        if (!latestContactIds[pid][month]) latestContactIds[pid][month] = {};
+        if (
+          !latestContactIds[pid][month][key] ||
+          row.date > latestContactIds[pid][month][key].date
+        ) {
+          latestContactIds[pid][month][key] = { date: row.date, ids: cids };
+        }
+      }
     }
   }
 
@@ -119,7 +150,15 @@ export async function GET(req: NextRequest) {
   // Build aggregated summary per project
   const aggregated: Record<string, OutcomeMtdSummary> = {};
   for (const pid of projectIds) {
-    aggregated[pid] = { ...(dailySums[pid] ?? {}), ...(mtdSums[pid] ?? {}) };
+    const latestVals: Record<string, number> = {};
+    for (const [key, { value }] of Object.entries(latestGlobal[pid] ?? {})) {
+      latestVals[key] = value;
+    }
+    aggregated[pid] = {
+      ...(dailySums[pid] ?? {}),
+      ...(mtdSums[pid] ?? {}),
+      ...latestVals,
+    };
   }
 
   const lastSyncedByProject: Record<string, string> = {};
@@ -146,5 +185,95 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json(results);
+  // ── Cross-project portfolio totals (with contact_ids dedup) ─────────────────
+  // For each dedup key, collect the latest contact_ids across all projects (all months)
+  // and compute the union count for the portfolio summary cards.
+  const latestContactIdsPerKey: Record<string, {
+    pid: string;
+    ids: unknown;
+    date: string;
+  }[]> = {};
+
+  for (const key of DEDUP_KEYS) {
+    latestContactIdsPerKey[key] = [];
+    for (const pid of projectIds) {
+      const months = latestContactIds[pid] ?? {};
+      // Find the most recent month with contact_ids for this pid+key
+      let bestDate = "";
+      let bestIds: unknown = null;
+      for (const monthData of Object.values(months)) {
+        if (monthData[key] && monthData[key].date > bestDate) {
+          bestDate = monthData[key].date;
+          bestIds  = monthData[key].ids;
+        }
+      }
+      if (bestIds !== null) {
+        latestContactIdsPerKey[key].push({ pid, ids: bestIds, date: bestDate });
+      }
+    }
+  }
+
+  function dedupeCountMetric(key: string): { value: number; deduped: boolean } {
+    const entries = latestContactIdsPerKey[key];
+    if (!entries.length) {
+      // No contact_ids available — sum raw values
+      const sum = results.reduce((s, p) => s + ((p.mtd[key] as number) ?? 0), 0);
+      return { value: sum, deduped: false };
+    }
+    // Some projects have contact_ids — union them for those projects
+    const allIds = new Set<string>();
+    const pidsWithIds = new Set(entries.map((e) => e.pid));
+    for (const { ids } of entries) {
+      if (Array.isArray(ids)) {
+        for (const id of ids as string[]) allIds.add(id);
+      }
+    }
+    // Add raw values from projects without contact_ids
+    let rawSum = 0;
+    for (const p of results) {
+      if (!pidsWithIds.has(p.projectId)) {
+        rawSum += (p.mtd[key] as number) ?? 0;
+      }
+    }
+    const allDeduped = results.every((p) => pidsWithIds.has(p.projectId));
+    return { value: allIds.size + rawSum, deduped: allDeduped };
+  }
+
+  function dedupeArrMetric(): { value: number; deduped: boolean } {
+    const entries = latestContactIdsPerKey["arr_closed_mtd"];
+    if (!entries.length) {
+      const sum = results.reduce((s, p) => s + ((p.mtd.arr_closed_mtd as number) ?? 0), 0);
+      return { value: sum, deduped: false };
+    }
+    // Merge arrPerContact maps — take max amount per contactId across projects
+    const merged = new Map<string, number>();
+    const pidsWithIds = new Set(entries.map((e) => e.pid));
+    for (const { ids } of entries) {
+      if (ids && typeof ids === "object" && !Array.isArray(ids)) {
+        for (const [cid, amt] of Object.entries(ids as Record<string, number>)) {
+          merged.set(cid, Math.max(merged.get(cid) ?? 0, Number(amt)));
+        }
+      }
+    }
+    let total = [...merged.values()].reduce((s, v) => s + v, 0);
+    // Add raw ARR from projects without contact_ids
+    for (const p of results) {
+      if (!pidsWithIds.has(p.projectId)) {
+        total += (p.mtd.arr_closed_mtd as number) ?? 0;
+      }
+    }
+    const allDeduped = results.every((p) => pidsWithIds.has(p.projectId));
+    return { value: total, deduped: allDeduped };
+  }
+
+  const portfolioTotals = {
+    llm_traffic:  results.reduce((s, p) => s + ((p.mtd.llm_traffic_daily as number) ?? 0), 0),
+    agents_enriched: aggregated["enrichment"]?.agents_enriched_total ?? 0,
+    demos_booked: dedupeCountMetric("demos_booked_mtd"),
+    demos_held:   dedupeCountMetric("demos_held_mtd"),
+    closed_won:   dedupeCountMetric("closed_won_mtd"),
+    arr_closed:   dedupeArrMetric(),
+  };
+
+  return NextResponse.json({ projects: results, portfolioTotals });
 }

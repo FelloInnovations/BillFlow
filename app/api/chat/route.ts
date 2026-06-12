@@ -503,6 +503,15 @@ ARTHUR ROI GUIDANCE:
 - Demos booked and held are counted independently — a demo booked in one month but held in another counts in both, so held/booked ratio can exceed 100%.
 - For "which platform sends us the most demos?" — check ARTHUR OUTCOMES per-month source breakdown (ChatGPT/Perplexity/Claude/Other columns) and identify which has the highest cumulative traffic, then cross-reference with demo conversion. Traffic is a proxy since HubSpot doesn't directly attribute demos to source platform.
 
+ENRICHMENT ROI GUIDANCE:
+- Enrichment tracks the MAD-ID pipeline: real estate agents enriched in Fello's database (mad.agents) and their downstream HubSpot journey.
+- **Agents Enriched (All Time)** = total count of agents in Supabase mad.agents (growing all-time total, always shown regardless of scope).
+- **Agents Enriched (Period)** = agents added to mad.agents in the selected period (new additions, not cumulative).
+- **Pushed to HubSpot** = enriched agents (mad_id known) created as HubSpot contacts in the period.
+- **Demos Booked / Held / Closed Won / ARR Closed** = same funnel as Arthur but for enriched contacts (mad_id IS_KNOWN in HubSpot).
+- Cross-project deduplication: if the same HubSpot contact appears in both Arthur (AI referral) and Enrichment (mad_id present), the portfolio index page deduplicates them using stored contact_ids — so portfolio totals represent unique contacts, not sums.
+- For "how many unique contacts booked a demo across all channels?" — the Outcomes index page shows the deduplicated count in the portfolio summary cards (labeled "deduped" when available).
+
 Response formatting rules:
 - Use **bold** for key numbers and names (they render as highlights in the chat UI).
 - Use bullet lists (- item) for breakdowns with 3-8 items. Never use pipe-based markdown tables — they render poorly in the chat bubble.

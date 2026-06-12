@@ -326,6 +326,108 @@ export async function getClosedWonMtd(date: string): Promise<{ count: number }> 
   return { count };
 }
 
+// ── With-contact-ids variants (for cross-project deduplication) ───────────────
+
+// Bulk: fetches all AI-referral data once and returns all 4 MTD metrics with contact IDs.
+// More efficient than calling the individual getXxxMtd functions separately.
+export async function getAllAiReferralMtdMetrics(date: string): Promise<{
+  demosBooked: { count: number; contactIds: string[] };
+  demosHeld:   { count: number; contactIds: string[] };
+  closedWon:   { count: number; contactIds: string[] };
+  arrClosed:   { total: number; arrPerContact: Record<string, number> };
+}> {
+  const [contacts, closedWonIds] = await Promise.all([
+    getAllContacts([AI_REFERRALS]),
+    getClosedWonStageIds(),
+  ]);
+
+  if (!contacts.length) {
+    return {
+      demosBooked: { count: 0, contactIds: [] },
+      demosHeld:   { count: 0, contactIds: [] },
+      closedWon:   { count: 0, contactIds: [] },
+      arrClosed:   { total: 0, arrPerContact: {} },
+    };
+  }
+
+  const ids = contacts.map((c) => c.id);
+  const [meetingMap, dealMap] = await Promise.all([
+    batchAssociationsMap(ids, "meetings"),
+    batchAssociationsMap(ids, "deals"),
+  ]);
+  const meetingIds = [...new Set([...meetingMap.values()].flat())];
+  const dealIds    = [...new Set([...dealMap.values()].flat())];
+  const [meetings, deals] = await Promise.all([
+    meetingIds.length ? batchReadMeetings(meetingIds) : Promise.resolve([]),
+    dealIds.length    ? batchReadDeals(dealIds)       : Promise.resolve([]),
+  ]);
+
+  const { start, end } = monthRange(date);
+
+  // Demos booked
+  const bookedMeetingIds = new Set(
+    meetings.filter((m) => {
+      const ts = m.properties.hs_timestamp ? new Date(m.properties.hs_timestamp).getTime() : 0;
+      return m.properties.hs_meeting_outcome === "SCHEDULED" && ts >= start && ts <= end;
+    }).map((m) => m.id),
+  );
+  const bookedContactIds = ids.filter((cid) =>
+    (meetingMap.get(cid) ?? []).some((mid) => bookedMeetingIds.has(mid)),
+  );
+
+  // Demos held
+  const heldMeetingIds = new Set(
+    meetings.filter((m) => {
+      const ts = m.properties.hs_timestamp ? new Date(m.properties.hs_timestamp).getTime() : 0;
+      return m.properties.hs_meeting_outcome === "COMPLETED" && ts >= start && ts <= end;
+    }).map((m) => m.id),
+  );
+  const heldContactIds = ids.filter((cid) =>
+    (meetingMap.get(cid) ?? []).some((mid) => heldMeetingIds.has(mid)),
+  );
+
+  // Closed won
+  const wonDealIds = new Set(
+    deals.filter((d) => {
+      const ts = d.properties.closedate ? new Date(d.properties.closedate).getTime() : 0;
+      return closedWonIds.includes(d.properties.dealstage ?? "") && ts >= start && ts <= end;
+    }).map((d) => d.id),
+  );
+  const wonContactIds = ids.filter((cid) =>
+    (dealMap.get(cid) ?? []).some((did) => wonDealIds.has(did)),
+  );
+
+  // ARR closed — build contact → deal ARR map for dedup
+  const dealToContactIdsMap = new Map<string, string[]>();
+  for (const [cid, dids] of dealMap) {
+    for (const did of dids) {
+      const arr = dealToContactIdsMap.get(did) ?? [];
+      arr.push(cid);
+      dealToContactIdsMap.set(did, arr);
+    }
+  }
+  const arrPerContact: Record<string, number> = {};
+  let arrTotal = 0;
+  for (const d of deals) {
+    const ts = d.properties.closedate ? new Date(d.properties.closedate).getTime() : 0;
+    if (!closedWonIds.includes(d.properties.dealstage ?? "") || ts < start || ts > end) continue;
+    const amount = parseFloat(d.properties.amount ?? "0") || 0;
+    arrTotal += amount;
+    const ctids = dealToContactIdsMap.get(d.id) ?? [];
+    const share = ctids.length > 0 ? amount / ctids.length : 0;
+    for (const cid of ctids) {
+      arrPerContact[cid] = (arrPerContact[cid] ?? 0) + share;
+    }
+  }
+
+  return {
+    demosBooked: { count: bookedMeetingIds.size, contactIds: bookedContactIds },
+    demosHeld:   { count: heldMeetingIds.size,   contactIds: heldContactIds   },
+    closedWon:   { count: wonDealIds.size,        contactIds: wonContactIds    },
+    arrClosed:   { total: arrTotal,               arrPerContact                },
+  };
+}
+
 export async function getArrClosedMtd(date: string): Promise<{ total: number }> {
   // Sum deal `amount` for closed-won deals linked to AI-referral contacts.
   // Using deal amount (not contact current_arr__sync_) because AI-referral contacts
