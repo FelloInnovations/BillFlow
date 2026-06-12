@@ -40,39 +40,41 @@ function monthRange(date: string): { start: number; end: number } {
   };
 }
 
-// Paginate through all enriched contacts (mad_id present)
-// Body built fresh each iteration; after only included when defined; 250ms delay between pages
+// Fetch all enriched contacts via batch read keyed by mad_id (Option D).
+// Bypasses the search API's 10k result cap entirely.
+// Step 1: pull all MAD agent IDs from Supabase (no limit).
+// Step 2: batch-read HubSpot contacts by mad_id property value, 100 per batch.
 async function fetchAllEnrichedContacts(): Promise<{ id: string; madId: string; arrValue: number }[]> {
+  const madDb = getMadDb();
+  const agentRows = await madDb`SELECT id::text FROM mad.agents`;
+  const allMadIds = agentRows.map((r) => r.id as string);
+  console.error(`[fetchAllEnrichedContacts] ${allMadIds.length} MAD IDs from Supabase`);
+
   const results: { id: string; madId: string; arrValue: number }[] = [];
-  let after: string | undefined = undefined;
+  const chunkSize = 100;
 
-  do {
-    const body: Record<string, unknown> = {
-      filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
-      properties: ["mad_id", "current_arr__sync_"],
-      limit: 100,
-    };
-    if (after) body.after = after;
+  for (let i = 0; i < allMadIds.length; i += chunkSize) {
+    const chunk = allMadIds.slice(i, i + chunkSize);
 
-    console.error(`[fetchAllEnrichedContacts] fetching page, after=${after ?? "first"}`);
-
-    const res = await fetch(`${BASE}/crm/v3/objects/contacts/search`, {
+    const res = await fetch(`${BASE}/crm/v3/objects/contacts/batch/read`, {
       method: "POST",
       headers: { ...authHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        properties: ["mad_id", "current_arr__sync_"],
+        idProperty: "mad_id",
+        inputs: chunk.map((id) => ({ id })),
+      }),
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      console.error(`[fetchAllEnrichedContacts] 400 on page after=${after}. Body sent:`, JSON.stringify(body));
-      throw new Error(`HubSpot POST /crm/v3/objects/contacts/search: ${res.status} ${text}`);
+      console.error(`[fetchAllEnrichedContacts] batch ${i}–${i + chunkSize} failed: ${res.status} ${text}`);
+      continue;
     }
 
     const data = await res.json() as {
       results?: { id: string; properties?: Record<string, string | null> }[];
-      paging?: { next?: { after: string } };
     };
-
     for (const contact of data.results ?? []) {
       const madId = contact.properties?.mad_id;
       if (!madId) continue;
@@ -80,14 +82,12 @@ async function fetchAllEnrichedContacts(): Promise<{ id: string; madId: string; 
       results.push({ id: contact.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0 });
     }
 
-    after = data.paging?.next?.after ?? undefined;
-
-    if (after !== undefined) {
-      await new Promise((resolve) => setTimeout(resolve, 250));
+    if (i + chunkSize < allMadIds.length) {
+      await new Promise((resolve) => setTimeout(resolve, 110));
     }
-  } while (after !== undefined);
+  }
 
-  console.error(`[fetchAllEnrichedContacts] done — ${results.length} contacts fetched`);
+  console.error(`[fetchAllEnrichedContacts] done — ${results.length} contacts found in HubSpot`);
   return results;
 }
 
