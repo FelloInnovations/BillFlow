@@ -31,8 +31,6 @@ type HsContact = { id: string; properties: Record<string, string | null> };
 type HsDeal    = { id: string; properties: Record<string, string | null> };
 type HsMeeting = { id: string; properties: Record<string, string | null> };
 
-const MAD_ID_KNOWN = { propertyName: "mad_id", operator: "HAS_PROPERTY" };
-
 // UTC epoch ms from start of date's month through end of date
 function monthRange(date: string): { start: number; end: number } {
   const [y, m, d] = date.split("-").map(Number);
@@ -43,40 +41,62 @@ function monthRange(date: string): { start: number; end: number } {
 }
 
 // Paginate through all enriched contacts (mad_id present)
-async function fetchEnrichedContacts(): Promise<HsContact[]> {
-  const results: HsContact[] = [];
-  let after: string | undefined;
-  try {
-    do {
-      const body: Record<string, unknown> = {
-        filterGroups: [{ filters: [MAD_ID_KNOWN] }],
-        properties: ["mad_id"],
-        limit: 100,
-      };
-      if (after) body.after = after;
-      const data = await hsPost<{
-        results: HsContact[];
-        paging?: { next?: { after: string } };
-      }>("/crm/v3/objects/contacts/search", body);
-      results.push(...(data.results ?? []));
-      after = data.paging?.next?.after;
-    } while (after);
-  } catch (err) {
-    logErr("fetchEnrichedContacts", err);
-    throw err;
-  }
+// Body built fresh each iteration; after only included when defined; 250ms delay between pages
+async function fetchAllEnrichedContacts(): Promise<{ id: string; madId: string; arrValue: number }[]> {
+  const results: { id: string; madId: string; arrValue: number }[] = [];
+  let after: string | undefined = undefined;
+
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
+      properties: ["mad_id", "current_arr__sync_"],
+      limit: 100,
+    };
+    if (after) body.after = after;
+
+    console.error(`[fetchAllEnrichedContacts] fetching page, after=${after ?? "first"}`);
+
+    const res = await fetch(`${BASE}/crm/v3/objects/contacts/search`, {
+      method: "POST",
+      headers: { ...authHeader(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(`[fetchAllEnrichedContacts] 400 on page after=${after}. Body sent:`, JSON.stringify(body));
+      throw new Error(`HubSpot POST /crm/v3/objects/contacts/search: ${res.status} ${text}`);
+    }
+
+    const data = await res.json() as {
+      results?: { id: string; properties?: Record<string, string | null> }[];
+      paging?: { next?: { after: string } };
+    };
+
+    for (const contact of data.results ?? []) {
+      const madId = contact.properties?.mad_id;
+      if (!madId) continue;
+      const arrRaw = contact.properties?.current_arr__sync_;
+      results.push({ id: contact.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0 });
+    }
+
+    after = data.paging?.next?.after ?? undefined;
+
+    if (after !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  } while (after !== undefined);
+
+  console.error(`[fetchAllEnrichedContacts] done — ${results.length} contacts fetched`);
   return results;
 }
 
 // Module-level cache — valid for one process/request lifetime
-let _allEnrichedContactsCache: { id: string; madId: string }[] | null = null;
+let _allEnrichedContactsCache: { id: string; madId: string; arrValue: number }[] | null = null;
 
-async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: string }[]> {
+async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: string; arrValue: number }[]> {
   if (_allEnrichedContactsCache) return _allEnrichedContactsCache;
-  const contacts = await fetchEnrichedContacts();
-  _allEnrichedContactsCache = contacts
-    .map((c) => ({ id: c.id, madId: c.properties.mad_id ?? "" }))
-    .filter((c) => c.madId !== "");
+  _allEnrichedContactsCache = await fetchAllEnrichedContacts();
   console.error(`ENRICHMENT INFO: cached ${_allEnrichedContactsCache.length} HubSpot enriched contacts`);
   return _allEnrichedContactsCache;
 }
