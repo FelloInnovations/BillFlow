@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
   OutcomeMetricConfig,
@@ -158,6 +158,43 @@ function BackfillModal({
   );
 }
 
+// ── Scope helpers ─────────────────────────────────────────────────────────────
+type Scope = "all_time" | "this_month";
+
+const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
+  { value: "all_time",   label: "All Time"   },
+  { value: "this_month", label: "This Month" },
+];
+
+// Keys whose all-time value is a SUM across months (period/count metrics)
+const SUM_KEYS = new Set(["agents_enriched_period", "agents_pushed_hubspot"]);
+
+function computeAllTime(
+  monthly: MonthlyOutcomeBreakdown[],
+  configKeys: string[],
+): OutcomeMtdSummary {
+  const result: OutcomeMtdSummary = {};
+  const sorted = [...monthly].sort((a, b) => b.month.localeCompare(a.month));
+  for (const key of configKeys) {
+    if (key === "agents_enriched_total") {
+      // All-time count — take the latest (highest) value
+      result[key] = Math.max(0, ...monthly.map((m) => (m.metrics[key] as number) ?? 0));
+    } else if (SUM_KEYS.has(key)) {
+      result[key] = monthly.reduce((s, m) => s + ((m.metrics[key] as number) ?? 0), 0);
+    } else {
+      // Snapshot metric — latest month's value
+      result[key] = (sorted[0]?.metrics[key] as number) ?? 0;
+    }
+  }
+  return result;
+}
+
+function noteFor(key: string, scope: Scope): string {
+  if (key === "agents_enriched_total") return "all time";
+  if (scope === "all_time") return "all time";
+  return key === "agents_enriched_period" ? "this month" : "month-to-date";
+}
+
 // ── Metric accent color ───────────────────────────────────────────────────────
 function accentFor(key: string): "indigo" | "emerald" | "amber" | "violet" | "sky" {
   if (key === "agents_enriched_total") return "violet";
@@ -183,13 +220,14 @@ export function EnrichmentOutcomesClient({
   initialMonthlyBreakdown,
   initialLastSynced,
 }: EnrichmentOutcomesClientProps) {
-  const [config]           = useState(initialConfig);
-  const [mtd, setMtd]      = useState(initialMtd);
+  const [config]              = useState(initialConfig);
+  const [mtd, setMtd]         = useState(initialMtd);
   const [monthly, setMonthly] = useState(initialMonthlyBreakdown);
   const [lastSynced, setLastSynced] = useState(initialLastSynced);
+  const [scope, setScope]     = useState<Scope>("all_time");
   const [backfillOpen, setBackfillOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast]     = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -205,8 +243,9 @@ export function EnrichmentOutcomesClient({
   async function syncNow() {
     setSyncing(true);
     try {
-      const res = await fetch(`/api/outcomes/sync-enrichment?secret=${process.env.NEXT_PUBLIC_OUTCOMES_SYNC_SECRET ?? ""}`);
-      if (!res.ok) throw new Error("Sync failed");
+      const res = await fetch("/api/outcomes/trigger-enrichment", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? "Sync failed");
       setToast({ msg: "Sync complete", type: "success" });
       await fetchData();
     } catch (e) {
@@ -217,14 +256,27 @@ export function EnrichmentOutcomesClient({
     }
   }
 
-  // Build sparkline data per metric key from monthly breakdown
-  const sparkMap = new Map<string, number[]>();
-  for (const key of config.map((c) => c.metric_key)) {
-    const pts = [...monthly]
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .map((b) => (b.metrics[key] as number) ?? 0);
-    if (pts.some((v) => v > 0)) sparkMap.set(key, pts);
-  }
+  const configKeys = config.map((c) => c.metric_key);
+
+  const allTimeValues = useMemo(
+    () => computeAllTime(monthly, configKeys),
+    [monthly, configKeys],
+  );
+
+  const displayValues: OutcomeMtdSummary =
+    scope === "all_time" ? allTimeValues : mtd;
+
+  // Sparkline data per metric from monthly breakdown
+  const sparkMap = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const key of configKeys) {
+      const pts = [...monthly]
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .map((b) => (b.metrics[key] as number) ?? 0);
+      if (pts.some((v) => v > 0)) map.set(key, pts);
+    }
+    return map;
+  }, [monthly, configKeys]);
 
   function timeAgo(ts: string) {
     const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
@@ -253,6 +305,22 @@ export function EnrichmentOutcomesClient({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Scope selector */}
+          <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
+            {SCOPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setScope(opt.value)}
+                className={`px-3 py-2 transition-colors ${
+                  scope === opt.value
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <button
             onClick={syncNow}
             disabled={syncing}
@@ -272,12 +340,8 @@ export function EnrichmentOutcomesClient({
       {/* KPI cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
         {config.map((c) => {
-          const value = (mtd[c.metric_key] as number) ?? 0;
+          const value = (displayValues[c.metric_key] as number) ?? 0;
           const isCurrency = c.metric_key === "arr_closed_mtd";
-          const note =
-            c.metric_key === "agents_enriched_total" ? "all-time" :
-            c.metric_key === "agents_enriched_period" ? "this month" :
-            "month-to-date";
           return (
             <HeroStatCard
               key={c.metric_key}
@@ -286,7 +350,7 @@ export function EnrichmentOutcomesClient({
               sparkData={sparkMap.get(c.metric_key)}
               isCurrency={isCurrency}
               accent={accentFor(c.metric_key)}
-              note={note}
+              note={noteFor(c.metric_key, scope)}
             />
           );
         })}
