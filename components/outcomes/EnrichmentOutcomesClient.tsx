@@ -86,7 +86,7 @@ function BackfillModal({
   onDone,
 }: {
   onClose: () => void;
-  onDone: () => void;
+  onDone: (from: string, to: string) => void;
 }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -98,16 +98,14 @@ function BackfillModal({
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch("/api/outcomes/backfill-enrichment", {
+      const res = await fetch("/api/outcomes/trigger-backfill-enrichment", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-sync-secret": "",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from, to }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      onDone();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? `Status ${res.status}`);
+      onDone(from, to);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Backfill failed");
     } finally {
@@ -344,9 +342,9 @@ export function EnrichmentOutcomesClient({
       {backfillOpen && (
         <BackfillModal
           onClose={() => setBackfillOpen(false)}
-          onDone={() => {
+          onDone={(from, to) => {
             setBackfillOpen(false);
-            setToast({ msg: "Backfill complete", type: "success" });
+            setToast({ msg: `Backfill complete — metrics synced from ${from} to ${to}.`, type: "success" });
             fetchData();
           }}
         />
