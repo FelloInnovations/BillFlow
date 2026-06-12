@@ -1,5 +1,5 @@
 import { getClosedWonStageIds } from "@/lib/hubspot-outcomes";
-import { madDb } from "@/lib/mad-db";
+import { getMadDb } from "@/lib/mad-db";
 
 const BASE = "https://api.hubapi.com";
 
@@ -267,6 +267,7 @@ export function computeArrClosed(
 // ── Direct Postgres functions for mad schema ──────────────────────────────────
 
 export async function getAgentsEnrichedTotal(): Promise<{ count: number }> {
+  const madDb = getMadDb();
   try {
     // Temporary: verify connection and schema access
     const test = await madDb`SELECT id, created_at FROM mad.agents LIMIT 1`;
@@ -289,6 +290,7 @@ export async function getAgentsEnrichedPeriod(
   fromDate: string,
   toDate: string,
 ): Promise<{ count: number }> {
+  const madDb = getMadDb();
   try {
     const result = await madDb`
       SELECT COUNT(*)::int AS total
@@ -306,6 +308,7 @@ export async function getAgentsEnrichedPeriod(
 }
 
 export async function getMadAgentIds(): Promise<string[]> {
+  const madDb = getMadDb();
   try {
     const result = await madDb`
       SELECT id::text FROM mad.agents
