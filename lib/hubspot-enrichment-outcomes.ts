@@ -3,6 +3,13 @@ import { getClosedWonStageIds } from "@/lib/hubspot-outcomes";
 
 const BASE = "https://api.hubapi.com";
 
+function logErr(label: string, err: unknown) {
+  console.error(
+    `ENRICHMENT ERROR [${label}]:`,
+    JSON.stringify(err, Object.getOwnPropertyNames(err instanceof Error ? err : new Error(String(err)))),
+  );
+}
+
 function authHeader() {
   return { Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_TOKEN}` };
 }
@@ -49,20 +56,25 @@ async function fetchEnrichedContacts(
 ): Promise<HsContact[]> {
   const results: HsContact[] = [];
   let after: string | undefined;
-  do {
-    const body: Record<string, unknown> = {
-      filterGroups: [{ filters: [MAD_ID_KNOWN, ...extraFilters] }],
-      properties: ["mad_id"],
-      limit: 100,
-    };
-    if (after) body.after = after;
-    const data = await hsPost<{
-      results: HsContact[];
-      paging?: { next?: { after: string } };
-    }>("/crm/v3/objects/contacts/search", body);
-    results.push(...(data.results ?? []));
-    after = data.paging?.next?.after;
-  } while (after);
+  try {
+    do {
+      const body: Record<string, unknown> = {
+        filterGroups: [{ filters: [MAD_ID_KNOWN, ...extraFilters] }],
+        properties: ["mad_id"],
+        limit: 100,
+      };
+      if (after) body.after = after;
+      const data = await hsPost<{
+        results: HsContact[];
+        paging?: { next?: { after: string } };
+      }>("/crm/v3/objects/contacts/search", body);
+      results.push(...(data.results ?? []));
+      after = data.paging?.next?.after;
+    } while (after);
+  } catch (err) {
+    logErr("fetchEnrichedContacts", err);
+    throw err;
+  }
   return results;
 }
 
@@ -71,46 +83,61 @@ async function batchAssociationsMap(
   toType: "meetings" | "deals",
 ): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
-  for (let i = 0; i < contactIds.length; i += 100) {
-    const batch = contactIds.slice(i, i + 100);
-    const data = await hsPost<{
-      results: { from: { id: string }; to?: { toObjectId: string }[] }[];
-    }>(`/crm/v4/associations/contacts/${toType}/batch/read`, {
-      inputs: batch.map((id) => ({ id })),
-    });
-    for (const r of data.results ?? []) {
-      map.set(r.from.id, (r.to ?? []).map((t) => t.toObjectId));
+  try {
+    for (let i = 0; i < contactIds.length; i += 100) {
+      const batch = contactIds.slice(i, i + 100);
+      const data = await hsPost<{
+        results: { from: { id: string }; to?: { toObjectId: string }[] }[];
+      }>(`/crm/v4/associations/contacts/${toType}/batch/read`, {
+        inputs: batch.map((id) => ({ id })),
+      });
+      for (const r of data.results ?? []) {
+        map.set(r.from.id, (r.to ?? []).map((t) => t.toObjectId));
+      }
     }
+  } catch (err) {
+    logErr(`batchAssociationsMap:${toType}`, err);
+    throw err;
   }
   return map;
 }
 
 async function batchReadMeetings(ids: string[]): Promise<HsMeeting[]> {
   const results: HsMeeting[] = [];
-  for (let i = 0; i < ids.length; i += 100) {
-    const data = await hsPost<{ results: HsMeeting[] }>(
-      "/crm/v3/objects/meetings/batch/read",
-      {
-        inputs: ids.slice(i, i + 100).map((id) => ({ id })),
-        properties: ["hs_meeting_outcome", "hs_timestamp"],
-      },
-    );
-    results.push(...(data.results ?? []));
+  try {
+    for (let i = 0; i < ids.length; i += 100) {
+      const data = await hsPost<{ results: HsMeeting[] }>(
+        "/crm/v3/objects/meetings/batch/read",
+        {
+          inputs: ids.slice(i, i + 100).map((id) => ({ id })),
+          properties: ["hs_meeting_outcome", "hs_timestamp"],
+        },
+      );
+      results.push(...(data.results ?? []));
+    }
+  } catch (err) {
+    logErr("batchReadMeetings", err);
+    throw err;
   }
   return results;
 }
 
 async function batchReadDeals(ids: string[]): Promise<HsDeal[]> {
   const results: HsDeal[] = [];
-  for (let i = 0; i < ids.length; i += 100) {
-    const data = await hsPost<{ results: HsDeal[] }>(
-      "/crm/v3/objects/deals/batch/read",
-      {
-        inputs: ids.slice(i, i + 100).map((id) => ({ id })),
-        properties: ["dealstage", "closedate", "amount"],
-      },
-    );
-    results.push(...(data.results ?? []));
+  try {
+    for (let i = 0; i < ids.length; i += 100) {
+      const data = await hsPost<{ results: HsDeal[] }>(
+        "/crm/v3/objects/deals/batch/read",
+        {
+          inputs: ids.slice(i, i + 100).map((id) => ({ id })),
+          properties: ["dealstage", "closedate", "amount"],
+        },
+      );
+      results.push(...(data.results ?? []));
+    }
+  } catch (err) {
+    logErr("batchReadDeals", err);
+    throw err;
   }
   return results;
 }
@@ -126,22 +153,29 @@ export interface EnrichedDataSnapshot {
 }
 
 export async function getAllEnrichedData(): Promise<EnrichedDataSnapshot> {
-  const contacts = await fetchEnrichedContacts();
-  if (!contacts.length) {
-    return { contactIds: [], meetingMap: new Map(), dealMap: new Map(), meetings: [], deals: [] };
+  try {
+    const contacts = await fetchEnrichedContacts();
+    console.error(`ENRICHMENT INFO: getAllEnrichedData fetched ${contacts.length} contacts`);
+    if (!contacts.length) {
+      return { contactIds: [], meetingMap: new Map(), dealMap: new Map(), meetings: [], deals: [] };
+    }
+    const ids = contacts.map((c) => c.id);
+    const [meetingMap, dealMap] = await Promise.all([
+      batchAssociationsMap(ids, "meetings"),
+      batchAssociationsMap(ids, "deals"),
+    ]);
+    const meetingIds = [...new Set([...meetingMap.values()].flat())];
+    const dealIds    = [...new Set([...dealMap.values()].flat())];
+    console.error(`ENRICHMENT INFO: getAllEnrichedData meetingIds=${meetingIds.length} dealIds=${dealIds.length}`);
+    const [meetings, deals] = await Promise.all([
+      meetingIds.length ? batchReadMeetings(meetingIds) : Promise.resolve([]),
+      dealIds.length    ? batchReadDeals(dealIds)       : Promise.resolve([]),
+    ]);
+    return { contactIds: ids, meetingMap, dealMap, meetings, deals };
+  } catch (err) {
+    logErr("getAllEnrichedData", err);
+    throw err;
   }
-  const ids = contacts.map((c) => c.id);
-  const [meetingMap, dealMap] = await Promise.all([
-    batchAssociationsMap(ids, "meetings"),
-    batchAssociationsMap(ids, "deals"),
-  ]);
-  const meetingIds = [...new Set([...meetingMap.values()].flat())];
-  const dealIds    = [...new Set([...dealMap.values()].flat())];
-  const [meetings, deals] = await Promise.all([
-    meetingIds.length ? batchReadMeetings(meetingIds) : Promise.resolve([]),
-    dealIds.length    ? batchReadDeals(dealIds)       : Promise.resolve([]),
-  ]);
-  return { contactIds: ids, meetingMap, dealMap, meetings, deals };
 }
 
 // ── Compute helpers (operate on a pre-fetched snapshot) ───────────────────────
@@ -215,7 +249,6 @@ export function computeArrClosed(
     return closedWonIds.includes(d.properties.dealstage ?? "") && ts >= start && ts <= end;
   });
 
-  // Build deal → contacts map for ARR attribution
   const dealToContactIds = new Map<string, string[]>();
   for (const [cid, dids] of snap.dealMap) {
     for (const did of dids) {
@@ -225,7 +258,6 @@ export function computeArrClosed(
     }
   }
 
-  // Attribute deal amount evenly across associated contacts (for dedup)
   const arrPerContact: Record<string, number> = {};
   let total = 0;
   for (const d of wonDeals) {
@@ -243,28 +275,38 @@ export function computeArrClosed(
 // ── Supabase-based public functions ───────────────────────────────────────────
 
 export async function getAgentsEnrichedTotal(): Promise<{ count: number }> {
-  const supabase = serviceClient();
-  const { count, error } = await supabase
-    .schema("mad")
-    .from("agents")
-    .select("*", { count: "exact", head: true });
-  if (error) throw new Error(error.message);
-  return { count: count ?? 0 };
+  try {
+    const supabase = serviceClient();
+    const { count, error } = await supabase
+      .schema("mad")
+      .from("agents")
+      .select("*", { count: "exact", head: true });
+    if (error) throw new Error(error.message);
+    return { count: count ?? 0 };
+  } catch (err) {
+    logErr("getAgentsEnrichedTotal", err);
+    throw err;
+  }
 }
 
 export async function getAgentsEnrichedPeriod(
   fromDate: string,
   toDate: string,
 ): Promise<{ count: number }> {
-  const supabase = serviceClient();
-  const { count, error } = await supabase
-    .schema("mad")
-    .from("agents")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", `${fromDate}T00:00:00Z`)
-    .lte("created_at", `${toDate}T23:59:59Z`);
-  if (error) throw new Error(error.message);
-  return { count: count ?? 0 };
+  try {
+    const supabase = serviceClient();
+    const { count, error } = await supabase
+      .schema("mad")
+      .from("agents")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", `${fromDate}T00:00:00Z`)
+      .lte("created_at", `${toDate}T23:59:59Z`);
+    if (error) throw new Error(error.message);
+    return { count: count ?? 0 };
+  } catch (err) {
+    logErr("getAgentsEnrichedPeriod", err);
+    throw err;
+  }
 }
 
 // ── HubSpot public function for pushed-to-hubspot ─────────────────────────────
@@ -272,10 +314,15 @@ export async function getAgentsEnrichedPeriod(
 export async function getAgentsPushedToHubspot(
   date: string,
 ): Promise<{ count: number; contactIds: string[] }> {
-  const { start, end } = monthRange(date);
-  const contacts = await fetchEnrichedContacts([
-    { propertyName: "createdate", operator: "GTE", value: String(start) },
-    { propertyName: "createdate", operator: "LTE", value: String(end) },
-  ]);
-  return { count: contacts.length, contactIds: contacts.map((c) => c.id) };
+  try {
+    const { start, end } = monthRange(date);
+    const contacts = await fetchEnrichedContacts([
+      { propertyName: "createdate", operator: "GTE", value: String(start) },
+      { propertyName: "createdate", operator: "LTE", value: String(end) },
+    ]);
+    return { count: contacts.length, contactIds: contacts.map((c) => c.id) };
+  } catch (err) {
+    logErr("getAgentsPushedToHubspot", err);
+    throw err;
+  }
 }
