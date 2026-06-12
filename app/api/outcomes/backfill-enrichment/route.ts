@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
     // agents_pushed_hubspot: HubSpot contacts with mad_id created in this month
     try {
-      const { count, contactIds } = await getAgentsPushedToHubspot(endDate);
+      const { count, contactIds } = await getAgentsPushedToHubspot(monthStartDate, endDate);
       rows.push({ project_id: "enrichment", metric_key: "agents_pushed_hubspot", value: count, date: endDate, source: "backfill", contact_ids: contactIds });
     } catch (err) {
       logErr(`getAgentsPushedToHubspot month=${endDate}`, err);

@@ -42,21 +42,18 @@ function monthRange(date: string): { start: number; end: number } {
   };
 }
 
-// Paginate through all enriched contacts (mad_id present), with optional date filter
-async function fetchEnrichedContacts(
-  extraFilters: unknown[] = [],
-): Promise<HsContact[]> {
+// Paginate through all enriched contacts (mad_id present)
+async function fetchEnrichedContacts(): Promise<HsContact[]> {
   const results: HsContact[] = [];
   let after: string | undefined;
   try {
     do {
       const body: Record<string, unknown> = {
-        filterGroups: [{ filters: [MAD_ID_KNOWN, ...extraFilters] }],
+        filterGroups: [{ filters: [MAD_ID_KNOWN] }],
         properties: ["mad_id"],
         limit: 100,
       };
       if (after) body.after = after;
-      console.error("HubSpot search payload:", JSON.stringify(body, null, 2));
       const data = await hsPost<{
         results: HsContact[];
         paging?: { next?: { after: string } };
@@ -69,6 +66,19 @@ async function fetchEnrichedContacts(
     throw err;
   }
   return results;
+}
+
+// Module-level cache — valid for one process/request lifetime
+let _allEnrichedContactsCache: { id: string; madId: string }[] | null = null;
+
+async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: string }[]> {
+  if (_allEnrichedContactsCache) return _allEnrichedContactsCache;
+  const contacts = await fetchEnrichedContacts();
+  _allEnrichedContactsCache = contacts
+    .map((c) => ({ id: c.id, madId: c.properties.mad_id ?? "" }))
+    .filter((c) => c.madId !== "");
+  console.error(`ENRICHMENT INFO: cached ${_allEnrichedContactsCache.length} HubSpot enriched contacts`);
+  return _allEnrichedContactsCache;
 }
 
 async function batchAssociationsMap(
@@ -147,12 +157,12 @@ export interface EnrichedDataSnapshot {
 
 export async function getAllEnrichedData(): Promise<EnrichedDataSnapshot> {
   try {
-    const contacts = await fetchEnrichedContacts();
-    console.error(`ENRICHMENT INFO: getAllEnrichedData fetched ${contacts.length} contacts`);
-    if (!contacts.length) {
+    const cached = await getAllHubspotEnrichedContacts();
+    console.error(`ENRICHMENT INFO: getAllEnrichedData using ${cached.length} contacts`);
+    if (!cached.length) {
       return { contactIds: [], meetingMap: new Map(), dealMap: new Map(), meetings: [], deals: [] };
     }
-    const ids = contacts.map((c) => c.id);
+    const ids = cached.map((c) => c.id);
     const [meetingMap, dealMap] = await Promise.all([
       batchAssociationsMap(ids, "meetings"),
       batchAssociationsMap(ids, "deals"),
@@ -308,35 +318,36 @@ export async function getAgentsEnrichedPeriod(
   }
 }
 
-export async function getMadAgentIds(): Promise<string[]> {
-  const madDb = getMadDb();
-  try {
-    const result = await madDb`
-      SELECT id::text FROM mad.agents
-    `;
-    return result.map((row) => row.id as string);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const wrapped = new Error(`getMadAgentIds failed: ${message}`);
-    logErr("getMadAgentIds", wrapped);
-    throw wrapped;
-  }
-}
-
 // ── HubSpot public function for pushed-to-hubspot ─────────────────────────────
 
 export async function getAgentsPushedToHubspot(
-  date: string,
+  fromDate: string,
+  toDate: string,
 ): Promise<{ count: number; contactIds: string[] }> {
+  const madDb = getMadDb();
   try {
-    const { start, end } = monthRange(date);
-    const contacts = await fetchEnrichedContacts([
-      { propertyName: "createdate", operator: "GTE", value: String(start) },
-      { propertyName: "createdate", operator: "LTE", value: String(end) },
-    ]);
-    return { count: contacts.length, contactIds: contacts.map((c) => c.id) };
+    // Step 1: MAD agent IDs enriched in this period
+    const agentRows = await madDb`
+      SELECT id::text
+      FROM mad.agents
+      WHERE created_at >= ${fromDate}::timestamptz
+        AND created_at <= ${toDate}::timestamptz
+    `;
+    const madIdsInScope = new Set(agentRows.map((r) => r.id as string));
+
+    if (madIdsInScope.size === 0) return { count: 0, contactIds: [] };
+
+    // Step 2: All HubSpot contacts with mad_id (cached — fetched once per request)
+    const allEnriched = await getAllHubspotEnrichedContacts();
+
+    // Step 3: Intersect — contacts whose mad_id was enriched in scope
+    const matched = allEnriched.filter((c) => madIdsInScope.has(c.madId));
+    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} madInScope=${madIdsInScope.size} matched=${matched.length}`);
+    return { count: matched.length, contactIds: matched.map((c) => c.id) };
   } catch (err) {
-    logErr("getAgentsPushedToHubspot", err);
-    throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    const wrapped = new Error(`getAgentsPushedToHubspot failed: ${message}`);
+    logErr("getAgentsPushedToHubspot", wrapped);
+    throw wrapped;
   }
 }

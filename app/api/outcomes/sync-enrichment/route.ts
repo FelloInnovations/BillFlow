@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
 
   // ── agents_pushed_hubspot (MTD, HubSpot) ───────────────────────────────────
   try {
-    const { count, contactIds } = await getAgentsPushedToHubspot(dateStr);
+    const { count, contactIds } = await getAgentsPushedToHubspot(monthStart, dateStr);
     await upsertMetric(supabase, dateStr, "agents_pushed_hubspot", count, contactIds);
     result.upserted.push({ metric_key: "agents_pushed_hubspot", value: count });
   } catch (err) {
