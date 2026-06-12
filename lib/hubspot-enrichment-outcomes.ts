@@ -56,6 +56,7 @@ async function fetchEnrichedContacts(
         limit: 100,
       };
       if (after) body.after = after;
+      console.error("HubSpot search payload:", JSON.stringify(body, null, 2));
       const data = await hsPost<{
         results: HsContact[];
         paging?: { next?: { after: string } };
