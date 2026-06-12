@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { getClosedWonStageIds } from "@/lib/hubspot-outcomes";
+import { madDb } from "@/lib/mad-db";
 
 const BASE = "https://api.hubapi.com";
 
@@ -32,14 +32,6 @@ type HsDeal    = { id: string; properties: Record<string, string | null> };
 type HsMeeting = { id: string; properties: Record<string, string | null> };
 
 const MAD_ID_KNOWN = { propertyName: "mad_id", operator: "HAS_PROPERTY" };
-
-function serviceClient() {
-  return createClient(
-    process.env.SUPABASE_URL ?? "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-}
 
 // UTC epoch ms from start of date's month through end of date
 function monthRange(date: string): { start: number; end: number } {
@@ -272,20 +264,24 @@ export function computeArrClosed(
   return { total, arrPerContact };
 }
 
-// ── Supabase-based public functions ───────────────────────────────────────────
+// ── Direct Postgres functions for mad schema ──────────────────────────────────
 
 export async function getAgentsEnrichedTotal(): Promise<{ count: number }> {
   try {
-    const supabase = serviceClient();
-    const { count, error } = await supabase
-      .schema("mad")
-      .from("agents")
-      .select("*", { count: "exact", head: true });
-    if (error) throw new Error(`mad.agents query failed: ${error.message} | code: ${error.code} | hint: ${error.hint} | details: ${error.details}`);
-    return { count: count ?? 0 };
+    // Temporary: verify connection and schema access
+    const test = await madDb`SELECT id, created_at FROM mad.agents LIMIT 1`;
+    console.error("MAD DB connection test:", JSON.stringify(test));
+
+    const result = await madDb`
+      SELECT COUNT(*)::int AS total
+      FROM mad.agents
+    `;
+    return { count: result[0]?.total ?? 0 };
   } catch (err) {
-    logErr("getAgentsEnrichedTotal", err);
-    throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    const wrapped = new Error(`getAgentsEnrichedTotal failed: ${message}`);
+    logErr("getAgentsEnrichedTotal", wrapped);
+    throw wrapped;
   }
 }
 
@@ -294,18 +290,32 @@ export async function getAgentsEnrichedPeriod(
   toDate: string,
 ): Promise<{ count: number }> {
   try {
-    const supabase = serviceClient();
-    const { count, error } = await supabase
-      .schema("mad")
-      .from("agents")
-      .select("*", { count: "exact", head: true })
-      .gte("created_at", `${fromDate}T00:00:00Z`)
-      .lte("created_at", `${toDate}T23:59:59Z`);
-    if (error) throw new Error(`mad.agents period query failed: ${error.message} | code: ${error.code} | hint: ${error.hint} | details: ${error.details}`);
-    return { count: count ?? 0 };
+    const result = await madDb`
+      SELECT COUNT(*)::int AS total
+      FROM mad.agents
+      WHERE created_at >= ${fromDate + "T00:00:00Z"}::timestamptz
+        AND created_at <= ${toDate + "T23:59:59Z"}::timestamptz
+    `;
+    return { count: result[0]?.total ?? 0 };
   } catch (err) {
-    logErr("getAgentsEnrichedPeriod", err);
-    throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    const wrapped = new Error(`getAgentsEnrichedPeriod failed: ${message}`);
+    logErr("getAgentsEnrichedPeriod", wrapped);
+    throw wrapped;
+  }
+}
+
+export async function getMadAgentIds(): Promise<string[]> {
+  try {
+    const result = await madDb`
+      SELECT id::text FROM mad.agents
+    `;
+    return result.map((row) => row.id as string);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const wrapped = new Error(`getMadAgentIds failed: ${message}`);
+    logErr("getMadAgentIds", wrapped);
+    throw wrapped;
   }
 }
 
