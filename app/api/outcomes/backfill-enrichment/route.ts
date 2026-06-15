@@ -56,20 +56,22 @@ export async function POST(req: NextRequest) {
 
   console.error(`ENRICHMENT INFO: backfill started from=${from} to=${to}`);
 
-  // Single bulk HubSpot fetch + current all-time Supabase count
+  // Single bulk HubSpot fetch + current all-time Supabase counts
   let snap: Awaited<ReturnType<typeof getAllEnrichedData>>;
   let closedWonIds: string[];
   let allTimeCount: number;
+  let allTimePushed: { count: number; contactIds: string[] };
 
   try {
-    [snap, closedWonIds, { count: allTimeCount }] = await Promise.all([
+    [snap, closedWonIds, { count: allTimeCount }, allTimePushed] = await Promise.all([
       getAllEnrichedData(),
       getClosedWonStageIds(),
       getAgentsEnrichedTotal(),
+      getAgentsPushedToHubspot(null, null),
     ]);
-    console.error(`ENRICHMENT INFO: bulk fetch done — contacts=${snap.contactIds.length} closedWonStages=${closedWonIds.length} allTimeCount=${allTimeCount}`);
+    console.error(`ENRICHMENT INFO: bulk fetch done — contacts=${snap.contactIds.length} closedWonStages=${closedWonIds.length} allTimeCount=${allTimeCount} allTimePushed=${allTimePushed.count}`);
   } catch (err) {
-    logErr("bulk fetch (getAllEnrichedData / getClosedWonStageIds / getAgentsEnrichedTotal)", err);
+    logErr("bulk fetch (getAllEnrichedData / getClosedWonStageIds / getAgentsEnrichedTotal / getAgentsPushedToHubspot)", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : JSON.stringify(err) },
       { status: 500 },
@@ -99,6 +101,16 @@ export async function POST(req: NextRequest) {
       date:        endDate,
       source:      "backfill",
       contact_ids: null,
+    });
+
+    // agents_pushed_hubspot_total: all-time HubSpot intersection (computed once, stored per month)
+    rows.push({
+      project_id: "enrichment",
+      metric_key:  "agents_pushed_hubspot_total",
+      value:       allTimePushed.count,
+      date:        endDate,
+      source:      "backfill",
+      contact_ids: allTimePushed.contactIds,
     });
 
     // agents_enriched_period: Supabase count for this month

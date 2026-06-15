@@ -93,6 +93,17 @@ export async function GET(req: NextRequest) {
     result.errors.push({ metric_key: "agents_pushed_hubspot", error: msg });
   }
 
+  // ── agents_pushed_hubspot_total (all-time, HubSpot) ────────────────────────
+  try {
+    const { count, contactIds } = await getAgentsPushedToHubspot(null, null);
+    await upsertMetric(supabase, dateStr, "agents_pushed_hubspot_total", count, contactIds);
+    result.upserted.push({ metric_key: "agents_pushed_hubspot_total", value: count });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sync-enrichment] agents_pushed_hubspot_total:", msg);
+    result.errors.push({ metric_key: "agents_pushed_hubspot_total", error: msg });
+  }
+
   // ── demos / deals — bulk HubSpot fetch ────────────────────────────────────
   try {
     const [snap, closedWonIds] = await Promise.all([

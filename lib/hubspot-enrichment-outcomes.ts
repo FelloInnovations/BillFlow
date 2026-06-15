@@ -318,17 +318,19 @@ export async function getAgentsEnrichedTotal(): Promise<{ count: number }> {
 }
 
 export async function getAgentsEnrichedPeriod(
-  fromDate: string,
-  toDate: string,
+  fromDate: string | null,
+  toDate: string | null,
 ): Promise<{ count: number }> {
   const madDb = getMadDb();
   try {
-    const result = await madDb`
-      SELECT COUNT(*)::int AS total
-      FROM mad.agents
-      WHERE created_at >= ${fromDate + "T00:00:00Z"}::timestamptz
-        AND created_at <= ${toDate + "T23:59:59Z"}::timestamptz
-    `;
+    const result = fromDate && toDate
+      ? await madDb`
+          SELECT COUNT(*)::int AS total
+          FROM mad.agents
+          WHERE created_at >= ${fromDate + "T00:00:00Z"}::timestamptz
+            AND created_at <= ${toDate + "T23:59:59Z"}::timestamptz
+        `
+      : await madDb`SELECT COUNT(*)::int AS total FROM mad.agents`;
     return { count: result[0]?.total ?? 0 };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -341,28 +343,29 @@ export async function getAgentsEnrichedPeriod(
 // ── HubSpot public function for pushed-to-hubspot ─────────────────────────────
 
 export async function getAgentsPushedToHubspot(
-  fromDate: string,
-  toDate: string,
+  fromDate: string | null,
+  toDate: string | null,
 ): Promise<{ count: number; contactIds: string[] }> {
   const madDb = getMadDb();
   try {
-    // Step 1: MAD agent IDs enriched in this period
-    const agentRows = await madDb`
-      SELECT id::text
-      FROM mad.agents
-      WHERE created_at >= ${fromDate}::timestamptz
-        AND created_at <= ${toDate}::timestamptz
-    `;
-    const madIdsInScope = new Set(agentRows.map((r) => r.id as string));
+    // Step 1: MAD agent IDs — scoped or all-time
+    const agentRows = fromDate && toDate
+      ? await madDb`
+          SELECT id::text FROM mad.agents
+          WHERE created_at >= ${fromDate}::timestamptz
+            AND created_at <= ${toDate}::timestamptz
+        `
+      : await madDb`SELECT id::text FROM mad.agents`;
 
-    if (madIdsInScope.size === 0) return { count: 0, contactIds: [] };
+    if (agentRows.length === 0) return { count: 0, contactIds: [] };
 
     // Step 2: All HubSpot contacts with mad_id (cached — fetched once per request)
     const allEnriched = await getAllHubspotEnrichedContacts();
 
-    // Step 3: Intersect — contacts whose mad_id was enriched in scope
-    const matched = allEnriched.filter((c) => madIdsInScope.has(c.madId));
-    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} madInScope=${madIdsInScope.size} matched=${matched.length}`);
+    // Step 3: Intersect
+    const madIdSet = new Set(agentRows.map((r) => r.id as string));
+    const matched = allEnriched.filter((c) => madIdSet.has(c.madId));
+    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} madInScope=${madIdSet.size} matched=${matched.length}`);
     return { count: matched.length, contactIds: matched.map((c) => c.id) };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

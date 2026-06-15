@@ -190,6 +190,9 @@ function aggregateSnapshotMetric(
   return rows.reduce((s, m) => s + ((m.metrics[key] as number) ?? 0), 0);
 }
 
+// Keys whose all-time value = latest snapshot (not sum across months)
+const LATEST_TOTAL_KEYS = new Set(["agents_enriched_total", "agents_pushed_hubspot_total"]);
+
 function computeAllTime(
   monthly: MonthlyOutcomeBreakdown[],
   configKeys: string[],
@@ -197,8 +200,8 @@ function computeAllTime(
   const result: OutcomeMtdSummary = {};
   const sorted = [...monthly].sort((a, b) => b.month.localeCompare(a.month));
   for (const key of configKeys) {
-    if (key === "agents_enriched_total") {
-      // All-time count — take the latest (highest) cumulative value
+    if (LATEST_TOTAL_KEYS.has(key)) {
+      // All-time snapshot — take the max (most recent) value across months
       result[key] = Math.max(0, ...monthly.map((m) => (m.metrics[key] as number) ?? 0));
     } else if (SUM_KEYS.has(key) || SNAPSHOT_KEYS.has(key)) {
       // Sum latest-per-month values across all months
@@ -386,9 +389,18 @@ export function EnrichmentOutcomesClient({
           }
         />
         {config
-          .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_enriched_period")
+          .filter((c) =>
+            c.metric_key !== "agents_enriched_total" &&
+            c.metric_key !== "agents_enriched_period" &&
+            c.metric_key !== "agents_pushed_hubspot_total",
+          )
           .map((c) => {
-            const value = (displayValues[c.metric_key] as number) ?? 0;
+            // "Pushed to HubSpot": show all-time total when scope = all_time
+            const metricKey =
+              c.metric_key === "agents_pushed_hubspot" && scope === "all_time"
+                ? "agents_pushed_hubspot_total"
+                : c.metric_key;
+            const value = (displayValues[metricKey] as number) ?? 0;
             const isCurrency = c.metric_key === "arr_closed_mtd";
             return (
               <HeroStatCard
@@ -418,7 +430,7 @@ export function EnrichmentOutcomesClient({
                     Month
                   </th>
                   {config
-                    .filter((c) => c.metric_key !== "agents_enriched_total")
+                    .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_pushed_hubspot_total")
                     .map((c) => (
                       <th
                         key={c.metric_key}
@@ -436,7 +448,7 @@ export function EnrichmentOutcomesClient({
                       {row.monthLabel}
                     </td>
                     {config
-                      .filter((c) => c.metric_key !== "agents_enriched_total")
+                      .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_pushed_hubspot_total")
                       .map((c) => {
                         const val = (row.metrics[c.metric_key] as number) ?? 0;
                         const isCur = c.metric_key === "arr_closed_mtd";
