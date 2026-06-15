@@ -31,6 +31,7 @@ function HeroStatCard({
   isCurrency = false,
   accent = "indigo",
   note,
+  sub,
 }: {
   label: string;
   value: number;
@@ -38,6 +39,7 @@ function HeroStatCard({
   isCurrency?: boolean;
   accent?: "indigo" | "emerald" | "amber" | "violet" | "sky";
   note?: string;
+  sub?: string;
 }) {
   const accentColor = {
     indigo: "#6366f1",
@@ -62,6 +64,9 @@ function HeroStatCard({
       </div>
       {note && (
         <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{note}</p>
+      )}
+      {sub && (
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>
       )}
     </div>
   );
@@ -367,16 +372,17 @@ export function EnrichmentOutcomesClient({
 
       {/* KPI cards — 6 cards: Agents Enriched (merged) + 5 pipeline metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-        {/* Merged card: headline always = all-time total; secondary line shows period count when not all_time */}
+        {/* Merged card: headline = scope-specific period count; secondary = all-time total (hidden when scope=all_time) */}
         <HeroStatCard
           label="Agents Enriched"
-          value={(allTimeValues.agents_enriched_total as number) ?? 0}
-          sparkData={sparkMap.get("agents_enriched_total")}
+          value={(displayValues.agents_enriched_period as number) ?? 0}
+          sparkData={sparkMap.get("agents_enriched_period")}
           accent="violet"
-          note={
-            scope === "all_time"
-              ? "all time"
-              : `${((displayValues.agents_enriched_period as number) ?? 0).toLocaleString()} in this month`
+          note={scope === "all_time" ? "all time" : "this month"}
+          sub={
+            scope !== "all_time"
+              ? `${((allTimeValues.agents_enriched_total as number) ?? 0).toLocaleString()} total all time`
+              : undefined
           }
         />
         {config
@@ -411,14 +417,16 @@ export function EnrichmentOutcomesClient({
                   <th className="text-left px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                     Month
                   </th>
-                  {config.map((c) => (
-                    <th
-                      key={c.metric_key}
-                      className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap"
-                    >
-                      {c.label}
-                    </th>
-                  ))}
+                  {config
+                    .filter((c) => c.metric_key !== "agents_enriched_total")
+                    .map((c) => (
+                      <th
+                        key={c.metric_key}
+                        className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap"
+                      >
+                        {c.metric_key === "agents_enriched_period" ? "Agents Enriched" : c.label}
+                      </th>
+                    ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
@@ -427,15 +435,17 @@ export function EnrichmentOutcomesClient({
                     <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                       {row.monthLabel}
                     </td>
-                    {config.map((c) => {
-                      const val = (row.metrics[c.metric_key] as number) ?? 0;
-                      const isCur = c.metric_key === "arr_closed_mtd";
-                      return (
-                        <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
-                          {isCur ? formatCurrency(val) : val.toLocaleString()}
-                        </td>
-                      );
-                    })}
+                    {config
+                      .filter((c) => c.metric_key !== "agents_enriched_total")
+                      .map((c) => {
+                        const val = (row.metrics[c.metric_key] as number) ?? 0;
+                        const isCur = c.metric_key === "arr_closed_mtd";
+                        return (
+                          <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
+                            {isCur ? formatCurrency(val) : val.toLocaleString()}
+                          </td>
+                        );
+                      })}
                   </tr>
                 ))}
               </tbody>
