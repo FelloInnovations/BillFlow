@@ -44,102 +44,88 @@ type EnrichedContact = { id: string; madId: string; arrValue: number; createdate
 // Module-level cache — valid for one process/request lifetime
 let _hubspotEnrichedCache: EnrichedContact[] | null = null;
 
-// Fetch one 10k-capped batch of contacts.
-// First batch: filter = HAS_PROPERTY on mad_id (single filter — proven to work).
-// Restart batches: filter = hs_object_id GT only (no HAS_PROPERTY — avoids multi-filter 400),
-// then skip contacts without mad_id client-side.
-async function fetchEnrichedContactsFromId(afterId?: string): Promise<{
-  contacts:  EnrichedContact[];
-  lastId:    string | null;
-  hasMore:   boolean;
-  pageCount: number;
-}> {
-  const contacts: EnrichedContact[] = [];
-  let after:              string | undefined;
-  let pageCount           = 0;
-  let totalFetched        = 0;  // raw count (all contacts, not just enriched)
-  let lastId:             string | null = null;
-  let consecutiveFailures = 0;
-
-  const isRestart = !!afterId;
-  // Single-filter rules — never combine HAS_PROPERTY with hs_object_id GT
-  const filters: object[] = isRestart
-    ? [{ propertyName: "hs_object_id", operator: "GT", value: afterId }]
-    : [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }];
-
-  do {
-    const body: Record<string, unknown> = {
-      filterGroups: [{ filters }],
-      properties: ["mad_id", "current_arr__sync_", "createdate"],
-      sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
-      limit: 100,
-    };
-    if (after) body.after = after;
-
-    const res = await fetch(`${BASE}/crm/v3/objects/contacts/search`, {
-      method: "POST",
-      headers: { ...authHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      consecutiveFailures++;
-      const text = await res.text().catch(() => "");
-      console.error(`[fetchEnrichedContactsFromId] failure ${consecutiveFailures}/3 afterId=${afterId ?? "start"} after=${after ?? "none"}: ${res.status} ${text.slice(0, 200)}`);
-      if (consecutiveFailures >= 3) break;
-      await new Promise((r) => setTimeout(r, 1000));
-      continue;
-    }
-
-    consecutiveFailures = 0;
-    const data = await res.json() as {
-      results?: { id: string; properties?: Record<string, string | null> }[];
-      paging?:  { next?: { after: string } };
-    };
-
-    for (const c of data.results ?? []) {
-      lastId = c.id;  // always advance — needed for accurate restart positioning
-      const madId      = c.properties?.mad_id;
-      if (isRestart && !madId) continue;  // client-side filter for restart batches
-      const arrRaw     = c.properties?.current_arr__sync_;
-      const createdate = c.properties?.createdate ?? "";
-      if (madId) {
-        contacts.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0, createdate });
-      }
-    }
-
-    totalFetched += (data.results ?? []).length;
-    after = data.paging?.next?.after ?? undefined;
-    pageCount++;
-    if (after) await new Promise((r) => setTimeout(r, 150));
-  } while (after);
-
-  // Use raw totalFetched for wall detection — reliable even when restart batches
-  // have sparse mad_id coverage (contacts.length would be too low otherwise)
-  const hitWall = totalFetched >= 9900 && !after;
-  return { contacts, lastId, hasMore: hitWall, pageCount };
-}
-
 export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]> {
   if (_hubspotEnrichedCache) return _hubspotEnrichedCache;
 
   const allContacts: EnrichedContact[] = [];
-  let lastId:  string | undefined;
-  let batchNum = 0;
+  let lastContactId: string | undefined;
+  let batchNumber   = 0;
+  let totalFetched  = 0;
 
-  do {
-    batchNum++;
-    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNum} starting from id > ${lastId ?? "beginning"}`);
+  while (true) {
+    batchNumber++;
+    let pageInBatch   = 0;
+    let after:        string | undefined;
+    let batchContacts = 0;
+    let lastIdInBatch: string | undefined;
 
-    const { contacts, lastId: newLastId, hasMore, pageCount } = await fetchEnrichedContactsFromId(lastId);
+    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNumber} starting, lastId=${lastContactId ?? "none"}`);
 
-    allContacts.push(...contacts);
-    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNum}: ${contacts.length} contacts (${pageCount} pages), total so far: ${allContacts.length}`);
+    // Fresh search each batch — never carry `after` across batch boundaries.
+    // First batch:    HAS_PROPERTY only (proven to work).
+    // Restart batches: hs_object_id GT only (no HAS_PROPERTY — avoids multi-filter 400);
+    //                  contacts without mad_id filtered client-side below.
+    const filters: object[] = lastContactId
+      ? [{ propertyName: "hs_object_id", operator: "GT", value: lastContactId }]
+      : [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }];
 
-    if (!hasMore || !newLastId) break;
-    lastId = newLastId;
-    await new Promise((r) => setTimeout(r, 250));
-  } while (true);
+    do {
+      const body: Record<string, unknown> = {
+        filterGroups: [{ filters }],
+        properties: ["mad_id", "current_arr__sync_", "createdate"],
+        limit: 100,
+        sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
+      };
+      if (after) body.after = after;  // within-batch pagination only
+
+      const res = await fetch(`${BASE}/crm/v3/objects/contacts/search`, {
+        method: "POST",
+        headers: { ...authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        console.error(`[getAllHubspotEnrichedContacts] batch ${batchNumber} page ${pageInBatch} failed: ${res.status} ${text.slice(0, 300)}`);
+        after = undefined;
+        break;
+      }
+
+      const data = await res.json() as {
+        results?: { id: string; properties?: Record<string, string | null> }[];
+        paging?:  { next?: { after: string } };
+      };
+
+      for (const c of data.results ?? []) {
+        const madId = c.properties?.mad_id;
+        if (!madId) continue;  // client-side filter (needed for restart batches)
+        const arrRaw     = c.properties?.current_arr__sync_;
+        const createdate = c.properties?.createdate ?? "";
+        allContacts.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0, createdate });
+        lastIdInBatch = c.id;
+        batchContacts++;
+        totalFetched++;
+      }
+
+      after = data.paging?.next?.after ?? undefined;
+      pageInBatch++;
+      if (after) await new Promise((r) => setTimeout(r, 150));
+    } while (after);
+
+    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNumber} done: ${batchContacts} contacts, total: ${totalFetched}`);
+
+    if (lastIdInBatch) lastContactId = lastIdInBatch;
+
+    if (batchContacts < 9900) {
+      console.error(`[getAllHubspotEnrichedContacts] batch returned ${batchContacts} < 9900 — done`);
+      break;
+    }
+
+    if (batchNumber >= 10) {
+      console.error("[getAllHubspotEnrichedContacts] safety limit of 10 batches reached");
+      break;
+    }
+  }
 
   // Deduplicate by contact ID (safety net for batch boundary overlaps)
   const seen    = new Set<string>();
@@ -149,7 +135,7 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
     return true;
   });
 
-  console.error(`[getAllHubspotEnrichedContacts] complete — ${deduped.length} unique contacts`);
+  console.error(`[getAllHubspotEnrichedContacts] final: ${deduped.length} unique contacts`);
   _hubspotEnrichedCache = deduped;
   return deduped;
 }
