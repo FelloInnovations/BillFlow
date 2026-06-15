@@ -137,6 +137,9 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
         if ((data.total ?? 0) > 9000) {
           console.error(`[getAllHubspotEnrichedContacts] WARNING chunk has ${data.total} contacts — approaching 10k limit, reduce CHUNK_SIZE`);
         }
+        if ((data.results?.length ?? 0) > 0) {
+          console.error(`[getAllHubspotEnrichedContacts] sample contact properties:`, JSON.stringify(data.results![0].properties));
+        }
       }
 
       for (const c of data.results ?? []) {
