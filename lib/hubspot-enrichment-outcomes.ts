@@ -27,7 +27,6 @@ async function hsPost<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-type HsContact = { id: string; properties: Record<string, string | null> };
 type HsDeal    = { id: string; properties: Record<string, string | null> };
 type HsMeeting = { id: string; properties: Record<string, string | null> };
 
@@ -40,65 +39,75 @@ function monthRange(date: string): { start: number; end: number } {
   };
 }
 
-// Fetch all enriched contacts via batch read keyed by mad_id (Option D).
-// Bypasses the search API's 10k result cap entirely.
-// Step 1: pull all MAD agent IDs from Supabase (no limit).
-// Step 2: batch-read HubSpot contacts by mad_id property value, 100 per batch.
-async function fetchAllEnrichedContacts(): Promise<{ id: string; madId: string; arrValue: number }[]> {
-  const madDb = getMadDb();
-  const agentRows = await madDb`SELECT id::text FROM mad.agents`;
-  const allMadIds = agentRows.map((r) => r.id as string);
-  console.error(`[fetchAllEnrichedContacts] ${allMadIds.length} MAD IDs from Supabase`);
+// Module-level cache — valid for one process/request lifetime
+let _hubspotEnrichedCache: { id: string; madId: string; arrValue: number }[] | null = null;
 
+// Fetch all HubSpot contacts that have mad_id set, using narrow date windows to stay
+// under HubSpot's 10k result cap per search query. Windows are sized around the known
+// bulk-import periods (April–May 2026).
+async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: string; arrValue: number }[]> {
+  if (_hubspotEnrichedCache) return _hubspotEnrichedCache;
+
+  const windows = [
+    ["2000-01-01", "2025-12-31"],
+    ["2026-01-01", "2026-03-31"],
+    ["2026-04-01", "2026-04-07"],
+    ["2026-04-08", "2026-04-15"],
+    ["2026-04-16", "2026-04-30"],
+    ["2026-05-01", "2026-05-31"],
+    ["2026-06-01", "2027-12-31"],
+  ];
+
+  const seen    = new Set<string>();
   const results: { id: string; madId: string; arrValue: number }[] = [];
-  const chunkSize = 100;
 
-  for (let i = 0; i < allMadIds.length; i += chunkSize) {
-    const chunk = allMadIds.slice(i, i + chunkSize);
+  for (const [winFrom, winTo] of windows) {
+    const startMs = new Date(winFrom + "T00:00:00Z").getTime().toString();
+    const endMs   = new Date(winTo   + "T23:59:59Z").getTime().toString();
 
-    const res = await fetch(`${BASE}/crm/v3/objects/contacts/batch/read`, {
-      method: "POST",
-      headers: { ...authHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify({
+    let after:   string | undefined;
+    let fetched  = 0;
+
+    do {
+      const body: Record<string, unknown> = {
+        filterGroups: [{
+          filters: [
+            { propertyName: "mad_id",     operator: "HAS_PROPERTY" },
+            { propertyName: "createdate", operator: "BETWEEN", value: startMs, highValue: endMs },
+          ],
+        }],
         properties: ["mad_id", "current_arr__sync_"],
-        idProperty: "mad_id",
-        inputs: chunk.map((id) => ({ id })),
-      }),
-    });
+        limit: 100,
+      };
+      if (after) body.after = after;
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.error(`[fetchAllEnrichedContacts] batch ${i}–${i + chunkSize} failed: ${res.status} ${text}`);
-      continue;
-    }
+      const data = await hsPost<{
+        results: { id: string; properties: Record<string, string | null> }[];
+        paging?: { next?: { after: string } };
+        total?: number;
+      }>("/crm/v3/objects/contacts/search", body);
 
-    const data = await res.json() as {
-      results?: { id: string; properties?: Record<string, string | null> }[];
-    };
-    for (const contact of data.results ?? []) {
-      const madId = contact.properties?.mad_id;
-      if (!madId) continue;
-      const arrRaw = contact.properties?.current_arr__sync_;
-      results.push({ id: contact.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0 });
-    }
+      for (const c of data.results ?? []) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        const madId = c.properties.mad_id;
+        if (!madId) continue;
+        const arrRaw = c.properties.current_arr__sync_;
+        results.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0 });
+      }
 
-    if (i + chunkSize < allMadIds.length) {
-      await new Promise((resolve) => setTimeout(resolve, 110));
-    }
+      fetched += (data.results ?? []).length;
+      after    = data.paging?.next?.after;
+      if (after) await new Promise((r) => setTimeout(r, 250));
+    } while (after);
+
+    console.error(`[getAllHubspotEnrichedContacts] window ${winFrom}–${winTo}: fetched=${fetched} running_total=${results.length}`);
+    await new Promise((r) => setTimeout(r, 250));
   }
 
-  console.error(`[fetchAllEnrichedContacts] done — ${results.length} contacts found in HubSpot`);
+  _hubspotEnrichedCache = results;
+  console.error(`ENRICHMENT INFO: cached ${results.length} HubSpot enriched contacts`);
   return results;
-}
-
-// Module-level cache — valid for one process/request lifetime
-let _allEnrichedContactsCache: { id: string; madId: string; arrValue: number }[] | null = null;
-
-async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: string; arrValue: number }[]> {
-  if (_allEnrichedContactsCache) return _allEnrichedContactsCache;
-  _allEnrichedContactsCache = await fetchAllEnrichedContacts();
-  console.error(`ENRICHMENT INFO: cached ${_allEnrichedContactsCache.length} HubSpot enriched contacts`);
-  return _allEnrichedContactsCache;
 }
 
 async function batchAssociationsMap(
@@ -346,27 +355,55 @@ export async function getAgentsPushedToHubspot(
   fromDate: string | null,
   toDate: string | null,
 ): Promise<{ count: number; contactIds: string[] }> {
-  const madDb = getMadDb();
   try {
-    // Step 1: MAD agent IDs — scoped or all-time
-    const agentRows = fromDate && toDate
-      ? await madDb`
-          SELECT id::text FROM mad.agents
-          WHERE created_at >= ${fromDate}::timestamptz
-            AND created_at <= ${toDate}::timestamptz
-        `
-      : await madDb`SELECT id::text FROM mad.agents`;
+    if (!fromDate || !toDate) {
+      // All-time: read the `total` field from a single search call — accurate count
+      // regardless of HubSpot's 10k pagination cap. No contact IDs needed for this metric.
+      const data = await hsPost<{ total: number; results: unknown[] }>(
+        "/crm/v3/objects/contacts/search",
+        {
+          filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
+          properties: ["mad_id"],
+          limit: 1,
+        },
+      );
+      const count = data.total ?? 0;
+      console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot all-time total=${count}`);
+      return { count, contactIds: [] };
+    }
 
-    if (agentRows.length === 0) return { count: 0, contactIds: [] };
+    // Scoped: search with createdate BETWEEN filter, paginate and collect contact IDs.
+    const startMs = new Date(fromDate + "T00:00:00Z").getTime().toString();
+    const endMs   = new Date(toDate   + "T23:59:59Z").getTime().toString();
 
-    // Step 2: All HubSpot contacts with mad_id (cached — fetched once per request)
-    const allEnriched = await getAllHubspotEnrichedContacts();
+    const contactIds: string[] = [];
+    let after: string | undefined;
 
-    // Step 3: Intersect
-    const madIdSet = new Set(agentRows.map((r) => r.id as string));
-    const matched = allEnriched.filter((c) => madIdSet.has(c.madId));
-    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} madInScope=${madIdSet.size} matched=${matched.length}`);
-    return { count: matched.length, contactIds: matched.map((c) => c.id) };
+    do {
+      const body: Record<string, unknown> = {
+        filterGroups: [{
+          filters: [
+            { propertyName: "mad_id",     operator: "HAS_PROPERTY" },
+            { propertyName: "createdate", operator: "BETWEEN", value: startMs, highValue: endMs },
+          ],
+        }],
+        properties: ["mad_id"],
+        limit: 100,
+      };
+      if (after) body.after = after;
+
+      const data = await hsPost<{
+        results: { id: string }[];
+        paging?: { next?: { after: string } };
+      }>("/crm/v3/objects/contacts/search", body);
+
+      for (const c of data.results ?? []) contactIds.push(c.id);
+      after = data.paging?.next?.after;
+      if (after) await new Promise((r) => setTimeout(r, 250));
+    } while (after);
+
+    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} count=${contactIds.length}`);
+    return { count: contactIds.length, contactIds };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const wrapped = new Error(`getAgentsPushedToHubspot failed: ${message}`);
