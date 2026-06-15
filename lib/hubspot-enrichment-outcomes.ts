@@ -44,24 +44,28 @@ type EnrichedContact = { id: string; madId: string; arrValue: number; createdate
 // Module-level cache — valid for one process/request lifetime
 let _hubspotEnrichedCache: EnrichedContact[] | null = null;
 
-// Fetch one 10k-capped batch of enriched contacts starting after `afterId`.
-// Uses only HAS_PROPERTY (first call) or HAS_PROPERTY + hs_object_id GT (restarts).
-// No date filters — all date logic is handled client-side from the returned createdate.
+// Fetch one 10k-capped batch of contacts.
+// First batch: filter = HAS_PROPERTY on mad_id (single filter — proven to work).
+// Restart batches: filter = hs_object_id GT only (no HAS_PROPERTY — avoids multi-filter 400),
+// then skip contacts without mad_id client-side.
 async function fetchEnrichedContactsFromId(afterId?: string): Promise<{
-  contacts: EnrichedContact[];
-  lastId:   string | null;
-  hasMore:  boolean;
+  contacts:  EnrichedContact[];
+  lastId:    string | null;
+  hasMore:   boolean;
   pageCount: number;
 }> {
   const contacts: EnrichedContact[] = [];
-  let after:     string | undefined;
-  let pageCount  = 0;
-  let lastId:    string | null = null;
+  let after:              string | undefined;
+  let pageCount           = 0;
+  let totalFetched        = 0;  // raw count (all contacts, not just enriched)
+  let lastId:             string | null = null;
+  let consecutiveFailures = 0;
 
-  const filters: object[] = [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }];
-  if (afterId) {
-    filters.push({ propertyName: "hs_object_id", operator: "GT", value: afterId });
-  }
+  const isRestart = !!afterId;
+  // Single-filter rules — never combine HAS_PROPERTY with hs_object_id GT
+  const filters: object[] = isRestart
+    ? [{ propertyName: "hs_object_id", operator: "GT", value: afterId }]
+    : [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }];
 
   do {
     const body: Record<string, unknown> = {
@@ -79,32 +83,40 @@ async function fetchEnrichedContactsFromId(afterId?: string): Promise<{
     });
 
     if (!res.ok) {
+      consecutiveFailures++;
       const text = await res.text().catch(() => "");
-      throw new Error(`HubSpot search failed (afterId=${afterId ?? "start"}, page=${pageCount}): ${res.status} ${text}`);
+      console.error(`[fetchEnrichedContactsFromId] failure ${consecutiveFailures}/3 afterId=${afterId ?? "start"} after=${after ?? "none"}: ${res.status} ${text.slice(0, 200)}`);
+      if (consecutiveFailures >= 3) break;
+      await new Promise((r) => setTimeout(r, 1000));
+      continue;
     }
 
+    consecutiveFailures = 0;
     const data = await res.json() as {
       results?: { id: string; properties?: Record<string, string | null> }[];
       paging?:  { next?: { after: string } };
     };
 
     for (const c of data.results ?? []) {
+      lastId = c.id;  // always advance — needed for accurate restart positioning
       const madId      = c.properties?.mad_id;
+      if (isRestart && !madId) continue;  // client-side filter for restart batches
       const arrRaw     = c.properties?.current_arr__sync_;
       const createdate = c.properties?.createdate ?? "";
       if (madId) {
         contacts.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0, createdate });
-        lastId = c.id;
       }
     }
 
+    totalFetched += (data.results ?? []).length;
     after = data.paging?.next?.after ?? undefined;
     pageCount++;
     if (after) await new Promise((r) => setTimeout(r, 150));
   } while (after);
 
-  // Cursor exhausted after a full 10k batch — likely more contacts remain
-  const hitWall = contacts.length >= 9900 && !after;
+  // Use raw totalFetched for wall detection — reliable even when restart batches
+  // have sparse mad_id coverage (contacts.length would be too low otherwise)
+  const hitWall = totalFetched >= 9900 && !after;
   return { contacts, lastId, hasMore: hitWall, pageCount };
 }
 
@@ -404,10 +416,10 @@ export async function getAgentsPushedToHubspot(
       return { count, contactIds: [] };
     }
 
-    // Scoped — filter the full cache client-side by createdate (no HubSpot date filters)
+    // Scoped — never call HubSpot with date filters (always 400); filter cache client-side
     const allContacts = await getAllHubspotEnrichedContacts();
-    const fromMs      = new Date(fromDate).getTime();
-    const toMs        = new Date(toDate + "T23:59:59.999Z").getTime();
+    const fromMs      = new Date(fromDate + "T00:00:00.000Z").getTime();
+    const toMs        = new Date(toDate   + "T23:59:59.999Z").getTime();
 
     const matched = allContacts.filter((c) => {
       if (!c.createdate) return false;
@@ -415,7 +427,7 @@ export async function getAgentsPushedToHubspot(
       return ts >= fromMs && ts <= toMs;
     });
 
-    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} count=${matched.length}`);
+    console.error(`[getAgentsPushedToHubspot] from=${fromDate} to=${toDate} matched=${matched.length} from cache of ${allContacts.length}`);
     return { count: matched.length, contactIds: matched.map((c) => c.id) };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
