@@ -62,8 +62,15 @@ async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: str
   const results: { id: string; madId: string; arrValue: number }[] = [];
 
   for (const [winFrom, winTo] of windows) {
-    const startMs = new Date(winFrom + "T00:00:00Z").getTime().toString();
-    const endMs   = new Date(winTo   + "T23:59:59Z").getTime().toString();
+    const startMs = new Date(winFrom + "T00:00:00.000Z").getTime().toString();
+    const endMs   = new Date(winTo   + "T23:59:59.999Z").getTime().toString();
+
+    console.error(`[getAllHubspotEnrichedContacts] window ${winFrom}-${winTo} payload:`, JSON.stringify({
+      from_ts: startMs,
+      to_ts:   endMs,
+      from_date: new Date(parseInt(startMs)).toISOString(),
+      to_date:   new Date(parseInt(endMs)).toISOString(),
+    }));
 
     let after:   string | undefined;
     let fetched  = 0;
@@ -73,7 +80,8 @@ async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: str
         filterGroups: [{
           filters: [
             { propertyName: "mad_id",     operator: "HAS_PROPERTY" },
-            { propertyName: "createdate", operator: "BETWEEN", value: startMs, highValue: endMs },
+            { propertyName: "createdate", operator: "GTE", value: startMs },
+            { propertyName: "createdate", operator: "LTE", value: endMs   },
           ],
         }],
         properties: ["mad_id", "current_arr__sync_"],
@@ -372,9 +380,9 @@ export async function getAgentsPushedToHubspot(
       return { count, contactIds: [] };
     }
 
-    // Scoped: search with createdate BETWEEN filter, paginate and collect contact IDs.
-    const startMs = new Date(fromDate + "T00:00:00Z").getTime().toString();
-    const endMs   = new Date(toDate   + "T23:59:59Z").getTime().toString();
+    // Scoped: search with createdate GTE + LTE filter, paginate and collect contact IDs.
+    const startMs = new Date(fromDate + "T00:00:00.000Z").getTime().toString();
+    const endMs   = new Date(toDate   + "T23:59:59.999Z").getTime().toString();
 
     const contactIds: string[] = [];
     let after: string | undefined;
@@ -384,7 +392,8 @@ export async function getAgentsPushedToHubspot(
         filterGroups: [{
           filters: [
             { propertyName: "mad_id",     operator: "HAS_PROPERTY" },
-            { propertyName: "createdate", operator: "BETWEEN", value: startMs, highValue: endMs },
+            { propertyName: "createdate", operator: "GTE", value: startMs },
+            { propertyName: "createdate", operator: "LTE", value: endMs   },
           ],
         }],
         properties: ["mad_id"],
