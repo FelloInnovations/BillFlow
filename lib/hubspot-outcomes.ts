@@ -123,7 +123,7 @@ async function batchAssociationsMap(
       inputs: batch.map((id) => ({ id })),
     });
     for (const r of data.results ?? []) {
-      map.set(r.from.id, (r.to ?? []).map((t) => t.toObjectId));
+      map.set(r.from.id, (r.to ?? []).map((t) => String(t.toObjectId)));
     }
   }
   return map;
