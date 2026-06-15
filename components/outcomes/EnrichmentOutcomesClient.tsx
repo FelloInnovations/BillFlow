@@ -365,23 +365,37 @@ export function EnrichmentOutcomesClient({
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-        {config.map((c) => {
-          const value = (displayValues[c.metric_key] as number) ?? 0;
-          const isCurrency = c.metric_key === "arr_closed_mtd";
-          return (
-            <HeroStatCard
-              key={c.metric_key}
-              label={c.label}
-              value={value}
-              sparkData={sparkMap.get(c.metric_key)}
-              isCurrency={isCurrency}
-              accent={accentFor(c.metric_key)}
-              note={noteFor(c.metric_key, scope)}
-            />
-          );
-        })}
+      {/* KPI cards — 6 cards: Agents Enriched (merged) + 5 pipeline metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+        {/* Merged card: headline always = all-time total; secondary line shows period count when not all_time */}
+        <HeroStatCard
+          label="Agents Enriched"
+          value={(allTimeValues.agents_enriched_total as number) ?? 0}
+          sparkData={sparkMap.get("agents_enriched_total")}
+          accent="violet"
+          note={
+            scope === "all_time"
+              ? "all time"
+              : `${((displayValues.agents_enriched_period as number) ?? 0).toLocaleString()} in this month`
+          }
+        />
+        {config
+          .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_enriched_period")
+          .map((c) => {
+            const value = (displayValues[c.metric_key] as number) ?? 0;
+            const isCurrency = c.metric_key === "arr_closed_mtd";
+            return (
+              <HeroStatCard
+                key={c.metric_key}
+                label={c.label}
+                value={value}
+                sparkData={sparkMap.get(c.metric_key)}
+                isCurrency={isCurrency}
+                accent={accentFor(c.metric_key)}
+                note={noteFor(c.metric_key, scope)}
+              />
+            );
+          })}
       </div>
 
       {/* Monthly breakdown table */}
