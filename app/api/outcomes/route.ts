@@ -207,7 +207,7 @@ export async function GET(req: NextRequest) {
           const entry = monthData[key];
           if (entry) {
             const ids = entry.ids;
-            if (ids && typeof ids === "object" && !Array.isArray(ids)) {
+            if (ids && typeof ids === "object" && !Array.isArray(ids) && Object.keys(ids as object).length > 0) {
               hasAny = true;
               for (const [cid, amt] of Object.entries(ids as Record<string, number>)) {
                 merged[cid] = Math.max(merged[cid] ?? 0, Number(amt));
@@ -221,7 +221,7 @@ export async function GET(req: NextRequest) {
         let hasAny = false;
         for (const monthData of Object.values(months)) {
           const entry = monthData[key];
-          if (entry && Array.isArray(entry.ids)) {
+          if (entry && Array.isArray(entry.ids) && entry.ids.length > 0) {
             hasAny = true;
             for (const id of entry.ids as string[]) unionSet.add(id);
           }
