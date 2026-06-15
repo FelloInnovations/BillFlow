@@ -39,110 +39,107 @@ function monthRange(date: string): { start: number; end: number } {
   };
 }
 
+type EnrichedContact = { id: string; madId: string; arrValue: number; createdate: string };
+
 // Module-level cache — valid for one process/request lifetime
-let _hubspotEnrichedCache: { id: string; madId: string; arrValue: number }[] | null = null;
+let _hubspotEnrichedCache: EnrichedContact[] | null = null;
 
-// Fetch all HubSpot contacts with mad_id set.
-// Strategy: paginate with HAS_PROPERTY + sort by hs_object_id ASC.
-// HubSpot caps cursor pagination at 10k results per query. When the cursor runs
-// out but we haven't reached the total, restart from the last seen hs_object_id
-// using a GT filter — repeating until all contacts are collected.
-async function getAllHubspotEnrichedContacts(): Promise<{ id: string; madId: string; arrValue: number }[]> {
-  if (_hubspotEnrichedCache) return _hubspotEnrichedCache;
+// Fetch one 10k-capped batch of enriched contacts starting after `afterId`.
+// Uses only HAS_PROPERTY (first call) or HAS_PROPERTY + hs_object_id GT (restarts).
+// No date filters — all date logic is handled client-side from the returned createdate.
+async function fetchEnrichedContactsFromId(afterId?: string): Promise<{
+  contacts: EnrichedContact[];
+  lastId:   string | null;
+  hasMore:  boolean;
+  pageCount: number;
+}> {
+  const contacts: EnrichedContact[] = [];
+  let after:     string | undefined;
+  let pageCount  = 0;
+  let lastId:    string | null = null;
 
-  type PageData = {
-    results: { id: string; properties: Record<string, string | null> }[];
-    paging?: { next?: { after: string } };
-    total?: number;
-  };
-
-  // Step 1: get total count
-  const countData = await hsPost<PageData>("/crm/v3/objects/contacts/search", {
-    filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
-    properties: ["mad_id"],
-    limit: 1,
-  });
-  const total = countData.total ?? 0;
-  console.error(`[getAllHubspotEnrichedContacts] total to fetch: ${total}`);
-
-  const results: { id: string; madId: string; arrValue: number }[] = [];
-  let afterId:      string | undefined;  // hs_object_id GT restart point
-  let totalFetched  = 0;
-
-  // Step 2: fetch in 10k batches, restarting from last ID when cursor is exhausted
-  while (totalFetched < total) {
-    const filters: Record<string, string>[] = [
-      { propertyName: "mad_id", operator: "HAS_PROPERTY" },
-    ];
-    if (afterId) {
-      filters.push({ propertyName: "hs_object_id", operator: "GT", value: afterId });
-    }
-
-    let after:              string | undefined;
-    let batchFetched        = 0;
-    let lastId:             string | undefined;
-    let consecutiveFailures = 0;
-
-    // Paginate within this 10k batch
-    while (true) {
-      const body: Record<string, unknown> = {
-        filterGroups: [{ filters }],
-        properties: ["mad_id", "current_arr__sync_"],
-        sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
-        limit: 100,
-      };
-      if (after) body.after = after;
-
-      let data: PageData;
-      try {
-        data = await hsPost<PageData>("/crm/v3/objects/contacts/search", body);
-        consecutiveFailures = 0;
-      } catch (err) {
-        consecutiveFailures++;
-        console.error(`[getAllHubspotEnrichedContacts] page failed (${consecutiveFailures}/3) afterId=${afterId ?? "start"} after=${after ?? "none"}`);
-        if (consecutiveFailures >= 3) {
-          console.error("[getAllHubspotEnrichedContacts] 3 consecutive failures — stopping early");
-          _hubspotEnrichedCache = results;
-          return results;
-        }
-        await new Promise((r) => setTimeout(r, 1000));
-        continue;
-      }
-
-      for (const c of data.results ?? []) {
-        const madId  = c.properties.mad_id;
-        const arrRaw = c.properties.current_arr__sync_;
-        if (madId) results.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0 });
-        lastId = c.id;
-      }
-
-      batchFetched  += (data.results ?? []).length;
-      totalFetched  += (data.results ?? []).length;
-      const prev     = totalFetched - (data.results ?? []).length;
-      if (Math.floor(totalFetched / 1000) > Math.floor(prev / 1000)) {
-        console.error(`[getAllHubspotEnrichedContacts] fetched ${totalFetched} so far...`);
-      }
-
-      after = data.paging?.next?.after;
-      if (!after) break;
-      await new Promise((r) => setTimeout(r, 250));
-    }
-
-    console.error(`[getAllHubspotEnrichedContacts] batch done — batchFetched=${batchFetched} totalFetched=${totalFetched}/${total}`);
-
-    if (batchFetched === 0 || !lastId) break;
-
-    // Cursor exhausted but more contacts remain — restart from last seen ID
-    if (totalFetched < total) {
-      afterId = lastId;
-      console.error(`[getAllHubspotEnrichedContacts] restarting from hs_object_id > ${afterId}`);
-      await new Promise((r) => setTimeout(r, 250));
-    }
+  const filters: object[] = [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }];
+  if (afterId) {
+    filters.push({ propertyName: "hs_object_id", operator: "GT", value: afterId });
   }
 
-  _hubspotEnrichedCache = results;
-  console.error(`[getAllHubspotEnrichedContacts] done — ${results.length} contacts fetched`);
-  return results;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters }],
+      properties: ["mad_id", "current_arr__sync_", "createdate"],
+      sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
+      limit: 100,
+    };
+    if (after) body.after = after;
+
+    const res = await fetch(`${BASE}/crm/v3/objects/contacts/search`, {
+      method: "POST",
+      headers: { ...authHeader(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`HubSpot search failed (afterId=${afterId ?? "start"}, page=${pageCount}): ${res.status} ${text}`);
+    }
+
+    const data = await res.json() as {
+      results?: { id: string; properties?: Record<string, string | null> }[];
+      paging?:  { next?: { after: string } };
+    };
+
+    for (const c of data.results ?? []) {
+      const madId      = c.properties?.mad_id;
+      const arrRaw     = c.properties?.current_arr__sync_;
+      const createdate = c.properties?.createdate ?? "";
+      if (madId) {
+        contacts.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0, createdate });
+        lastId = c.id;
+      }
+    }
+
+    after = data.paging?.next?.after ?? undefined;
+    pageCount++;
+    if (after) await new Promise((r) => setTimeout(r, 150));
+  } while (after);
+
+  // Cursor exhausted after a full 10k batch — likely more contacts remain
+  const hitWall = contacts.length >= 9900 && !after;
+  return { contacts, lastId, hasMore: hitWall, pageCount };
+}
+
+export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]> {
+  if (_hubspotEnrichedCache) return _hubspotEnrichedCache;
+
+  const allContacts: EnrichedContact[] = [];
+  let lastId:  string | undefined;
+  let batchNum = 0;
+
+  do {
+    batchNum++;
+    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNum} starting from id > ${lastId ?? "beginning"}`);
+
+    const { contacts, lastId: newLastId, hasMore, pageCount } = await fetchEnrichedContactsFromId(lastId);
+
+    allContacts.push(...contacts);
+    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNum}: ${contacts.length} contacts (${pageCount} pages), total so far: ${allContacts.length}`);
+
+    if (!hasMore || !newLastId) break;
+    lastId = newLastId;
+    await new Promise((r) => setTimeout(r, 250));
+  } while (true);
+
+  // Deduplicate by contact ID (safety net for batch boundary overlaps)
+  const seen    = new Set<string>();
+  const deduped = allContacts.filter((c) => {
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
+
+  console.error(`[getAllHubspotEnrichedContacts] complete — ${deduped.length} unique contacts`);
+  _hubspotEnrichedCache = deduped;
+  return deduped;
 }
 
 async function batchAssociationsMap(
@@ -407,39 +404,19 @@ export async function getAgentsPushedToHubspot(
       return { count, contactIds: [] };
     }
 
-    // Scoped: search with createdate GTE + LTE filter, paginate and collect contact IDs.
-    const startMs = new Date(fromDate + "T00:00:00.000Z").getTime().toString();
-    const endMs   = new Date(toDate   + "T23:59:59.999Z").getTime().toString();
+    // Scoped — filter the full cache client-side by createdate (no HubSpot date filters)
+    const allContacts = await getAllHubspotEnrichedContacts();
+    const fromMs      = new Date(fromDate).getTime();
+    const toMs        = new Date(toDate + "T23:59:59.999Z").getTime();
 
-    const contactIds: string[] = [];
-    let after: string | undefined;
+    const matched = allContacts.filter((c) => {
+      if (!c.createdate) return false;
+      const ts = new Date(c.createdate).getTime();
+      return ts >= fromMs && ts <= toMs;
+    });
 
-    do {
-      const body: Record<string, unknown> = {
-        filterGroups: [{
-          filters: [
-            { propertyName: "mad_id",     operator: "HAS_PROPERTY" },
-            { propertyName: "createdate", operator: "GTE", value: startMs },
-            { propertyName: "createdate", operator: "LTE", value: endMs   },
-          ],
-        }],
-        properties: ["mad_id"],
-        limit: 100,
-      };
-      if (after) body.after = after;
-
-      const data = await hsPost<{
-        results: { id: string }[];
-        paging?: { next?: { after: string } };
-      }>("/crm/v3/objects/contacts/search", body);
-
-      for (const c of data.results ?? []) contactIds.push(c.id);
-      after = data.paging?.next?.after;
-      if (after) await new Promise((r) => setTimeout(r, 250));
-    } while (after);
-
-    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} count=${contactIds.length}`);
-    return { count: contactIds.length, contactIds };
+    console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot from=${fromDate} to=${toDate} count=${matched.length}`);
+    return { count: matched.length, contactIds: matched.map((c) => c.id) };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const wrapped = new Error(`getAgentsPushedToHubspot failed: ${message}`);
