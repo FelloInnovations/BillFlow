@@ -13,13 +13,26 @@ const PLATFORMS = [
 ] as const;
 
 interface PortfolioTotals {
-  llm_traffic: number;
+  llm_traffic:    number;
   agents_enriched: number;
-  demos_booked: { value: number; deduped: boolean };
-  demos_held:   { value: number; deduped: boolean };
-  closed_won:   { value: number; deduped: boolean };
-  arr_closed:   { value: number; deduped: boolean };
+  demos_booked:   { value: number; deduped: boolean };
+  demos_held:     { value: number; deduped: boolean };
+  closed_won:     { value: number; deduped: boolean };
+  arr_closed:     { value: number; deduped: boolean };
 }
+
+type Scope = "all_time" | "this_month" | "last_3m" | "last_6m" | "last_12m";
+
+const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
+  { value: "all_time",   label: "All Time"      },
+  { value: "this_month", label: "This Month"    },
+  { value: "last_3m",   label: "Last 3 Months" },
+  { value: "last_6m",   label: "Last 6 Months" },
+  { value: "last_12m",  label: "Last 12 Months"},
+];
+
+const COMBINED_TOOLTIP =
+  "Combined across Arthur and Enrichment. Contacts appearing in both projects are counted once.";
 
 function timeAgo(ts: string): string {
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
@@ -50,10 +63,17 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// Enrichment project card — shows its own metric set (no AI traffic funnel)
-function EnrichmentProjectCard({ project }: { project: ProjectOutcomeSummary }) {
+// Enrichment project card — shows MAD ID pipeline funnel
+function EnrichmentProjectCard({
+  project,
+  scopeLabel,
+}: {
+  project: ProjectOutcomeSummary;
+  scopeLabel: string;
+}) {
   const { mtd } = project;
-  const enrichedTotal   = (mtd.agents_enriched_total  as number) ?? 0;
+  // Use agents_enriched_period (scope-specific count) as the headline enriched value
+  const enrichedPeriod  = (mtd.agents_enriched_period as number) ?? 0;
   const pushed          = (mtd.agents_pushed_hubspot  as number) ?? 0;
   const demosBooked     = (mtd.demos_booked_mtd       as number) ?? 0;
   const demosHeld       = (mtd.demos_held_mtd         as number) ?? 0;
@@ -61,12 +81,12 @@ function EnrichmentProjectCard({ project }: { project: ProjectOutcomeSummary }) 
   const arrClosed       = (mtd.arr_closed_mtd         as number) ?? 0;
 
   const funnelSteps = [
-    { label: "Enriched",  value: enrichedTotal, currency: false },
-    { label: "Pushed",    value: pushed,        currency: false },
-    { label: "Booked",    value: demosBooked,   currency: false },
-    { label: "Held",      value: demosHeld,     currency: false },
-    { label: "Won",       value: closedWon,     currency: false },
-    { label: "ARR",       value: arrClosed,     currency: true  },
+    { label: "Enriched", value: enrichedPeriod, currency: false },
+    { label: "Pushed",   value: pushed,         currency: false },
+    { label: "Booked",   value: demosBooked,    currency: false },
+    { label: "Held",     value: demosHeld,      currency: false },
+    { label: "Won",      value: closedWon,      currency: false },
+    { label: "ARR",      value: arrClosed,      currency: true  },
   ];
 
   return (
@@ -91,7 +111,7 @@ function EnrichmentProjectCard({ project }: { project: ProjectOutcomeSummary }) 
 
       <div>
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-          Funnel &middot; All Time → MTD
+          Funnel &middot; {scopeLabel}
         </p>
         <div className="flex items-center gap-1 flex-wrap">
           {funnelSteps.map(({ label, value, currency }, i) => (
@@ -124,15 +144,16 @@ function EnrichmentProjectCard({ project }: { project: ProjectOutcomeSummary }) 
 }
 
 export function OutcomesIndexClient() {
-  const [projects, setProjects] = useState<ProjectOutcomeSummary[]>([]);
+  const [scope, setScope]                   = useState<Scope>("all_time");
+  const [projects, setProjects]             = useState<ProjectOutcomeSummary[]>([]);
   const [portfolioTotals, setPortfolioTotals] = useState<PortfolioTotals | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]               = useState(true);
 
   useEffect(() => {
-    fetch("/api/outcomes?scope=last_6m")
+    setLoading(true);
+    fetch(`/api/outcomes?scope=${scope}`)
       .then((r) => r.json())
       .then((data) => {
-        // Handle both old array format and new {projects, portfolioTotals} format
         if (Array.isArray(data)) {
           setProjects(data);
         } else {
@@ -142,50 +163,70 @@ export function OutcomesIndexClient() {
       })
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [scope]);
+
+  const scopeLabel      = SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? "All Time";
+  const scopeLabelLower = scopeLabel.toLowerCase();
 
   const pt = portfolioTotals;
 
   const statCards = pt ? [
     {
-      label: "LLM Traffic",
-      value: pt.llm_traffic.toLocaleString(),
-      sub: "AI-referral contacts · last 6 months",
+      label:    "LLM Traffic",
+      value:    pt.llm_traffic.toLocaleString(),
+      sub:      `Arthur only · ${scopeLabelLower}`,
+      combined: false,
     },
     {
-      label: "Agents Enriched",
-      value: pt.agents_enriched.toLocaleString(),
-      sub: "all-time MAD ID coverage",
+      label:    "Agents Enriched",
+      value:    pt.agents_enriched.toLocaleString(),
+      sub:      `Enrichment only · ${scopeLabelLower}`,
+      combined: false,
     },
     {
-      label: "Demos Booked",
-      value: pt.demos_booked.value.toString(),
-      sub: pt.demos_booked.deduped ? "deduped contacts · last 6 months" : "combined · last 6 months",
+      label:    "Demos Booked",
+      value:    pt.demos_booked.value.toLocaleString(),
+      sub:      `${pt.demos_booked.deduped ? "deduped" : "combined"} · ${scopeLabelLower}`,
+      combined: true,
     },
     {
-      label: "Closed Won",
-      value: pt.closed_won.value.toString(),
-      sub: pt.closed_won.deduped ? "deduped contacts · last 6 months" : "combined · last 6 months",
+      label:    "Closed Won",
+      value:    pt.closed_won.value.toLocaleString(),
+      sub:      `${pt.closed_won.deduped ? "deduped" : "combined"} · ${scopeLabelLower}`,
+      combined: true,
     },
     {
-      label: "ARR Closed",
-      value: formatCurrency(pt.arr_closed.value),
-      sub: pt.arr_closed.deduped ? "deduped revenue · last 6 months" : "combined revenue · last 6 months",
+      label:    "ARR Closed",
+      value:    formatCurrency(pt.arr_closed.value),
+      sub:      `${pt.arr_closed.deduped ? "deduped revenue" : "combined revenue"} · ${scopeLabelLower}`,
+      combined: true,
     },
   ] : [];
 
-  // Split projects: enrichment gets special card, others get standard card
   const enrichmentProject = projects.find((p) => p.projectId === "enrichment");
   const standardProjects  = projects.filter((p) => p.projectId !== "enrichment");
 
   return (
     <main className="flex-1 min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Outcomes</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Business KPI portfolio across all AI projects &middot; Last 6 Months
-        </p>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Outcomes</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Business KPI portfolio across all AI projects &middot; {scopeLabel}
+          </p>
+        </div>
+
+        {/* Scope selector */}
+        <select
+          value={scope}
+          onChange={(e) => setScope(e.target.value as Scope)}
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+        >
+          {SCOPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : "transition-opacity"}>
@@ -207,13 +248,17 @@ export function OutcomesIndexClient() {
             {/* Portfolio summary cards */}
             {statCards.length > 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-                {statCards.map(({ label, value, sub }) => (
+                {statCards.map(({ label, value, sub, combined }) => (
                   <div
                     key={label}
                     className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5"
+                    title={combined ? COMBINED_TOOLTIP : undefined}
                   >
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1">
                       {label}
+                      {combined && (
+                        <span className="text-slate-300 dark:text-slate-600 text-[10px] cursor-help" title={COMBINED_TOOLTIP}>ⓘ</span>
+                      )}
                     </p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>
@@ -227,22 +272,22 @@ export function OutcomesIndexClient() {
               {/* Standard projects (Arthur-style with AI traffic funnel) */}
               {standardProjects.map((project) => {
                 const { mtd, projectId } = project;
-                const traffic     = (mtd.llm_traffic_daily  as number) ?? 0;
-                const demosBooked = (mtd.demos_booked_mtd   as number) ?? 0;
-                const demosHeld   = (mtd.demos_held_mtd     as number) ?? 0;
-                const closedWon   = (mtd.closed_won_mtd     as number) ?? 0;
-                const arrClosed   = (mtd.arr_closed_mtd     as number) ?? 0;
+                const traffic     = (mtd.llm_traffic_daily as number) ?? 0;
+                const demosBooked = (mtd.demos_booked_mtd  as number) ?? 0;
+                const demosHeld   = (mtd.demos_held_mtd    as number) ?? 0;
+                const closedWon   = (mtd.closed_won_mtd    as number) ?? 0;
+                const arrClosed   = (mtd.arr_closed_mtd    as number) ?? 0;
 
                 const displayName =
                   project.projectName ??
                   projectId.charAt(0).toUpperCase() + projectId.slice(1);
 
                 const funnelSteps = [
-                  { label: "Traffic",  value: traffic,     currency: false },
-                  { label: "Booked",   value: demosBooked, currency: false },
-                  { label: "Held",     value: demosHeld,   currency: false },
-                  { label: "Won",      value: closedWon,   currency: false },
-                  { label: "ARR",      value: arrClosed,   currency: true  },
+                  { label: "Traffic", value: traffic,     currency: false },
+                  { label: "Booked",  value: demosBooked, currency: false },
+                  { label: "Held",    value: demosHeld,   currency: false },
+                  { label: "Won",     value: closedWon,   currency: false },
+                  { label: "ARR",     value: arrClosed,   currency: true  },
                 ];
 
                 return (
@@ -297,7 +342,7 @@ export function OutcomesIndexClient() {
                       {/* Funnel */}
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-                          Funnel &middot; Last 6 Months
+                          Funnel &middot; {scopeLabel}
                         </p>
                         <div className="flex items-center gap-1 flex-wrap">
                           {funnelSteps.map(({ label, value, currency }, i) => (
@@ -332,7 +377,7 @@ export function OutcomesIndexClient() {
 
               {/* Enrichment project card */}
               {enrichmentProject && (
-                <EnrichmentProjectCard project={enrichmentProject} />
+                <EnrichmentProjectCard project={enrichmentProject} scopeLabel={scopeLabel} />
               )}
             </div>
           </>

@@ -58,7 +58,7 @@ function scopeToDateRange(scope: string): { from: string; to: string } {
 }
 
 export async function GET(req: NextRequest) {
-  const scope = req.nextUrl.searchParams.get("scope") ?? "last_6m";
+  const scope = req.nextUrl.searchParams.get("scope") ?? "all_time";
   const { from, to } = scopeToDateRange(scope);
 
   const supabase = serviceClient();
@@ -194,21 +194,39 @@ export async function GET(req: NextRequest) {
     date: string;
   }[]> = {};
 
+  // Union contact_ids across ALL months in scope per (pid, key) so multi-month
+  // scopes (Last 6 Months, All Time, etc.) correctly count every unique contact.
   for (const key of DEDUP_KEYS) {
     latestContactIdsPerKey[key] = [];
     for (const pid of projectIds) {
       const months = latestContactIds[pid] ?? {};
-      // Find the most recent month with contact_ids for this pid+key
-      let bestDate = "";
-      let bestIds: unknown = null;
-      for (const monthData of Object.values(months)) {
-        if (monthData[key] && monthData[key].date > bestDate) {
-          bestDate = monthData[key].date;
-          bestIds  = monthData[key].ids;
+      if (key === "arr_closed_mtd") {
+        const merged: Record<string, number> = {};
+        let hasAny = false;
+        for (const monthData of Object.values(months)) {
+          const entry = monthData[key];
+          if (entry) {
+            const ids = entry.ids;
+            if (ids && typeof ids === "object" && !Array.isArray(ids)) {
+              hasAny = true;
+              for (const [cid, amt] of Object.entries(ids as Record<string, number>)) {
+                merged[cid] = Math.max(merged[cid] ?? 0, Number(amt));
+              }
+            }
+          }
         }
-      }
-      if (bestIds !== null) {
-        latestContactIdsPerKey[key].push({ pid, ids: bestIds, date: bestDate });
+        if (hasAny) latestContactIdsPerKey[key].push({ pid, ids: merged, date: "" });
+      } else {
+        const unionSet = new Set<string>();
+        let hasAny = false;
+        for (const monthData of Object.values(months)) {
+          const entry = monthData[key];
+          if (entry && Array.isArray(entry.ids)) {
+            hasAny = true;
+            for (const id of entry.ids as string[]) unionSet.add(id);
+          }
+        }
+        if (hasAny) latestContactIdsPerKey[key].push({ pid, ids: [...unionSet], date: "" });
       }
     }
   }
@@ -268,7 +286,7 @@ export async function GET(req: NextRequest) {
 
   const portfolioTotals = {
     llm_traffic:  results.reduce((s, p) => s + ((p.mtd.llm_traffic_daily as number) ?? 0), 0),
-    agents_enriched: aggregated["enrichment"]?.agents_enriched_total ?? 0,
+    agents_enriched: (aggregated["enrichment"]?.agents_enriched_period as number) ?? 0,
     demos_booked: dedupeCountMetric("demos_booked_mtd"),
     demos_held:   dedupeCountMetric("demos_held_mtd"),
     closed_won:   dedupeCountMetric("closed_won_mtd"),
