@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
   OutcomeMetricConfig,
@@ -169,6 +169,22 @@ const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
 // Keys whose all-time value is a SUM across months (period/count metrics)
 const SUM_KEYS = new Set(["agents_enriched_period", "agents_pushed_hubspot"]);
 
+// MTD snapshot metrics: each month's value is the month-end cumulative total.
+// All-time = sum of the per-month totals (monthly breakdown already stores max-per-month).
+const SNAPSHOT_KEYS = new Set([
+  "demos_booked_mtd",
+  "demos_held_mtd",
+  "closed_won_mtd",
+  "arr_closed_mtd",
+]);
+
+function aggregateSnapshotMetric(
+  rows: MonthlyOutcomeBreakdown[],
+  key: string,
+): number {
+  return rows.reduce((s, m) => s + ((m.metrics[key] as number) ?? 0), 0);
+}
+
 function computeAllTime(
   monthly: MonthlyOutcomeBreakdown[],
   configKeys: string[],
@@ -177,12 +193,12 @@ function computeAllTime(
   const sorted = [...monthly].sort((a, b) => b.month.localeCompare(a.month));
   for (const key of configKeys) {
     if (key === "agents_enriched_total") {
-      // All-time count — take the latest (highest) value
+      // All-time count — take the latest (highest) cumulative value
       result[key] = Math.max(0, ...monthly.map((m) => (m.metrics[key] as number) ?? 0));
-    } else if (SUM_KEYS.has(key)) {
-      result[key] = monthly.reduce((s, m) => s + ((m.metrics[key] as number) ?? 0), 0);
+    } else if (SUM_KEYS.has(key) || SNAPSHOT_KEYS.has(key)) {
+      // Sum latest-per-month values across all months
+      result[key] = aggregateSnapshotMetric(monthly, key);
     } else {
-      // Snapshot metric — latest month's value
       result[key] = (sorted[0]?.metrics[key] as number) ?? 0;
     }
   }
@@ -262,6 +278,18 @@ export function EnrichmentOutcomesClient({
     () => computeAllTime(monthly, configKeys),
     [monthly, configKeys],
   );
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const keys = ["demos_booked_mtd", "demos_held_mtd", "closed_won_mtd", "arr_closed_mtd"] as const;
+    for (const key of keys) {
+      const tableSum = monthly.reduce((acc, m) => acc + ((m.metrics[key] as number) ?? 0), 0);
+      const headlineValue = (allTimeValues[key] as number) ?? 0;
+      if (Math.abs(tableSum - headlineValue) > 1) {
+        console.warn(`[ENRICHMENT] ${key} mismatch: headline=${headlineValue} table_sum=${tableSum}`);
+      }
+    }
+  }, [allTimeValues, monthly]);
 
   const displayValues: OutcomeMtdSummary =
     scope === "all_time" ? allTimeValues : mtd;
