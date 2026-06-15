@@ -89,9 +89,11 @@ function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
 function BackfillModal({
   onClose,
   onDone,
+  onStarted,
 }: {
   onClose: () => void;
   onDone: (from: string, to: string) => void;
+  onStarted: (from: string, to: string) => void;
 }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -110,7 +112,11 @@ function BackfillModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error ?? `Status ${res.status}`);
-      onDone(from, to);
+      if (res.status === 202) {
+        onStarted(from, to);
+      } else {
+        onDone(from, to);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Backfill failed");
     } finally {
@@ -470,6 +476,11 @@ export function EnrichmentOutcomesClient({
       {backfillOpen && (
         <BackfillModal
           onClose={() => setBackfillOpen(false)}
+          onStarted={(from, to) => {
+            setBackfillOpen(false);
+            setToast({ msg: `Backfill started for ${from} → ${to}. Running in background — refresh in a few minutes to see updated data.`, type: "success" });
+            setTimeout(() => setToast(null), 8000);
+          }}
           onDone={(from, to) => {
             setBackfillOpen(false);
             setToast({ msg: `Backfill complete — metrics synced from ${from} to ${to}.`, type: "success" });

@@ -54,7 +54,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "provide valid from and to (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  console.error(`ENRICHMENT INFO: backfill started from=${from} to=${to}`);
+  // Fire and forget — return immediately while backfill runs in background
+  runBackfill(from, to).catch((err) => {
+    console.error("[backfill-enrichment] background error:", err?.message ?? err);
+  });
+
+  return NextResponse.json({
+    status:  "started",
+    message: `Backfill started for ${from} to ${to}. Running in background — check Railway logs for progress.`,
+    from,
+    to,
+  }, { status: 202 });
+}
+
+async function runBackfill(from: string, to: string) {
+  console.error(`[backfill-enrichment] started from=${from} to=${to}`);
 
   // Single bulk HubSpot fetch + current all-time Supabase counts
   let snap: Awaited<ReturnType<typeof getAllEnrichedData>>;
@@ -69,13 +83,10 @@ export async function POST(req: NextRequest) {
       getAgentsEnrichedTotal(),
       getAgentsPushedToHubspot(null, null),
     ]);
-    console.error(`ENRICHMENT INFO: bulk fetch done — contacts=${snap.contactIds.length} closedWonStages=${closedWonIds.length} allTimeCount=${allTimeCount} allTimePushed=${allTimePushed.count}`);
+    console.error(`[backfill-enrichment] bulk fetch done — contacts=${snap.contactIds.length} closedWonStages=${closedWonIds.length} allTimeCount=${allTimeCount} allTimePushed=${allTimePushed.count}`);
   } catch (err) {
-    logErr("bulk fetch (getAllEnrichedData / getClosedWonStageIds / getAgentsEnrichedTotal / getAgentsPushedToHubspot)", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : JSON.stringify(err) },
-      { status: 500 },
-    );
+    logErr("bulk fetch", err);
+    throw err;
   }
 
   type Row = {
@@ -93,6 +104,8 @@ export async function POST(req: NextRequest) {
     const [ey, em] = endDate.split("-").map(Number);
     const monthStartDate = `${String(ey).padStart(4, "0")}-${String(em).padStart(2, "0")}-01`;
 
+    console.error(`[backfill-enrichment] processing month ${endDate.substring(0, 7)}`);
+
     // agents_enriched_total: current all-time count (best available for historical months)
     rows.push({
       project_id: "enrichment",
@@ -103,7 +116,7 @@ export async function POST(req: NextRequest) {
       contact_ids: null,
     });
 
-    // agents_pushed_hubspot_total: all-time HubSpot intersection (computed once, stored per month)
+    // agents_pushed_hubspot_total: all-time HubSpot count (computed once, stored per month)
     rows.push({
       project_id: "enrichment",
       metric_key:  "agents_pushed_hubspot_total",
@@ -175,12 +188,5 @@ export async function POST(req: NextRequest) {
   }
 
   const allErrors = [...monthErrors, ...upsertErrors];
-  console.error(`ENRICHMENT INFO: backfill done — rows_attempted=${rows.length} upserted=${upserted} errors=${allErrors.length}`);
-
-  return NextResponse.json({
-    months_processed:  monthEndDates(from, to).length,
-    rows_attempted:    rows.length,
-    rows_upserted:     upserted,
-    errors:            allErrors,
-  });
+  console.error(`[backfill-enrichment] complete — rows_attempted=${rows.length} upserted=${upserted} errors=${allErrors.length}`);
 }

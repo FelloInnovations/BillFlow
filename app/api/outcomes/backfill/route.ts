@@ -10,17 +10,6 @@ function serviceClient() {
   );
 }
 
-function dateRange(from: string, to: string): string[] {
-  const dates: string[] = [];
-  const cur = new Date(from + "T00:00:00Z");
-  const end = new Date(to   + "T00:00:00Z");
-  while (cur <= end) {
-    dates.push(cur.toISOString().substring(0, 10));
-    cur.setUTCDate(cur.getUTCDate() + 1);
-  }
-  return dates;
-}
-
 // Returns the last day of each calendar month covered by [from, to],
 // capped to `to` for the final (possibly partial) month.
 function monthEndDates(from: string, to: string): string[] {
@@ -49,6 +38,22 @@ export async function POST(req: NextRequest) {
   if (!from || !to || from > to) {
     return NextResponse.json({ error: "provide valid from and to (YYYY-MM-DD)" }, { status: 400 });
   }
+
+  // Fire and forget — return immediately while backfill runs in background
+  runBackfill(from, to).catch((err) => {
+    console.error("[backfill] background error:", err?.message ?? err);
+  });
+
+  return NextResponse.json({
+    status:  "started",
+    message: `Backfill started for ${from} to ${to}. Running in background — check Railway logs for progress.`,
+    from,
+    to,
+  }, { status: 202 });
+}
+
+async function runBackfill(from: string, to: string) {
+  console.error(`[backfill] started from=${from} to=${to}`);
 
   // Single bulk fetch from HubSpot — no per-date calls
   const [snap, closedWonIds] = await Promise.all([
@@ -86,6 +91,8 @@ export async function POST(req: NextRequest) {
     const [ey, em, ed] = endDate.split("-").map(Number);
     const mStart = Date.UTC(ey, em - 1, 1, 0, 0, 0, 0);
     const mEnd   = Date.UTC(ey, em - 1, ed, 23, 59, 59, 999);
+
+    console.error(`[backfill] processing month ${endDate.substring(0, 7)}`);
 
     // Use hs_timestamp (actual meeting time) not createdate (record creation time)
     const bookedMeetingIds = new Set(
@@ -147,11 +154,5 @@ export async function POST(req: NextRequest) {
     else upserted += Math.min(BATCH, rows.length - i);
   }
 
-  return NextResponse.json({
-    contacts_found:    snap.contacts.length,
-    dates_with_traffic: dailyMap.size,
-    months_processed:  monthEndDates(from, to).length,
-    rows_upserted:     upserted,
-    errors,
-  });
+  console.error(`[backfill] complete — contacts=${snap.contacts.length} dates_with_traffic=${dailyMap.size} months=${monthEndDates(from, to).length} rows_upserted=${upserted} errors=${errors.length}`);
 }
