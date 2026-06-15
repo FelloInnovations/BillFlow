@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     dailyMap.set(date, prev);
   }
 
-  type Row = { project_id: string; metric_key: string; value: number; date: string; source: string };
+  type Row = { project_id: string; metric_key: string; value: number; date: string; source: string; contact_ids?: unknown };
   const rows: Row[] = [];
 
   // Daily traffic rows (only dates with actual traffic)
@@ -88,27 +88,48 @@ export async function POST(req: NextRequest) {
     const mEnd   = Date.UTC(ey, em - 1, ed, 23, 59, 59, 999);
 
     // Use hs_timestamp (actual meeting time) not createdate (record creation time)
-    const demosBooked = snap.meetings.filter(
-      (m) => m.outcome === "SCHEDULED" && m.timestamp >= mStart && m.timestamp <= mEnd,
-    ).length;
+    const bookedMeetingIds = new Set(
+      snap.meetings
+        .filter((m) => m.outcome === "SCHEDULED" && m.timestamp >= mStart && m.timestamp <= mEnd)
+        .map((m) => m.id),
+    );
+    const demosBooked = bookedMeetingIds.size;
+    const bookedContactIds = [...snap.contactMeetingMap.entries()]
+      .filter(([, mids]) => mids.some((mid) => bookedMeetingIds.has(mid)))
+      .map(([cid]) => cid);
 
-    const demosHeld = snap.meetings.filter(
-      (m) => m.outcome === "COMPLETED" && m.timestamp >= mStart && m.timestamp <= mEnd,
-    ).length;
+    const heldMeetingIds = new Set(
+      snap.meetings
+        .filter((m) => m.outcome === "COMPLETED" && m.timestamp >= mStart && m.timestamp <= mEnd)
+        .map((m) => m.id),
+    );
+    const demosHeld = heldMeetingIds.size;
+    const heldContactIds = [...snap.contactMeetingMap.entries()]
+      .filter(([, mids]) => mids.some((mid) => heldMeetingIds.has(mid)))
+      .map(([cid]) => cid);
 
     // This portal uses numeric stage IDs; closedWonIds resolved from /crm/v3/pipelines/deals
     const wonDeals = snap.deals.filter(
       (d) => closedWonIds.includes(d.stage) && d.closedate != null && d.closedate >= mStart && d.closedate <= mEnd,
     );
 
+    const closedWonContactIds = [...new Set(wonDeals.flatMap((d) => d.contactIds))];
+
     // Sum deal amount directly — AI-referral contacts typically lack current_arr__sync_
     const arrClosed = wonDeals.reduce((sum, d) => sum + d.amount, 0);
+    const arrPerContact: Record<string, number> = {};
+    for (const d of wonDeals) {
+      const share = d.contactIds.length > 0 ? d.amount / d.contactIds.length : 0;
+      for (const cid of d.contactIds) {
+        arrPerContact[cid] = (arrPerContact[cid] ?? 0) + share;
+      }
+    }
 
     rows.push(
-      { project_id: "arthur", metric_key: "demos_booked_mtd", value: demosBooked, date: endDate, source: "backfill" },
-      { project_id: "arthur", metric_key: "demos_held_mtd",   value: demosHeld,   date: endDate, source: "backfill" },
-      { project_id: "arthur", metric_key: "closed_won_mtd",   value: wonDeals.length, date: endDate, source: "backfill" },
-      { project_id: "arthur", metric_key: "arr_closed_mtd",   value: arrClosed,   date: endDate, source: "backfill" },
+      { project_id: "arthur", metric_key: "demos_booked_mtd", value: demosBooked,      date: endDate, source: "backfill", contact_ids: bookedContactIds },
+      { project_id: "arthur", metric_key: "demos_held_mtd",   value: demosHeld,        date: endDate, source: "backfill", contact_ids: heldContactIds   },
+      { project_id: "arthur", metric_key: "closed_won_mtd",   value: wonDeals.length,  date: endDate, source: "backfill", contact_ids: closedWonContactIds },
+      { project_id: "arthur", metric_key: "arr_closed_mtd",   value: arrClosed,        date: endDate, source: "backfill", contact_ids: Object.keys(arrPerContact).length > 0 ? arrPerContact : null },
     );
   }
 

@@ -178,8 +178,10 @@ export interface AiReferralSnapshot {
     arr: number;
   }[];
   // timestamp = hs_timestamp (actual meeting time); createdate = record creation time
-  meetings: { timestamp: number; createdate: number; outcome: string }[];
+  meetings: { id: string; timestamp: number; createdate: number; outcome: string }[];
   deals: { closedate: number | null; stage: string; amount: number; contactIds: string[] }[];
+  // contact → meeting IDs mapping (for backfill contact_ids computation per month)
+  contactMeetingMap: Map<string, string[]>;
 }
 
 export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
@@ -188,7 +190,7 @@ export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
     ["createdate", "hs_analytics_source_data_1", "current_arr__sync_"],
   );
 
-  if (!raw.length) return { contacts: [], meetings: [], deals: [] };
+  if (!raw.length) return { contacts: [], meetings: [], deals: [], contactMeetingMap: new Map() };
 
   const ids = raw.map((c) => c.id);
 
@@ -229,6 +231,7 @@ export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
       };
     }),
     meetings: rawMeetings.map((m) => ({
+      id:         m.id,
       // hs_timestamp is ISO string ("2026-04-22T19:00:00Z"); createdate is epoch ms string
       timestamp:  m.properties.hs_timestamp ? new Date(m.properties.hs_timestamp).getTime() : 0,
       createdate: parseInt(m.properties.createdate ?? "0", 10),
@@ -240,6 +243,7 @@ export async function getAllAiReferralData(): Promise<AiReferralSnapshot> {
       amount:     parseFloat(d.properties.amount ?? "0") || 0,
       contactIds: dealToContacts.get(d.id) ?? [],
     })),
+    contactMeetingMap: meetingMap,
   };
 }
 
