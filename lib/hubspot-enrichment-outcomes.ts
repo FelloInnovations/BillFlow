@@ -47,36 +47,76 @@ let _hubspotEnrichedCache: EnrichedContact[] | null = null;
 export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]> {
   if (_hubspotEnrichedCache) return _hubspotEnrichedCache;
 
+  type HsSearchResult = {
+    results?: { id: string; properties?: Record<string, string | null> }[];
+    paging?:  { next?: { after: string } };
+    total?:   number;
+  };
+
+  // Step 1 — determine the full hs_object_id range of enriched contacts.
+  // Two single-filter HAS_PROPERTY calls (proven to work) with opposite sort directions.
+  const hsSearch = (body: unknown) =>
+    fetch(`${BASE}/crm/v3/objects/contacts/search`, {
+      method: "POST",
+      headers: { ...authHeader(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  const [firstRes, lastRes] = await Promise.all([
+    hsSearch({
+      filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
+      properties: ["mad_id"],
+      sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
+      limit: 1,
+    }),
+    hsSearch({
+      filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
+      properties: ["mad_id"],
+      sorts: [{ propertyName: "hs_object_id", direction: "DESCENDING" }],
+      limit: 1,
+    }),
+  ]);
+
+  const firstData = await firstRes.json() as HsSearchResult;
+  const lastData  = await lastRes.json()  as HsSearchResult;
+  const minId     = parseInt(firstData.results?.[0]?.id ?? "0");
+  const maxId     = parseInt(lastData.results?.[0]?.id  ?? "0");
+
+  console.error(`[getAllHubspotEnrichedContacts] ID range: ${minId} to ${maxId}`);
+
+  if (!minId || !maxId) {
+    console.error("[getAllHubspotEnrichedContacts] could not determine ID range — aborting");
+    _hubspotEnrichedCache = [];
+    return [];
+  }
+
+  // Step 2 — chunk the ID range and fetch each chunk independently.
+  // hs_object_id GTE + LTE is a native-property pair — supported without 400.
+  // mad_id is filtered client-side to avoid combining HAS_PROPERTY with date/ID filters.
+  const CHUNK_SIZE  = 20_000_000;
   const allContacts: EnrichedContact[] = [];
-  let lastContactId: string | undefined;
-  let batchNumber   = 0;
-  let totalFetched  = 0;
 
-  while (true) {
-    batchNumber++;
-    let pageInBatch   = 0;
-    let after:        string | undefined;
-    let batchContacts = 0;
-    let lastIdInBatch: string | undefined;
+  for (let chunkStart = minId; chunkStart <= maxId; chunkStart += CHUNK_SIZE) {
+    const chunkEnd = Math.min(chunkStart + CHUNK_SIZE - 1, maxId);
+    console.error(`[getAllHubspotEnrichedContacts] chunk ${chunkStart}–${chunkEnd}`);
 
-    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNumber} starting, lastId=${lastContactId ?? "none"}`);
-
-    // Fresh search each batch — never carry `after` across batch boundaries.
-    // First batch:    HAS_PROPERTY only (proven to work).
-    // Restart batches: hs_object_id GT only (no HAS_PROPERTY — avoids multi-filter 400);
-    //                  contacts without mad_id filtered client-side below.
-    const filters: object[] = lastContactId
-      ? [{ propertyName: "hs_object_id", operator: "GT", value: lastContactId }]
-      : [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }];
+    let after:      string | undefined;
+    let chunkCount  = 0;
+    let pageCount   = 0;
 
     do {
       const body: Record<string, unknown> = {
-        filterGroups: [{ filters }],
+        filterGroups: [{
+          filters: [
+            { propertyName: "hs_object_id", operator: "GTE", value: chunkStart.toString() },
+            { propertyName: "hs_object_id", operator: "LTE", value: chunkEnd.toString()   },
+          ],
+        }],
         properties: ["mad_id", "current_arr__sync_", "createdate"],
-        limit: 100,
         sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
+        limit: 100,
       };
-      if (after) body.after = after;  // within-batch pagination only
+      if (after) body.after = after;
 
       const res = await fetch(`${BASE}/crm/v3/objects/contacts/search`, {
         method: "POST",
@@ -86,48 +126,37 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        console.error(`[getAllHubspotEnrichedContacts] batch ${batchNumber} page ${pageInBatch} failed: ${res.status} ${text.slice(0, 300)}`);
-        after = undefined;
+        console.error(`[getAllHubspotEnrichedContacts] chunk ${chunkStart} page ${pageCount} failed: ${res.status} ${text.slice(0, 300)}`);
         break;
       }
 
-      const data = await res.json() as {
-        results?: { id: string; properties?: Record<string, string | null> }[];
-        paging?:  { next?: { after: string } };
-      };
+      const data = await res.json() as HsSearchResult;
+
+      if (pageCount === 0) {
+        console.error(`[getAllHubspotEnrichedContacts] chunk ${chunkStart}–${chunkEnd}: total=${data.total ?? "?"}`);
+        if ((data.total ?? 0) > 9000) {
+          console.error(`[getAllHubspotEnrichedContacts] WARNING chunk has ${data.total} contacts — approaching 10k limit, reduce CHUNK_SIZE`);
+        }
+      }
 
       for (const c of data.results ?? []) {
         const madId = c.properties?.mad_id;
-        if (!madId) continue;  // client-side filter (needed for restart batches)
+        if (!madId) continue;  // client-side filter — skip contacts without mad_id
         const arrRaw     = c.properties?.current_arr__sync_;
         const createdate = c.properties?.createdate ?? "";
         allContacts.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0, createdate });
-        lastIdInBatch = c.id;
-        batchContacts++;
-        totalFetched++;
+        chunkCount++;
       }
 
       after = data.paging?.next?.after ?? undefined;
-      pageInBatch++;
+      pageCount++;
       if (after) await new Promise((r) => setTimeout(r, 150));
     } while (after);
 
-    console.error(`[getAllHubspotEnrichedContacts] batch ${batchNumber} done: ${batchContacts} contacts, total: ${totalFetched}`);
-
-    if (lastIdInBatch) lastContactId = lastIdInBatch;
-
-    if (batchContacts < 9900) {
-      console.error(`[getAllHubspotEnrichedContacts] batch returned ${batchContacts} < 9900 — done`);
-      break;
-    }
-
-    if (batchNumber >= 10) {
-      console.error("[getAllHubspotEnrichedContacts] safety limit of 10 batches reached");
-      break;
-    }
+    console.error(`[getAllHubspotEnrichedContacts] chunk done: ${chunkCount} enriched contacts, running total: ${allContacts.length}`);
   }
 
-  // Deduplicate by contact ID (safety net for batch boundary overlaps)
+  // Deduplicate by contact ID (safety net for chunk boundary overlaps)
   const seen    = new Set<string>();
   const deduped = allContacts.filter((c) => {
     if (seen.has(c.id)) return false;
@@ -135,7 +164,7 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
     return true;
   });
 
-  console.error(`[getAllHubspotEnrichedContacts] final: ${deduped.length} unique contacts`);
+  console.error(`[getAllHubspotEnrichedContacts] FINAL: ${deduped.length} unique enriched contacts`);
   _hubspotEnrichedCache = deduped;
   return deduped;
 }
