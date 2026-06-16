@@ -91,6 +91,7 @@ export async function GET(
       .from("project_outcome_metrics")
       .select("metric_key, date, value")
       .eq("project_id", projectId)
+      .gte("date", projectId === "enrichment" ? ENRICHMENT_START : "2000-01-01")
       .order("date"),
   ]);
 
@@ -128,7 +129,10 @@ export async function GET(
   }
 
   const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  const monthlyBreakdown = buildMonthlyBreakdown(allRowsRes.data ?? [], currentMonth);
+  const rawBreakdown = buildMonthlyBreakdown(allRowsRes.data ?? [], currentMonth);
+  const monthlyBreakdown = projectId === "enrichment"
+    ? rawBreakdown.filter((m) => m.month >= "2025-04")
+    : rawBreakdown;
 
   return NextResponse.json({
     config:           (configRes.data ?? []) as OutcomeMetricConfig[],

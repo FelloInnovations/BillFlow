@@ -21,6 +21,8 @@ const LATEST_KEYS = new Set([
 // Keys that may have contact_ids for cross-project deduplication
 const DEDUP_KEYS = ["demos_booked_mtd", "demos_held_mtd", "closed_won_mtd", "arr_closed_mtd"] as const;
 
+const ENRICHMENT_START = "2025-04-01";
+
 function serviceClient() {
   return createClient(
     process.env.SUPABASE_URL ?? "",
@@ -90,6 +92,11 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false }),
   ]);
 
+  // Enforce floor date for enrichment at the application layer (belt-and-suspenders after migration)
+  const filteredRows = (metricRows ?? []).filter((row) =>
+    row.project_id !== "enrichment" || (row.date as string) >= ENRICHMENT_START,
+  );
+
   // Aggregate per project
   const dailySums:     Record<string, Record<string, number>> = {};
   const latestByMonth: Record<string, Record<string, Record<string, number>>> = {};
@@ -101,7 +108,7 @@ export async function GET(req: NextRequest) {
     ids: unknown;  // string[] for count keys, Record<string,number> for arr
   }>>> = {};
 
-  for (const row of metricRows ?? []) {
+  for (const row of filteredRows) {
     const pid   = row.project_id as string;
     const month = (row.date as string).substring(0, 7);
     const key   = row.metric_key as string;
@@ -232,11 +239,13 @@ export async function GET(req: NextRequest) {
   }
 
   function dedupeCountMetric(key: string): { value: number; deduped: boolean } {
+    const simpleSum       = results.reduce((s, p) => s + ((p.mtd[key] as number) ?? 0), 0);
+    const maxIndividual   = Math.max(0, ...results.map((p) => (p.mtd[key] as number) ?? 0));
+
     const entries = latestContactIdsPerKey[key];
     if (!entries.length) {
       // No contact_ids available — sum raw values
-      const sum = results.reduce((s, p) => s + ((p.mtd[key] as number) ?? 0), 0);
-      return { value: sum, deduped: false };
+      return { value: simpleSum, deduped: false };
     }
     // Some projects have contact_ids — union them for those projects
     const allIds = new Set<string>();
@@ -253,15 +262,24 @@ export async function GET(req: NextRequest) {
         rawSum += (p.mtd[key] as number) ?? 0;
       }
     }
+    const deduped = allIds.size + rawSum;
     const allDeduped = results.every((p) => pidsWithIds.has(p.projectId));
-    return { value: allIds.size + rawSum, deduped: allDeduped };
+    // Dedup can only reduce the sum, never go below the largest individual project value.
+    // If it does (contact count < meeting count due to contacts with multiple meetings),
+    // fall back to simple addition.
+    if (deduped < maxIndividual) {
+      return { value: simpleSum, deduped: false };
+    }
+    return { value: deduped, deduped: allDeduped };
   }
 
   function dedupeArrMetric(): { value: number; deduped: boolean } {
+    const simpleSum     = results.reduce((s, p) => s + ((p.mtd.arr_closed_mtd as number) ?? 0), 0);
+    const maxIndividual = Math.max(0, ...results.map((p) => (p.mtd.arr_closed_mtd as number) ?? 0));
+
     const entries = latestContactIdsPerKey["arr_closed_mtd"];
     if (!entries.length) {
-      const sum = results.reduce((s, p) => s + ((p.mtd.arr_closed_mtd as number) ?? 0), 0);
-      return { value: sum, deduped: false };
+      return { value: simpleSum, deduped: false };
     }
     // Merge arrPerContact maps — take max amount per contactId across projects
     const merged = new Map<string, number>();
@@ -281,17 +299,26 @@ export async function GET(req: NextRequest) {
       }
     }
     const allDeduped = results.every((p) => pidsWithIds.has(p.projectId));
+    if (total < maxIndividual) {
+      return { value: simpleSum, deduped: false };
+    }
     return { value: total, deduped: allDeduped };
   }
 
+  const bookedResult = dedupeCountMetric("demos_booked_mtd");
   const portfolioTotals = {
     llm_traffic:  results.reduce((s, p) => s + ((p.mtd.llm_traffic_daily as number) ?? 0), 0),
-    agents_enriched: (aggregated["enrichment"]?.agents_enriched_period as number) ?? 0,
-    demos_booked: dedupeCountMetric("demos_booked_mtd"),
+    demos_booked: bookedResult,
     demos_held:   dedupeCountMetric("demos_held_mtd"),
     closed_won:   dedupeCountMetric("closed_won_mtd"),
     arr_closed:   dedupeArrMetric(),
   };
+
+  const arthurDemos      = (aggregated["arthur"]?.demos_booked_mtd     as number) ?? 0;
+  const enrichmentDemos  = (aggregated["enrichment"]?.demos_booked_mtd as number) ?? 0;
+  console.error(
+    `[outcomes-index] scope: ${scope} arthur_demos: ${arthurDemos} enrichment_demos: ${enrichmentDemos} combined: ${bookedResult.value} deduped: ${bookedResult.deduped}`,
+  );
 
   return NextResponse.json({ projects: results, portfolioTotals });
 }
