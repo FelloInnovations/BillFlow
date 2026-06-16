@@ -392,14 +392,19 @@ export async function getAgentsEnrichedPeriod(
   fromDate: string | null,
   toDate: string | null,
 ): Promise<{ count: number }> {
+  // mad.agents was not populated before April 2025 — return 0 for earlier periods
+  const MAD_START = "2025-04-01";
+  if (toDate && toDate < MAD_START) return { count: 0 };
+  const effectiveFrom = fromDate && fromDate < MAD_START ? MAD_START : fromDate;
+
   const madDb = getMadDb();
   try {
-    const result = fromDate && toDate
+    const result = effectiveFrom && toDate
       ? await madDb`
           SELECT COUNT(*)::int AS total
           FROM mad.agents
-          WHERE created_at >= ${fromDate + "T00:00:00Z"}::timestamptz
-            AND created_at <= ${toDate + "T23:59:59Z"}::timestamptz
+          WHERE created_at >= ${effectiveFrom + "T00:00:00Z"}::timestamptz
+            AND created_at <= ${toDate   + "T23:59:59Z"}::timestamptz
         `
       : await madDb`SELECT COUNT(*)::int AS total FROM mad.agents`;
     return { count: result[0]?.total ?? 0 };

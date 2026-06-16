@@ -95,7 +95,7 @@ function BackfillModal({
   onDone: (from: string, to: string) => void;
   onStarted: (from: string, to: string) => void;
 }) {
-  const [from, setFrom] = useState("2025-04-01");
+  const [from, setFrom] = useState("2024-01-01");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -134,7 +134,6 @@ function BackfillModal({
             <input
               type="date"
               value={from}
-              min="2025-04-01"
               onChange={(e) => setFrom(e.target.value)}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
             />

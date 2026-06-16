@@ -21,7 +21,6 @@ const LATEST_KEYS = new Set([
 // Keys that may have contact_ids for cross-project deduplication
 const DEDUP_KEYS = ["demos_booked_mtd", "demos_held_mtd", "closed_won_mtd", "arr_closed_mtd"] as const;
 
-const ENRICHMENT_START = "2025-04-01";
 
 function serviceClient() {
   return createClient(
@@ -92,11 +91,6 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false }),
   ]);
 
-  // Enforce floor date for enrichment at the application layer (belt-and-suspenders after migration)
-  const filteredRows = (metricRows ?? []).filter((row) =>
-    row.project_id !== "enrichment" || (row.date as string) >= ENRICHMENT_START,
-  );
-
   // Aggregate per project
   const dailySums:     Record<string, Record<string, number>> = {};
   const latestByMonth: Record<string, Record<string, Record<string, number>>> = {};
@@ -108,7 +102,7 @@ export async function GET(req: NextRequest) {
     ids: unknown;  // string[] for count keys, Record<string,number> for arr
   }>>> = {};
 
-  for (const row of filteredRows) {
+  for (const row of metricRows ?? []) {
     const pid   = row.project_id as string;
     const month = (row.date as string).substring(0, 7);
     const key   = row.metric_key as string;

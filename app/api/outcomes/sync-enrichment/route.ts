@@ -55,10 +55,6 @@ export async function GET(req: NextRequest) {
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const dateStr = yesterday.toISOString().substring(0, 10);
 
-  if (dateStr < "2025-04-01") {
-    return NextResponse.json({ date: dateStr, upserted: [], errors: [], skipped: true });
-  }
-
   const [y, m] = dateStr.split("-");
   const monthStart = `${y}-${m}-01`;
 

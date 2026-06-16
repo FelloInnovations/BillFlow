@@ -42,8 +42,6 @@ function monthEndDates(from: string, to: string): string[] {
   return ends;
 }
 
-const ENRICHMENT_START_DATE = "2025-04-01";
-
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-sync-secret");
   if (secret !== process.env.OUTCOMES_SYNC_SECRET) {
@@ -56,17 +54,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "provide valid from and to (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const effectiveFrom = from < ENRICHMENT_START_DATE ? ENRICHMENT_START_DATE : from;
-
   // Fire and forget — return immediately while backfill runs in background
-  runBackfill(effectiveFrom, to).catch((err) => {
+  runBackfill(from, to).catch((err) => {
     console.error("[backfill-enrichment] background error:", err?.message ?? err);
   });
 
   return NextResponse.json({
     status:  "started",
-    message: `Backfill started for ${effectiveFrom} to ${to}. Running in background — check Railway logs for progress.`,
-    from:    effectiveFrom,
+    message: `Backfill started for ${from} to ${to}. Running in background — check Railway logs for progress.`,
+    from,
     to,
   }, { status: 202 });
 }
