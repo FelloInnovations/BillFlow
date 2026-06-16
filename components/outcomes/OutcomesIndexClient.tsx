@@ -14,7 +14,6 @@ const PLATFORMS = [
 
 interface PortfolioTotals {
   llm_traffic:    number;
-  agents_enriched: number;
   demos_booked:   { value: number; deduped: boolean };
   demos_held:     { value: number; deduped: boolean };
   closed_won:     { value: number; deduped: boolean };
@@ -72,21 +71,18 @@ function EnrichmentProjectCard({
   scopeLabel: string;
 }) {
   const { mtd } = project;
-  // Use agents_enriched_period (scope-specific count) as the headline enriched value
-  const enrichedPeriod  = (mtd.agents_enriched_period as number) ?? 0;
-  const pushed          = (mtd.agents_pushed_hubspot  as number) ?? 0;
-  const demosBooked     = (mtd.demos_booked_mtd       as number) ?? 0;
-  const demosHeld       = (mtd.demos_held_mtd         as number) ?? 0;
-  const closedWon       = (mtd.closed_won_mtd         as number) ?? 0;
-  const arrClosed       = (mtd.arr_closed_mtd         as number) ?? 0;
+  const pushed      = (mtd.agents_pushed_hubspot as number) ?? 0;
+  const demosBooked = (mtd.demos_booked_mtd      as number) ?? 0;
+  const demosHeld   = (mtd.demos_held_mtd        as number) ?? 0;
+  const closedWon   = (mtd.closed_won_mtd        as number) ?? 0;
+  const arrClosed   = (mtd.arr_closed_mtd        as number) ?? 0;
 
   const funnelSteps = [
-    { label: "Enriched", value: enrichedPeriod, currency: false },
-    { label: "Pushed",   value: pushed,         currency: false },
-    { label: "Booked",   value: demosBooked,    currency: false },
-    { label: "Held",     value: demosHeld,      currency: false },
-    { label: "Won",      value: closedWon,      currency: false },
-    { label: "ARR",      value: arrClosed,      currency: true  },
+    { label: "Pushed",  value: pushed,      currency: false },
+    { label: "Booked",  value: demosBooked, currency: false },
+    { label: "Held",    value: demosHeld,   currency: false },
+    { label: "Won",     value: closedWon,   currency: false },
+    { label: "ARR",     value: arrClosed,   currency: true  },
   ];
 
   return (
@@ -178,12 +174,6 @@ export function OutcomesIndexClient() {
       combined: false,
     },
     {
-      label:    "Agents Enriched",
-      value:    pt.agents_enriched.toLocaleString(),
-      sub:      `Enrichment only · ${scopeLabelLower}`,
-      combined: false,
-    },
-    {
       label:    "Demos Booked",
       value:    pt.demos_booked.value.toLocaleString(),
       sub:      `${pt.demos_booked.deduped ? "deduped" : "combined"} · ${scopeLabelLower}`,
@@ -247,7 +237,7 @@ export function OutcomesIndexClient() {
           <>
             {/* Portfolio summary cards */}
             {statCards.length > 0 && (
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {statCards.map(({ label, value, sub, combined }) => (
                   <div
                     key={label}

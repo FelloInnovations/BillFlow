@@ -95,7 +95,7 @@ function BackfillModal({
   onDone: (from: string, to: string) => void;
   onStarted: (from: string, to: string) => void;
 }) {
-  const [from, setFrom] = useState("");
+  const [from, setFrom] = useState("2025-04-01");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -134,6 +134,7 @@ function BackfillModal({
             <input
               type="date"
               value={from}
+              min="2025-04-01"
               onChange={(e) => setFrom(e.target.value)}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
             />
@@ -379,21 +380,8 @@ export function EnrichmentOutcomesClient({
         </div>
       </div>
 
-      {/* KPI cards — 6 cards: Agents Enriched (merged) + 5 pipeline metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-        {/* Merged card: headline = scope-specific period count; secondary = all-time total (hidden when scope=all_time) */}
-        <HeroStatCard
-          label="Agents Enriched"
-          value={(displayValues.agents_enriched_period as number) ?? 0}
-          sparkData={sparkMap.get("agents_enriched_period")}
-          accent="violet"
-          note={scope === "all_time" ? "all time" : "this month"}
-          sub={
-            scope !== "all_time"
-              ? `${((allTimeValues.agents_enriched_total as number) ?? 0).toLocaleString()} total all time`
-              : undefined
-          }
-        />
+      {/* KPI cards — 5 pipeline metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         {config
           .filter((c) =>
             c.metric_key !== "agents_enriched_total" &&
@@ -436,13 +424,13 @@ export function EnrichmentOutcomesClient({
                     Month
                   </th>
                   {config
-                    .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_pushed_hubspot_total")
+                    .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_enriched_period" && c.metric_key !== "agents_pushed_hubspot_total")
                     .map((c) => (
                       <th
                         key={c.metric_key}
                         className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap"
                       >
-                        {c.metric_key === "agents_enriched_period" ? "Agents Enriched" : c.label}
+                        {c.label}
                       </th>
                     ))}
                 </tr>
@@ -454,7 +442,7 @@ export function EnrichmentOutcomesClient({
                       {row.monthLabel}
                     </td>
                     {config
-                      .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_pushed_hubspot_total")
+                      .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_enriched_period" && c.metric_key !== "agents_pushed_hubspot_total")
                       .map((c) => {
                         const val = (row.metrics[c.metric_key] as number) ?? 0;
                         const isCur = c.metric_key === "arr_closed_mtd";

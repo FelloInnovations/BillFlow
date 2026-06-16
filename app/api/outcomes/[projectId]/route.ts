@@ -64,6 +64,9 @@ export async function GET(
   const from = url.searchParams.get("from") ?? defaultFrom;
   const to   = url.searchParams.get("to")   ?? defaultTo;
 
+  const ENRICHMENT_START = "2025-04-01";
+  const effectiveFrom = projectId === "enrichment" && from < ENRICHMENT_START ? ENRICHMENT_START : from;
+
   const [configRes, seriesRes, lastSyncRes, allRowsRes] = await Promise.all([
     supabase
       .from("project_outcome_config")
@@ -75,7 +78,7 @@ export async function GET(
       .from("project_outcome_metrics")
       .select("metric_key, date, value")
       .eq("project_id", projectId)
-      .gte("date", from)
+      .gte("date", effectiveFrom)
       .lte("date", to)
       .order("date"),
     supabase
