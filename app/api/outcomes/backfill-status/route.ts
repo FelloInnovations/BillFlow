@@ -12,13 +12,16 @@ function serviceClient() {
 }
 
 export async function GET() {
-  const supabase = serviceClient();
-  const { data } = await supabase
-    .from("project_outcome_metrics")
-    .select("value")
-    .eq("project_id", "enrichment")
-    .eq("metric_key", "backfill_lock")
-    .maybeSingle();
-
-  return NextResponse.json({ running: data?.value === 1 });
+  try {
+    const supabase = serviceClient();
+    const { data, error } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "enrichment_backfill_lock")
+      .maybeSingle();
+    if (error) return NextResponse.json({ running: false });
+    return NextResponse.json({ running: data?.value === "locked" });
+  } catch {
+    return NextResponse.json({ running: false });
+  }
 }

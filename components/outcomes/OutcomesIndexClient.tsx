@@ -77,13 +77,49 @@ function EnrichmentProjectCard({
   const closedWon   = (mtd.closed_won_mtd        as number) ?? 0;
   const arrClosed   = (mtd.arr_closed_mtd        as number) ?? 0;
 
-  const funnelSteps = [
+  const teamsPushed      = (mtd.teams_pushed_hubspot   as number) ?? 0;
+  const teamDemosBooked  = (mtd.team_demos_booked_mtd  as number) ?? 0;
+  const teamDemosHeld    = (mtd.team_demos_held_mtd    as number) ?? 0;
+  const teamClosedWon    = (mtd.team_closed_won_mtd    as number) ?? 0;
+  const teamArrClosed    = (mtd.team_arr_closed_mtd    as number) ?? 0;
+
+  const contactFunnel = [
     { label: "Pushed",  value: pushed,      currency: false },
     { label: "Booked",  value: demosBooked, currency: false },
     { label: "Held",    value: demosHeld,   currency: false },
     { label: "Won",     value: closedWon,   currency: false },
     { label: "ARR",     value: arrClosed,   currency: true  },
   ];
+
+  const teamFunnel = [
+    { label: "Pushed",  value: teamsPushed,     currency: false },
+    { label: "Booked",  value: teamDemosBooked, currency: false },
+    { label: "Held",    value: teamDemosHeld,   currency: false },
+    { label: "Won",     value: teamClosedWon,   currency: false },
+    { label: "ARR",     value: teamArrClosed,   currency: true  },
+  ];
+
+  function FunnelRow({ steps }: { steps: typeof contactFunnel }) {
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {steps.map(({ label, value, currency }, i) => (
+          <div key={label} className="flex items-center gap-1">
+            <div className="text-center min-w-[3.5rem]">
+              <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                {currency ? formatCurrency(value) : value.toLocaleString()}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">
+                {label}
+              </div>
+            </div>
+            {i < steps.length - 1 && (
+              <span className="text-slate-300 dark:text-slate-600 text-[11px] font-bold">→</span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
@@ -105,26 +141,19 @@ function EnrichmentProjectCard({
         </Link>
       </div>
 
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-          Funnel &middot; {scopeLabel}
-        </p>
-        <div className="flex items-center gap-1 flex-wrap">
-          {funnelSteps.map(({ label, value, currency }, i) => (
-            <div key={label} className="flex items-center gap-1">
-              <div className="text-center min-w-[3.5rem]">
-                <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">
-                  {currency ? formatCurrency(value) : value.toLocaleString()}
-                </div>
-                <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">
-                  {label}
-                </div>
-              </div>
-              {i < funnelSteps.length - 1 && (
-                <span className="text-slate-300 dark:text-slate-600 text-[11px] font-bold">→</span>
-              )}
-            </div>
-          ))}
+      <div className="space-y-5">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+            Contact Funnel &middot; {scopeLabel}
+          </p>
+          <FunnelRow steps={contactFunnel} />
+        </div>
+
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+            Team Funnel &middot; {scopeLabel}
+          </p>
+          <FunnelRow steps={teamFunnel} />
         </div>
       </div>
 

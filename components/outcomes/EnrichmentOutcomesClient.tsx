@@ -31,7 +31,6 @@ function HeroStatCard({
   isCurrency = false,
   accent = "indigo",
   note,
-  sub,
 }: {
   label: string;
   value: number;
@@ -39,7 +38,6 @@ function HeroStatCard({
   isCurrency?: boolean;
   accent?: "indigo" | "emerald" | "amber" | "violet" | "sky";
   note?: string;
-  sub?: string;
 }) {
   const accentColor = {
     indigo: "#6366f1",
@@ -65,9 +63,6 @@ function HeroStatCard({
       {note && (
         <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{note}</p>
       )}
-      {sub && (
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>
-      )}
     </div>
   );
 }
@@ -87,12 +82,14 @@ function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
 
 // ── BackfillModal ─────────────────────────────────────────────────────────────
 function BackfillModal({
+  type,
   onClose,
   onDone,
   onStarted,
   backfillRunning,
   onReleaseLock,
 }: {
+  type: "contact" | "team";
   onClose: () => void;
   onDone: (from: string, to: string) => void;
   onStarted: (from: string, to: string) => void;
@@ -105,12 +102,20 @@ function BackfillModal({
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState<string | null>(null);
 
+  const endpoint = type === "team"
+    ? "/api/outcomes/trigger-backfill-enrichment-teams"
+    : "/api/outcomes/trigger-backfill-enrichment";
+
+  const title = type === "team"
+    ? "Backfill Team Metrics"
+    : "Backfill Enrichment Metrics";
+
   async function run() {
     if (!from || !to) return;
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch("/api/outcomes/trigger-backfill-enrichment", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from, to }),
@@ -132,7 +137,7 @@ function BackfillModal({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-80">
-        <h3 className="font-bold text-slate-900 dark:text-white mb-4">Backfill Enrichment Metrics</h3>
+        <h3 className="font-bold text-slate-900 dark:text-white mb-4">{title}</h3>
         {backfillRunning ? (
           <div className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-3 py-2">
             <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5">
@@ -200,27 +205,37 @@ const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
   { value: "this_month", label: "This Month" },
 ];
 
-// Keys whose all-time value is a SUM across months (period/count metrics)
-const SUM_KEYS = new Set(["agents_enriched_period", "agents_pushed_hubspot"]);
+// Keys whose all-time value is a SUM across months (additive period metrics)
+const SUM_KEYS = new Set([
+  "agents_enriched_period",
+  "agents_pushed_hubspot",
+  "teams_enriched_period",
+  "teams_pushed_hubspot",
+]);
 
-// MTD snapshot metrics: each month's value is the month-end cumulative total.
-// All-time = sum of the per-month totals (monthly breakdown already stores max-per-month).
+// MTD snapshot metrics: all-time = sum of per-month totals
 const SNAPSHOT_KEYS = new Set([
   "demos_booked_mtd",
   "demos_held_mtd",
   "closed_won_mtd",
   "arr_closed_mtd",
+  "team_demos_booked_mtd",
+  "team_demos_held_mtd",
+  "team_closed_won_mtd",
+  "team_arr_closed_mtd",
 ]);
 
-function aggregateSnapshotMetric(
-  rows: MonthlyOutcomeBreakdown[],
-  key: string,
-): number {
+// Keys whose all-time value = latest snapshot (running total, not cumulative sum)
+const LATEST_TOTAL_KEYS = new Set([
+  "agents_enriched_total",
+  "agents_pushed_hubspot_total",
+  "teams_enriched_total",
+  "teams_pushed_hubspot_total",
+]);
+
+function aggregateSnapshotMetric(rows: MonthlyOutcomeBreakdown[], key: string): number {
   return rows.reduce((s, m) => s + ((m.metrics[key] as number) ?? 0), 0);
 }
-
-// Keys whose all-time value = latest snapshot (not sum across months)
-const LATEST_TOTAL_KEYS = new Set(["agents_enriched_total", "agents_pushed_hubspot_total"]);
 
 function computeAllTime(
   monthly: MonthlyOutcomeBreakdown[],
@@ -230,10 +245,8 @@ function computeAllTime(
   const sorted = [...monthly].sort((a, b) => b.month.localeCompare(a.month));
   for (const key of configKeys) {
     if (LATEST_TOTAL_KEYS.has(key)) {
-      // All-time snapshot — take the max (most recent) value across months
       result[key] = Math.max(0, ...monthly.map((m) => (m.metrics[key] as number) ?? 0));
     } else if (SUM_KEYS.has(key) || SNAPSHOT_KEYS.has(key)) {
-      // Sum latest-per-month values across all months
       result[key] = aggregateSnapshotMetric(monthly, key);
     } else {
       result[key] = (sorted[0]?.metrics[key] as number) ?? 0;
@@ -243,18 +256,17 @@ function computeAllTime(
 }
 
 function noteFor(key: string, scope: Scope): string {
-  if (key === "agents_enriched_total") return "all time";
+  if (key === "agents_enriched_total" || key === "teams_enriched_total") return "all time";
   if (scope === "all_time") return "all time";
-  return key === "agents_enriched_period" ? "this month" : "month-to-date";
+  return (key === "agents_enriched_period" || key === "teams_enriched_period") ? "this month" : "month-to-date";
 }
 
-// ── Metric accent color ───────────────────────────────────────────────────────
 function accentFor(key: string): "indigo" | "emerald" | "amber" | "violet" | "sky" {
-  if (key === "agents_enriched_total") return "violet";
-  if (key === "agents_enriched_period") return "sky";
-  if (key === "agents_pushed_hubspot")  return "indigo";
-  if (key.includes("arr"))              return "amber";
-  if (key.includes("closed_won"))       return "emerald";
+  if (key === "agents_enriched_total"  || key === "teams_enriched_total")  return "violet";
+  if (key === "agents_enriched_period" || key === "teams_enriched_period") return "sky";
+  if (key === "agents_pushed_hubspot"  || key === "teams_pushed_hubspot")  return "indigo";
+  if (key.includes("arr"))             return "amber";
+  if (key.includes("closed_won"))      return "emerald";
   return "indigo";
 }
 
@@ -277,13 +289,33 @@ export function EnrichmentOutcomesClient({
   const [mtd, setMtd]         = useState(initialMtd);
   const [monthly, setMonthly] = useState(initialMonthlyBreakdown);
   const [lastSynced, setLastSynced] = useState(initialLastSynced);
-  const [scope, setScope]     = useState<Scope>("all_time");
-  const [backfillOpen, setBackfillOpen] = useState(false);
-  const [backfillRunning, setBackfillRunning] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [toast, setToast]     = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Fetch lock status once on mount
+  // Tabs
+  const [activeTab, setActiveTab] = useState<"contact" | "team">("contact");
+
+  // Independent scope selectors per tab
+  const [contactScope, setContactScope] = useState<Scope>("all_time");
+  const [teamScope, setTeamScope]       = useState<Scope>("all_time");
+
+  // Backfill state (shared lock)
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillOpen, setBackfillOpen]       = useState(false);
+  const [backfillType, setBackfillType]       = useState<"contact" | "team">("contact");
+
+  // Sync states
+  const [syncingContact, setSyncingContact] = useState(false);
+  const [syncingTeam, setSyncingTeam]       = useState(false);
+
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  // Split config by tab
+  const contactConfig = config.filter((c) => !c.metric_key.startsWith("team"));
+  const teamConfig    = config.filter((c) => c.metric_key.startsWith("team"));
+
+  const contactConfigKeys = contactConfig.map((c) => c.metric_key);
+  const teamConfigKeys    = teamConfig.map((c) => c.metric_key);
+
+  // Fetch lock status on mount
   useEffect(() => {
     fetch("/api/outcomes/backfill-status")
       .then((r) => r.json())
@@ -305,7 +337,7 @@ export function EnrichmentOutcomesClient({
 
   async function releaseLock() {
     try {
-      const res = await fetch("/api/outcomes/trigger-backfill-enrichment?force=true");
+      const res = await fetch("/api/outcomes/trigger-release-lock", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error ?? "Release failed");
       setBackfillRunning(false);
@@ -328,7 +360,7 @@ export function EnrichmentOutcomesClient({
     } catch { /* ignore */ }
   }, []);
 
-  // While a backfill is running, poll every 60s; when it finishes refresh data + toast
+  // While a backfill is running, poll every 60s; refresh data when it finishes
   useEffect(() => {
     if (!backfillRunning) return;
     const id = setInterval(async () => {
@@ -347,55 +379,58 @@ export function EnrichmentOutcomesClient({
     return () => clearInterval(id);
   }, [backfillRunning, fetchData]);
 
-  async function syncNow() {
-    setSyncing(true);
+  async function syncContactNow() {
+    setSyncingContact(true);
     try {
       const res = await fetch("/api/outcomes/trigger-enrichment", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error ?? "Sync failed");
-      setToast({ msg: "Sync complete", type: "success" });
+      setToast({ msg: "Contact sync complete", type: "success" });
       await fetchData();
     } catch (e) {
-      setToast({ msg: e instanceof Error ? e.message : "Sync failed", type: "error" });
+      setToast({ msg: e instanceof Error ? e.message : "Contact sync failed", type: "error" });
     } finally {
-      setSyncing(false);
+      setSyncingContact(false);
       setTimeout(() => setToast(null), 3000);
     }
   }
 
-  const configKeys = config.map((c) => c.metric_key);
+  async function syncTeamNow() {
+    setSyncingTeam(true);
+    try {
+      const res = await fetch("/api/outcomes/trigger-enrichment-teams", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? "Sync failed");
+      setToast({ msg: "Team sync complete", type: "success" });
+      await fetchData();
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : "Team sync failed", type: "error" });
+    } finally {
+      setSyncingTeam(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  }
 
+  // All-time aggregation
   const allTimeValues = useMemo(
-    () => computeAllTime(monthly, configKeys),
-    [monthly, configKeys],
+    () => computeAllTime(monthly, [...contactConfigKeys, ...teamConfigKeys]),
+    [monthly, contactConfigKeys, teamConfigKeys],
   );
 
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    const keys = ["demos_booked_mtd", "demos_held_mtd", "closed_won_mtd", "arr_closed_mtd"] as const;
-    for (const key of keys) {
-      const tableSum = monthly.reduce((acc, m) => acc + ((m.metrics[key] as number) ?? 0), 0);
-      const headlineValue = (allTimeValues[key] as number) ?? 0;
-      if (Math.abs(tableSum - headlineValue) > 1) {
-        console.warn(`[ENRICHMENT] ${key} mismatch: headline=${headlineValue} table_sum=${tableSum}`);
-      }
-    }
-  }, [allTimeValues, monthly]);
+  const contactDisplay: OutcomeMtdSummary = contactScope === "all_time" ? allTimeValues : mtd;
+  const teamDisplay: OutcomeMtdSummary    = teamScope    === "all_time" ? allTimeValues : mtd;
 
-  const displayValues: OutcomeMtdSummary =
-    scope === "all_time" ? allTimeValues : mtd;
-
-  // Sparkline data per metric from monthly breakdown
+  // Sparklines
   const sparkMap = useMemo(() => {
     const map = new Map<string, number[]>();
-    for (const key of configKeys) {
+    for (const key of [...contactConfigKeys, ...teamConfigKeys]) {
       const pts = [...monthly]
         .sort((a, b) => a.month.localeCompare(b.month))
         .map((b) => (b.metrics[key] as number) ?? 0);
       if (pts.some((v) => v > 0)) map.set(key, pts);
     }
     return map;
-  }, [monthly, configKeys]);
+  }, [monthly, contactConfigKeys, teamConfigKeys]);
 
   function timeAgo(ts: string) {
     const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
@@ -406,10 +441,20 @@ export function EnrichmentOutcomesClient({
     return `${Math.floor(h / 24)}d ago`;
   }
 
+  // ── Contact tab pipeline metric keys (excludes total / period totals) ────────
+  const contactPipelineFilter = (c: OutcomeMetricConfig) =>
+    !["agents_enriched_total", "agents_enriched_period", "agents_pushed_hubspot_total"].includes(c.metric_key);
+
+  // ── Team tab pipeline metric keys ─────────────────────────────────────────────
+  const teamPipelineFilter = (c: OutcomeMetricConfig) =>
+    !["teams_enriched_total", "teams_enriched_period", "teams_pushed_hubspot_total"].includes(c.metric_key);
+
+  const isRunning = backfillRunning;
+
   return (
     <div className="flex-1 min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Enrichment — Outcomes
@@ -423,122 +468,223 @@ export function EnrichmentOutcomesClient({
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Scope selector */}
-          <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
-            {SCOPE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setScope(opt.value)}
-                className={`px-3 py-2 transition-colors ${
-                  scope === opt.value
-                    ? "bg-indigo-600 text-white"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-6">
+        {(["contact", "team"] as const).map((tab) => (
           <button
-            onClick={syncNow}
-            disabled={syncing}
-            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
-          >
-            {syncing ? "Syncing…" : "Sync Now"}
-          </button>
-          <button
-            onClick={() => setBackfillOpen(true)}
-            className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
-              backfillRunning
-                ? "border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 cursor-default"
-                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-semibold transition-colors ${
+              activeTab === tab
+                ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 -mb-px"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
-            {backfillRunning ? "Backfill Running…" : "Backfill"}
+            {tab === "contact" ? "Contact Level" : "Team Level"}
           </button>
-        </div>
+        ))}
       </div>
 
-      {/* KPI cards — 5 pipeline metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-        {config
-          .filter((c) =>
-            c.metric_key !== "agents_enriched_total" &&
-            c.metric_key !== "agents_enriched_period" &&
-            c.metric_key !== "agents_pushed_hubspot_total",
-          )
-          .map((c) => {
-            const metricKey = c.metric_key;
-            const value = (displayValues[metricKey] as number) ?? 0;
-            const isCurrency = c.metric_key === "arr_closed_mtd";
-            return (
-              <HeroStatCard
-                key={c.metric_key}
-                label={c.label}
-                value={value}
-                sparkData={sparkMap.get(c.metric_key)}
-                isCurrency={isCurrency}
-                accent={accentFor(c.metric_key)}
-                note={noteFor(c.metric_key, scope)}
-              />
-            );
-          })}
-      </div>
-
-      {/* Monthly breakdown table */}
-      {monthly.length > 0 && (
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Breakdown</p>
+      {/* ── Contact Level Tab ─────────────────────────────────────────────────── */}
+      {activeTab === "contact" && (
+        <>
+          {/* Tab toolbar */}
+          <div className="flex items-center justify-end gap-2 mb-6">
+            <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
+              {SCOPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setContactScope(opt.value)}
+                  className={`px-3 py-2 transition-colors ${
+                    contactScope === opt.value
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={syncContactNow}
+              disabled={syncingContact}
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {syncingContact ? "Syncing…" : "Sync Now"}
+            </button>
+            <button
+              onClick={() => { setBackfillType("contact"); setBackfillOpen(true); }}
+              className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
+                isRunning
+                  ? "border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 cursor-default"
+                  : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
+              }`}
+            >
+              {isRunning ? "Backfill Running…" : "Backfill"}
+            </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800">
-                  <th className="text-left px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Month
-                  </th>
-                  {config
-                    .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_enriched_period" && c.metric_key !== "agents_pushed_hubspot_total")
-                    .map((c) => (
-                      <th
-                        key={c.metric_key}
-                        className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap"
-                      >
-                        {c.label}
-                      </th>
+
+          {/* Hero cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+            {contactConfig.filter(contactPipelineFilter).map((c) => {
+              const value = (contactDisplay[c.metric_key] as number) ?? 0;
+              return (
+                <HeroStatCard
+                  key={c.metric_key}
+                  label={c.label}
+                  value={value}
+                  sparkData={sparkMap.get(c.metric_key)}
+                  isCurrency={c.metric_key === "arr_closed_mtd"}
+                  accent={accentFor(c.metric_key)}
+                  note={noteFor(c.metric_key, contactScope)}
+                />
+              );
+            })}
+          </div>
+
+          {/* Monthly table */}
+          {monthly.length > 0 && (
+            <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Breakdown</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                      <th className="text-left px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Month</th>
+                      {contactConfig.filter(contactPipelineFilter).map((c) => (
+                        <th key={c.metric_key} className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                          {c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                    {monthly.map((row) => (
+                      <tr key={row.month} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.monthLabel}</td>
+                        {contactConfig.filter(contactPipelineFilter).map((c) => {
+                          const val = (row.metrics[c.metric_key] as number) ?? 0;
+                          return (
+                            <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
+                              {c.metric_key === "arr_closed_mtd" ? formatCurrency(val) : val.toLocaleString()}
+                            </td>
+                          );
+                        })}
+                      </tr>
                     ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                {monthly.map((row) => (
-                  <tr key={row.month} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                      {row.monthLabel}
-                    </td>
-                    {config
-                      .filter((c) => c.metric_key !== "agents_enriched_total" && c.metric_key !== "agents_enriched_period" && c.metric_key !== "agents_pushed_hubspot_total")
-                      .map((c) => {
-                        const val = (row.metrics[c.metric_key] as number) ?? 0;
-                        const isCur = c.metric_key === "arr_closed_mtd";
-                        return (
-                          <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
-                            {isCur ? formatCurrency(val) : val.toLocaleString()}
-                          </td>
-                        );
-                      })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Team Level Tab ────────────────────────────────────────────────────── */}
+      {activeTab === "team" && (
+        <>
+          {/* Tab toolbar */}
+          <div className="flex items-center justify-end gap-2 mb-6">
+            <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
+              {SCOPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setTeamScope(opt.value)}
+                  className={`px-3 py-2 transition-colors ${
+                    teamScope === opt.value
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={syncTeamNow}
+              disabled={syncingTeam}
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {syncingTeam ? "Syncing…" : "Sync Now"}
+            </button>
+            <button
+              onClick={() => { setBackfillType("team"); setBackfillOpen(true); }}
+              className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
+                isRunning
+                  ? "border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 cursor-default"
+                  : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
+              }`}
+            >
+              {isRunning ? "Backfill Running…" : "Backfill"}
+            </button>
           </div>
-        </div>
+
+          {/* Hero cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+            {teamConfig.filter(teamPipelineFilter).map((c) => {
+              const value = (teamDisplay[c.metric_key] as number) ?? 0;
+              return (
+                <HeroStatCard
+                  key={c.metric_key}
+                  label={c.label}
+                  value={value}
+                  sparkData={sparkMap.get(c.metric_key)}
+                  isCurrency={c.metric_key === "team_arr_closed_mtd"}
+                  accent={accentFor(c.metric_key)}
+                  note={noteFor(c.metric_key, teamScope)}
+                />
+              );
+            })}
+          </div>
+
+          {/* Team monthly table */}
+          {monthly.length > 0 && (
+            <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Breakdown</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                      <th className="text-left px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Month</th>
+                      {teamConfig.filter(teamPipelineFilter).map((c) => (
+                        <th key={c.metric_key} className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                          {c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                    {monthly.map((row) => (
+                      <tr key={row.month} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.monthLabel}</td>
+                        {teamConfig.filter(teamPipelineFilter).map((c) => {
+                          const val = (row.metrics[c.metric_key] as number) ?? 0;
+                          return (
+                            <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
+                              {c.metric_key === "team_arr_closed_mtd" ? formatCurrency(val) : val.toLocaleString()}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modals / toasts */}
       {backfillOpen && (
         <BackfillModal
+          type={backfillType}
           onClose={() => setBackfillOpen(false)}
           backfillRunning={backfillRunning}
           onReleaseLock={async () => { setBackfillOpen(false); await releaseLock(); }}

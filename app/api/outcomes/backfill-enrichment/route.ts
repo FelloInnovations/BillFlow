@@ -28,35 +28,30 @@ function serviceClient() {
   );
 }
 
-// Stable sentinel date — ensures there is always exactly one lock row
-const LOCK_DATE = "2000-01-01";
-
 async function acquireBackfillLock(supabase: SupabaseClient): Promise<boolean> {
   const { data } = await supabase
-    .from("project_outcome_metrics")
+    .from("app_settings")
     .select("value")
-    .eq("project_id", "enrichment")
-    .eq("metric_key", "backfill_lock")
+    .eq("key", "enrichment_backfill_lock")
     .maybeSingle();
 
-  if (data?.value === 1) return false; // already locked
+  if (data?.value === "locked") return false;
 
   await supabase
-    .from("project_outcome_metrics")
+    .from("app_settings")
     .upsert(
-      { project_id: "enrichment", metric_key: "backfill_lock", value: 1, date: LOCK_DATE, source: "system" },
-      { onConflict: "project_id,metric_key,date" },
+      { key: "enrichment_backfill_lock", value: "locked", updated_at: new Date().toISOString() },
+      { onConflict: "key" },
     );
-
   return true;
 }
 
 async function releaseBackfillLock(supabase: SupabaseClient): Promise<void> {
   await supabase
-    .from("project_outcome_metrics")
+    .from("app_settings")
     .upsert(
-      { project_id: "enrichment", metric_key: "backfill_lock", value: 0, date: LOCK_DATE, source: "system" },
-      { onConflict: "project_id,metric_key,date" },
+      { key: "enrichment_backfill_lock", value: "unlocked", updated_at: new Date().toISOString() },
+      { onConflict: "key" },
     );
 }
 
