@@ -353,10 +353,6 @@ export function computeArrClosed(
 export async function getAgentsEnrichedTotal(): Promise<{ count: number }> {
   const madDb = getMadDb();
   try {
-    // Temporary: verify connection and schema access
-    const test = await madDb`SELECT id, created_at FROM mad.agents LIMIT 1`;
-    console.error("MAD DB connection test:", JSON.stringify(test));
-
     const result = await madDb`
       SELECT COUNT(*)::int AS total
       FROM mad.agents

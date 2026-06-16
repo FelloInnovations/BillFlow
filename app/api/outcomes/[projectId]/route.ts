@@ -11,12 +11,12 @@ const DAILY_KEYS = new Set([
   "llm_other_daily",
 ]);
 
-// Period count metrics: one row per month from backfill, summed across months for all-time.
-// MTD loop still uses DAILY_KEYS only (these cumulative-MTD values need latest, not sum).
+// Only LLM traffic keys are truly additive (sub-daily rows, each = that interval's count).
+// agents_enriched_period and agents_pushed_hubspot are cumulative-MTD values written by
+// the daily sync — taking the SUM across multiple sync rows in the same month overcounts.
+// They fall through to the "latest snapshot per month" branch instead.
 const SUM_KEYS = new Set([
   ...DAILY_KEYS,
-  "agents_enriched_period",
-  "agents_pushed_hubspot",
 ]);
 
 function buildMonthlyBreakdown(
