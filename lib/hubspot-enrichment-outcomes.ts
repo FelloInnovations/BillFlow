@@ -41,6 +41,10 @@ function monthRange(date: string): { start: number; end: number } {
 
 type EnrichedContact = { id: string; madId: string; arrValue: number; createdate: string };
 
+// Only contacts created on or after this date are attributable to Fello's enrichment pipeline
+const ENRICHMENT_CONTACT_START_DATE = "2025-04-01";
+const ENRICHMENT_CONTACT_START_TS   = new Date("2025-04-01T00:00:00.000Z").getTime().toString();
+
 // Module-level cache — valid for one process/request lifetime
 let _hubspotEnrichedCache: EnrichedContact[] | null = null;
 
@@ -53,67 +57,30 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
     total?:   number;
   };
 
-  // Step 1 — determine the full hs_object_id range of enriched contacts.
-  // Two single-filter HAS_PROPERTY calls (proven to work) with opposite sort directions.
-  const hsSearch = (body: unknown) =>
-    fetch(`${BASE}/crm/v3/objects/contacts/search`, {
-      method: "POST",
-      headers: { ...authHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-  const [firstRes, lastRes] = await Promise.all([
-    hsSearch({
-      filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
-      properties: ["mad_id"],
-      sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
-      limit: 1,
-    }),
-    hsSearch({
-      filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
-      properties: ["mad_id"],
-      sorts: [{ propertyName: "hs_object_id", direction: "DESCENDING" }],
-      limit: 1,
-    }),
-  ]);
-
-  const firstData = await firstRes.json() as HsSearchResult;
-  const lastData  = await lastRes.json()  as HsSearchResult;
-  const minId     = parseInt(firstData.results?.[0]?.id ?? "0");
-  const maxId     = parseInt(lastData.results?.[0]?.id  ?? "0");
-
-  console.error(`[getAllHubspotEnrichedContacts] ID range: ${minId} to ${maxId}`);
-
-  if (!minId || !maxId) {
-    console.error("[getAllHubspotEnrichedContacts] could not determine ID range — aborting");
-    _hubspotEnrichedCache = [];
-    return [];
-  }
-
-  // Step 2 — chunk the ID range and fetch each chunk independently.
-  // hs_object_id GTE + LTE is a native-property pair — supported without 400.
-  // mad_id is filtered client-side to avoid combining HAS_PROPERTY with date/ID filters.
-  const CHUNK_SIZE  = 20_000_000;
+  // Filter by createdate GTE only (combining HAS_PROPERTY with other filters causes 400).
+  // mad_id presence is checked client-side. Sort by createdate ASC so date-based
+  // restarts are correct when the 10k wall is hit.
   const allContacts: EnrichedContact[] = [];
+  let windowFromTs  = ENRICHMENT_CONTACT_START_TS;
+  let windowIdx     = 0;
+  const MAX_WINDOWS = 50;
 
-  for (let chunkStart = minId; chunkStart <= maxId; chunkStart += CHUNK_SIZE) {
-    const chunkEnd = Math.min(chunkStart + CHUNK_SIZE - 1, maxId);
-    console.error(`[getAllHubspotEnrichedContacts] chunk ${chunkStart}–${chunkEnd}`);
+  while (windowIdx <= MAX_WINDOWS) {
+    let after:              string | undefined;
+    let windowTotal:        number | null = null;
+    let lastSeenCreatedate: string | null = null;
+    let windowEnriched      = 0;
+    let pageCount           = 0;
 
-    let after:      string | undefined;
-    let chunkCount  = 0;
-    let pageCount   = 0;
+    console.error(
+      `[getAllHubspotEnrichedContacts] window ${windowIdx}: from ${new Date(parseInt(windowFromTs)).toISOString().substring(0, 10)}`,
+    );
 
     do {
       const body: Record<string, unknown> = {
-        filterGroups: [{
-          filters: [
-            { propertyName: "hs_object_id", operator: "GTE", value: chunkStart.toString() },
-            { propertyName: "hs_object_id", operator: "LTE", value: chunkEnd.toString()   },
-          ],
-        }],
+        filterGroups: [{ filters: [{ propertyName: "createdate", operator: "GTE", value: windowFromTs }] }],
         properties: ["mad_id", "current_arr__sync_", "createdate"],
-        sorts: [{ propertyName: "hs_object_id", direction: "ASCENDING" }],
+        sorts: [{ propertyName: "createdate", direction: "ASCENDING" }],
         limit: 100,
       };
       if (after) body.after = after;
@@ -126,29 +93,26 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        console.error(`[getAllHubspotEnrichedContacts] chunk ${chunkStart} page ${pageCount} failed: ${res.status} ${text.slice(0, 300)}`);
+        console.error(`[getAllHubspotEnrichedContacts] window ${windowIdx} page ${pageCount} failed: ${res.status} ${text.slice(0, 300)}`);
         break;
       }
 
       const data = await res.json() as HsSearchResult;
 
       if (pageCount === 0) {
-        console.error(`[getAllHubspotEnrichedContacts] chunk ${chunkStart}–${chunkEnd}: total=${data.total ?? "?"}`);
-        if ((data.total ?? 0) > 9000) {
-          console.error(`[getAllHubspotEnrichedContacts] WARNING chunk has ${data.total} contacts — approaching 10k limit, reduce CHUNK_SIZE`);
-        }
-        if ((data.results?.length ?? 0) > 0) {
-          console.error(`[getAllHubspotEnrichedContacts] sample contact properties:`, JSON.stringify(data.results![0].properties));
-        }
+        windowTotal = data.total ?? null;
+        console.error(`[getAllHubspotEnrichedContacts] window ${windowIdx} total=${windowTotal ?? "?"}`);
       }
 
       for (const c of data.results ?? []) {
-        const madId = c.properties?.mad_id;
-        if (!madId) continue;  // client-side filter — skip contacts without mad_id
-        const arrRaw     = c.properties?.current_arr__sync_;
         const createdate = c.properties?.createdate ?? "";
+        if (createdate) lastSeenCreatedate = createdate; // track ALL contacts to advance window
+
+        const madId = c.properties?.mad_id;
+        if (!madId) continue; // client-side filter — skip contacts without mad_id
+        const arrRaw = c.properties?.current_arr__sync_;
         allContacts.push({ id: c.id, madId, arrValue: arrRaw ? parseFloat(arrRaw) : 0, createdate });
-        chunkCount++;
+        windowEnriched++;
       }
 
       after = data.paging?.next?.after ?? undefined;
@@ -156,10 +120,20 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
       if (after) await new Promise((r) => setTimeout(r, 150));
     } while (after);
 
-    console.error(`[getAllHubspotEnrichedContacts] chunk done: ${chunkCount} enriched contacts, running total: ${allContacts.length}`);
+    console.error(
+      `[getAllHubspotEnrichedContacts] window ${windowIdx} done: ${windowEnriched} enriched, running total: ${allContacts.length}`,
+    );
+
+    // windowTotal <= 10k means we consumed all contacts in this window — done
+    if (!windowTotal || windowTotal <= 10000 || !lastSeenCreatedate) break;
+
+    // Hit the 10k wall — restart from lastSeenCreatedate + 1ms
+    windowFromTs = (new Date(lastSeenCreatedate).getTime() + 1).toString();
+    console.error(`[getAllHubspotEnrichedContacts] 10k wall — restarting from ${new Date(parseInt(windowFromTs)).toISOString()}`);
+    windowIdx++;
   }
 
-  // Deduplicate by contact ID (safety net for chunk boundary overlaps)
+  // Deduplicate by contact ID (window boundary overlaps are rare but possible)
   const seen    = new Set<string>();
   const deduped = allContacts.filter((c) => {
     if (seen.has(c.id)) return false;
@@ -167,7 +141,7 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
     return true;
   });
 
-  console.error(`[getAllHubspotEnrichedContacts] FINAL: ${deduped.length} unique enriched contacts`);
+  console.error(`[getAllHubspotEnrichedContacts] FINAL: ${deduped.length} unique enriched contacts (${ENRICHMENT_CONTACT_START_DATE}+)`);
   _hubspotEnrichedCache = deduped;
   return deduped;
 }
