@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAllHubspotEnrichedContacts } from "@/lib/hubspot-enrichment-outcomes";
 
 const BASE = "https://api.hubapi.com";
 
@@ -72,10 +73,30 @@ export async function GET(req: NextRequest) {
   console.error("Test 4 payload:", JSON.stringify(payload4));
   const result4 = await hsPost("/crm/v3/objects/contacts/search", payload4);
 
+  // Contact date range — earliest and latest createdate from the full cache
+  const allContacts = await getAllHubspotEnrichedContacts();
+  const timestamps = allContacts
+    .map((c) => c.createdate)
+    .filter(Boolean)
+    .map((d) => new Date(d).getTime())
+    .filter((t) => !isNaN(t));
+
+  const earliestDate = timestamps.length > 0
+    ? new Date(Math.min(...timestamps)).toISOString().split("T")[0]
+    : null;
+  const latestDate = timestamps.length > 0
+    ? new Date(Math.max(...timestamps)).toISOString().split("T")[0]
+    : null;
+
   return NextResponse.json({
     test1_has_property_with_createdate_in_props: result1,
     test2_has_property_mad_id_only:              result2,
     test3_is_known_operator:                     result3,
     test4_has_property_plus_date_range_filters:  result4,
+    enriched_contacts_date_range: {
+      earliest_createdate: earliestDate,
+      latest_createdate:   latestDate,
+      total_contacts:      allContacts.length,
+    },
   });
 }
