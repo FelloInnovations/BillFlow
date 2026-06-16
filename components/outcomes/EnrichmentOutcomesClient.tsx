@@ -90,10 +90,14 @@ function BackfillModal({
   onClose,
   onDone,
   onStarted,
+  backfillRunning,
+  onReleaseLock,
 }: {
   onClose: () => void;
   onDone: (from: string, to: string) => void;
   onStarted: (from: string, to: string) => void;
+  backfillRunning: boolean;
+  onReleaseLock: () => Promise<void>;
 }) {
   const today = new Date().toISOString().substring(0, 10);
   const [from, setFrom]       = useState("2025-04-01");
@@ -129,9 +133,23 @@ function BackfillModal({
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-80">
         <h3 className="font-bold text-slate-900 dark:text-white mb-4">Backfill Enrichment Metrics</h3>
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">
-          Set &lsquo;From&rsquo; to your earliest expected data date
-        </p>
+        {backfillRunning ? (
+          <div className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-3 py-2">
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5">
+              A backfill is currently running. Wait for it to complete, or release the lock if it crashed.
+            </p>
+            <button
+              onClick={onReleaseLock}
+              className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 underline underline-offset-2"
+            >
+              Release Lock
+            </button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">
+            Set &lsquo;From&rsquo; to your earliest expected data date
+          </p>
+        )}
         <div className="space-y-3 mb-4">
           <div>
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">From</label>
@@ -157,7 +175,7 @@ function BackfillModal({
         <div className="flex gap-2">
           <button
             onClick={run}
-            disabled={loading || !from || !to}
+            disabled={loading || !from || !to || backfillRunning}
             className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold py-2 transition-colors"
           >
             {loading ? "Running…" : "Run Backfill"}
@@ -261,8 +279,43 @@ export function EnrichmentOutcomesClient({
   const [lastSynced, setLastSynced] = useState(initialLastSynced);
   const [scope, setScope]     = useState<Scope>("all_time");
   const [backfillOpen, setBackfillOpen] = useState(false);
+  const [backfillRunning, setBackfillRunning] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast]     = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  // Fetch lock status once on mount
+  useEffect(() => {
+    fetch("/api/outcomes/backfill-status")
+      .then((r) => r.json())
+      .then((d: { running: boolean }) => setBackfillRunning(d.running))
+      .catch(() => {});
+  }, []);
+
+  // Poll lock status every 30s while the modal is open
+  useEffect(() => {
+    if (!backfillOpen) return;
+    const id = setInterval(() => {
+      fetch("/api/outcomes/backfill-status")
+        .then((r) => r.json())
+        .then((d: { running: boolean }) => setBackfillRunning(d.running))
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [backfillOpen]);
+
+  async function releaseLock() {
+    try {
+      const res = await fetch("/api/outcomes/trigger-backfill-enrichment?force=true");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? "Release failed");
+      setBackfillRunning(false);
+      setToast({ msg: "Lock released — you can now start a new backfill.", type: "success" });
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : "Failed to release lock", type: "error" });
+    } finally {
+      setTimeout(() => setToast(null), 4000);
+    }
+  }
 
   const fetchData = useCallback(async () => {
     try {
@@ -377,9 +430,13 @@ export function EnrichmentOutcomesClient({
           </button>
           <button
             onClick={() => setBackfillOpen(true)}
-            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+            className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
+              backfillRunning
+                ? "border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 cursor-default"
+                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
+            }`}
           >
-            Backfill
+            {backfillRunning ? "Backfill Running…" : "Backfill"}
           </button>
         </div>
       </div>
@@ -464,13 +521,17 @@ export function EnrichmentOutcomesClient({
       {backfillOpen && (
         <BackfillModal
           onClose={() => setBackfillOpen(false)}
+          backfillRunning={backfillRunning}
+          onReleaseLock={async () => { setBackfillOpen(false); await releaseLock(); }}
           onStarted={(from, to) => {
             setBackfillOpen(false);
+            setBackfillRunning(true);
             setToast({ msg: `Backfill started for ${from} → ${to}. Running in background — refresh in a few minutes to see updated data.`, type: "success" });
             setTimeout(() => setToast(null), 8000);
           }}
           onDone={(from, to) => {
             setBackfillOpen(false);
+            setBackfillRunning(false);
             setToast({ msg: `Backfill complete — metrics synced from ${from} to ${to}.`, type: "success" });
             fetchData();
           }}

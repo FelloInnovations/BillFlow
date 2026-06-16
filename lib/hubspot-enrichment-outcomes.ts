@@ -76,20 +76,26 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
       `[getAllHubspotEnrichedContacts] window ${windowIdx}: from ${new Date(parseInt(windowFromTs)).toISOString().substring(0, 10)}`,
     );
 
-    do {
-      const body: Record<string, unknown> = {
+    while (true) {
+      const reqBody: Record<string, unknown> = {
         filterGroups: [{ filters: [{ propertyName: "createdate", operator: "GTE", value: windowFromTs }] }],
         properties: ["mad_id", "current_arr__sync_", "createdate"],
         sorts: [{ propertyName: "createdate", direction: "ASCENDING" }],
         limit: 100,
       };
-      if (after) body.after = after;
+      if (after) reqBody.after = after;
 
       const res = await fetch(`${BASE}/crm/v3/objects/contacts/search`, {
         method: "POST",
         headers: { ...authHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(reqBody),
       });
+
+      if (res.status === 429) {
+        console.error(`[getAllHubspotEnrichedContacts] window ${windowIdx} page ${pageCount} rate limited, retrying in 2s…`);
+        await new Promise((r) => setTimeout(r, 2000));
+        continue; // retry same page — don't advance `after`
+      }
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -117,8 +123,9 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
 
       after = data.paging?.next?.after ?? undefined;
       pageCount++;
-      if (after) await new Promise((r) => setTimeout(r, 150));
-    } while (after);
+      if (!after) break;
+      await new Promise((r) => setTimeout(r, 500)); // 500ms between pages
+    }
 
     console.error(
       `[getAllHubspotEnrichedContacts] window ${windowIdx} done: ${windowEnriched} enriched, running total: ${allContacts.length}`,
@@ -130,6 +137,7 @@ export async function getAllHubspotEnrichedContacts(): Promise<EnrichedContact[]
     // Hit the 10k wall — restart from lastSeenCreatedate + 1ms
     windowFromTs = (new Date(lastSeenCreatedate).getTime() + 1).toString();
     console.error(`[getAllHubspotEnrichedContacts] 10k wall — restarting from ${new Date(parseInt(windowFromTs)).toISOString()}`);
+    await new Promise((r) => setTimeout(r, 1000)); // 1s between windows
     windowIdx++;
   }
 

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import {
   getAgentsEnrichedTotal,
   getAgentsEnrichedPeriod,
@@ -28,6 +28,38 @@ function serviceClient() {
   );
 }
 
+// Stable sentinel date — ensures there is always exactly one lock row
+const LOCK_DATE = "2000-01-01";
+
+async function acquireBackfillLock(supabase: SupabaseClient): Promise<boolean> {
+  const { data } = await supabase
+    .from("project_outcome_metrics")
+    .select("value")
+    .eq("project_id", "enrichment")
+    .eq("metric_key", "backfill_lock")
+    .maybeSingle();
+
+  if (data?.value === 1) return false; // already locked
+
+  await supabase
+    .from("project_outcome_metrics")
+    .upsert(
+      { project_id: "enrichment", metric_key: "backfill_lock", value: 1, date: LOCK_DATE, source: "system" },
+      { onConflict: "project_id,metric_key,date" },
+    );
+
+  return true;
+}
+
+async function releaseBackfillLock(supabase: SupabaseClient): Promise<void> {
+  await supabase
+    .from("project_outcome_metrics")
+    .upsert(
+      { project_id: "enrichment", metric_key: "backfill_lock", value: 0, date: LOCK_DATE, source: "system" },
+      { onConflict: "project_id,metric_key,date" },
+    );
+}
+
 // Returns the last day of each calendar month in [from, to], capped to `to`
 function monthEndDates(from: string, to: string): string[] {
   const ends: string[] = [];
@@ -49,14 +81,34 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { from, to } = body as { from?: string; to?: string };
+  const { from, to, force } = body as { from?: string; to?: string; force?: boolean };
+
+  const supabase = serviceClient();
+
+  // Force-release the lock (for crash recovery)
+  if (force) {
+    await releaseBackfillLock(supabase);
+    console.error("[backfill-enrichment] lock force-released");
+    return NextResponse.json({ status: "lock_released" });
+  }
+
   if (!from || !to || from > to) {
     return NextResponse.json({ error: "provide valid from and to (YYYY-MM-DD)" }, { status: 400 });
   }
 
+  const acquired = await acquireBackfillLock(supabase);
+  if (!acquired) {
+    return NextResponse.json(
+      { error: "Backfill already running. Wait for it to complete or use force=true to release the lock." },
+      { status: 409 },
+    );
+  }
+
   // Fire and forget — return immediately while backfill runs in background
-  runBackfill(from, to).catch((err) => {
-    console.error("[backfill-enrichment] background error:", err?.message ?? err);
+  runBackfill(supabase, from, to).finally(() => {
+    releaseBackfillLock(supabase).catch((err) =>
+      console.error("[backfill-enrichment] failed to release lock:", err?.message ?? err),
+    );
   });
 
   return NextResponse.json({
@@ -67,10 +119,9 @@ export async function POST(req: NextRequest) {
   }, { status: 202 });
 }
 
-async function runBackfill(from: string, to: string) {
+async function runBackfill(supabase: SupabaseClient, from: string, to: string) {
   console.error(`[backfill-enrichment] started from=${from} to=${to}`);
 
-  // Single bulk HubSpot fetch + current all-time Supabase counts
   let snap: Awaited<ReturnType<typeof getAllEnrichedData>>;
   let closedWonIds: string[];
   let allTimeCount: number;
@@ -106,7 +157,6 @@ async function runBackfill(from: string, to: string) {
 
     console.error(`[backfill-enrichment] processing month ${endDate.substring(0, 7)}`);
 
-    // agents_enriched_total: current all-time count (best available for historical months)
     rows.push({
       project_id: "enrichment",
       metric_key:  "agents_enriched_total",
@@ -116,7 +166,6 @@ async function runBackfill(from: string, to: string) {
       contact_ids: null,
     });
 
-    // agents_pushed_hubspot_total: all-time HubSpot count (computed once, stored per month)
     rows.push({
       project_id: "enrichment",
       metric_key:  "agents_pushed_hubspot_total",
@@ -126,7 +175,6 @@ async function runBackfill(from: string, to: string) {
       contact_ids: allTimePushed.contactIds,
     });
 
-    // agents_enriched_period: Supabase count for this month
     try {
       const { count } = await getAgentsEnrichedPeriod(monthStartDate, endDate);
       rows.push({ project_id: "enrichment", metric_key: "agents_enriched_period", value: count, date: endDate, source: "backfill", contact_ids: null });
@@ -136,7 +184,6 @@ async function runBackfill(from: string, to: string) {
       rows.push({ project_id: "enrichment", metric_key: "agents_enriched_period", value: 0, date: endDate, source: "backfill", contact_ids: null });
     }
 
-    // agents_pushed_hubspot: HubSpot contacts with mad_id created in this month
     try {
       const { count, contactIds } = await getAgentsPushedToHubspot(monthStartDate, endDate);
       rows.push({ project_id: "enrichment", metric_key: "agents_pushed_hubspot", value: count, date: endDate, source: "backfill", contact_ids: contactIds });
@@ -146,7 +193,6 @@ async function runBackfill(from: string, to: string) {
       rows.push({ project_id: "enrichment", metric_key: "agents_pushed_hubspot", value: 0, date: endDate, source: "backfill" });
     }
 
-    // HubSpot-based metrics from snapshot
     try {
       const booked = computeDemosBooked(snap, endDate);
       const held   = computeDemosHeld(snap, endDate);
@@ -164,8 +210,6 @@ async function runBackfill(from: string, to: string) {
     }
   }
 
-  // Batch upsert
-  const supabase = serviceClient();
   const BATCH = 100;
   let upserted = 0;
   const upsertErrors: string[] = [];
