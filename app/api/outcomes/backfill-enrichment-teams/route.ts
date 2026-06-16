@@ -3,12 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import {
   getAllTeamData,
-  computeTeamDemosBooked,
-  computeTeamDemosHeld,
-  computeTeamClosedWon,
-  computeTeamArrClosed,
-  computeTeamsTotal,
-  computeTeamsPeriod,
+  getTeamsEnrichedTotal,
+  getTeamsEnrichedPeriod,
+  getTeamsPushedToHubspot,
+  getTeamDemosBooked,
+  getTeamDemosHeld,
+  getTeamClosedWon,
+  getTeamArrClosed,
 } from "@/lib/hubspot-enrichment-teams";
 import { getClosedWonStageIds } from "@/lib/hubspot-outcomes";
 
@@ -126,14 +127,23 @@ export async function POST(req: NextRequest) {
 }
 
 async function runBackfill(supabase: SupabaseClient, from: string, to: string) {
+  console.log("[backfill-enrichment-teams] using getAllHubspotEnrichedTeams (companies API)");
   console.error(`[backfill-enrichment-teams] started from=${from} to=${to}`);
 
   let snap: Awaited<ReturnType<typeof getAllTeamData>>;
   let closedWonIds: string[];
+  let allTimeCount: number;
+  let allTimePushed: number;
 
   try {
     [snap, closedWonIds] = await Promise.all([getAllTeamData(), getClosedWonStageIds()]);
-    console.error(`[backfill-enrichment-teams] bulk fetch done — companies=${snap.companyIds.length} closedWonStages=${closedWonIds.length}`);
+    const [totalRes, pushedRes] = await Promise.all([
+      getTeamsEnrichedTotal(),
+      getTeamsPushedToHubspot(null, null),
+    ]);
+    allTimeCount  = totalRes.count;
+    allTimePushed = pushedRes.count;
+    console.error(`[backfill-enrichment-teams] bulk fetch done — companies=${snap.companyIds.length} closedWonStages=${closedWonIds.length} allTimeCount=${allTimeCount}`);
   } catch (err) {
     logErr("bulk fetch", err);
     throw err;
@@ -150,8 +160,6 @@ async function runBackfill(supabase: SupabaseClient, from: string, to: string) {
   const rows: Row[] = [];
   const monthErrors: string[] = [];
 
-  const teamsTotal = computeTeamsTotal(snap);
-
   for (const endDate of monthEndDates(from, to)) {
     const [ey, em] = endDate.split("-").map(Number);
     const monthStart = `${String(ey).padStart(4, "0")}-${String(em).padStart(2, "0")}-01`;
@@ -159,30 +167,33 @@ async function runBackfill(supabase: SupabaseClient, from: string, to: string) {
     console.error(`[backfill-enrichment-teams] processing month ${endDate.substring(0, 7)}`);
 
     rows.push(
-      { project_id: "enrichment", metric_key: "teams_enriched_total",      value: teamsTotal, date: endDate, source: "backfill", contact_ids: null },
-      { project_id: "enrichment", metric_key: "teams_pushed_hubspot_total", value: teamsTotal, date: endDate, source: "backfill", contact_ids: null },
+      { project_id: "enrichment", metric_key: "teams_enriched_total",      value: allTimeCount,  date: endDate, source: "backfill", contact_ids: null },
+      { project_id: "enrichment", metric_key: "teams_pushed_hubspot_total", value: allTimePushed, date: endDate, source: "backfill", contact_ids: null },
     );
 
     try {
-      const { count, companyIds } = computeTeamsPeriod(snap, monthStart, endDate);
-      rows.push(
-        { project_id: "enrichment", metric_key: "teams_enriched_period", value: count, date: endDate, source: "backfill", contact_ids: companyIds },
-        { project_id: "enrichment", metric_key: "teams_pushed_hubspot",  value: count, date: endDate, source: "backfill", contact_ids: companyIds },
-      );
+      const { count, companyIds } = await getTeamsEnrichedPeriod(monthStart, endDate);
+      rows.push({ project_id: "enrichment", metric_key: "teams_enriched_period", value: count, date: endDate, source: "backfill", contact_ids: companyIds });
     } catch (err) {
-      logErr(`computeTeamsPeriod month=${endDate}`, err);
+      logErr(`getTeamsEnrichedPeriod month=${endDate}`, err);
       monthErrors.push(`teams_enriched_period@${endDate}: ${String(err)}`);
-      rows.push(
-        { project_id: "enrichment", metric_key: "teams_enriched_period", value: 0, date: endDate, source: "backfill" },
-        { project_id: "enrichment", metric_key: "teams_pushed_hubspot",  value: 0, date: endDate, source: "backfill" },
-      );
+      rows.push({ project_id: "enrichment", metric_key: "teams_enriched_period", value: 0, date: endDate, source: "backfill" });
     }
 
     try {
-      const booked = computeTeamDemosBooked(snap, endDate);
-      const held   = computeTeamDemosHeld(snap, endDate);
-      const won    = computeTeamClosedWon(snap, endDate, closedWonIds);
-      const arr    = computeTeamArrClosed(snap, endDate, closedWonIds);
+      const { count, companyIds } = await getTeamsPushedToHubspot(monthStart, endDate);
+      rows.push({ project_id: "enrichment", metric_key: "teams_pushed_hubspot", value: count, date: endDate, source: "backfill", contact_ids: companyIds });
+    } catch (err) {
+      logErr(`getTeamsPushedToHubspot month=${endDate}`, err);
+      monthErrors.push(`teams_pushed_hubspot@${endDate}: ${String(err)}`);
+      rows.push({ project_id: "enrichment", metric_key: "teams_pushed_hubspot", value: 0, date: endDate, source: "backfill" });
+    }
+
+    try {
+      const booked = getTeamDemosBooked(snap, endDate);
+      const held   = getTeamDemosHeld(snap, endDate);
+      const won    = getTeamClosedWon(snap, endDate, closedWonIds);
+      const arr    = getTeamArrClosed(snap, endDate, closedWonIds);
       rows.push(
         { project_id: "enrichment", metric_key: "team_demos_booked_mtd", value: booked.count, date: endDate, source: "backfill", contact_ids: booked.companyIds },
         { project_id: "enrichment", metric_key: "team_demos_held_mtd",   value: held.count,   date: endDate, source: "backfill", contact_ids: held.companyIds   },

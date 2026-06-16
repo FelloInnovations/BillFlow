@@ -1,5 +1,3 @@
-import { getAllHubspotEnrichedContacts } from "@/lib/hubspot-enrichment-outcomes";
-
 const BASE = "https://api.hubapi.com";
 
 function logErr(label: string, err: unknown) {
@@ -37,23 +35,128 @@ function monthRange(date: string): { start: number; end: number } {
   };
 }
 
-export interface TeamDataSnapshot {
-  companyIds:        string[];
-  companyContactMap: Map<string, string[]>;  // companyId → contactIds
-  contactCompanyMap: Map<string, string[]>;  // contactId → companyIds
-  contactMeetingMap: Map<string, string[]>;  // contactId → meetingIds
-  companyDealMap:    Map<string, string[]>;  // companyId → dealIds
-  meetings:          HsMeeting[];
-  deals:             HsDeal[];
-  contacts:          Array<{ id: string; createdate: string }>;
+type EnrichedTeam = { id: string; madId: string; createdate: string; name: string };
+
+// Only companies created on or after this date are attributable to Fello's enrichment pipeline
+const ENRICHMENT_TEAM_START_DATE = "2025-04-01";
+const ENRICHMENT_TEAM_START_TS   = new Date("2025-04-01T00:00:00.000Z").getTime().toString();
+
+// Module-level cache — completely independent from the contacts cache
+let _hubspotTeamsCache: EnrichedTeam[] | null = null;
+
+export async function getAllHubspotEnrichedTeams(): Promise<EnrichedTeam[]> {
+  if (_hubspotTeamsCache) return _hubspotTeamsCache;
+
+  console.log("[getAllHubspotEnrichedTeams] fetching from /crm/v3/objects/companies/search");
+
+  type HsSearchResult = {
+    results?: { id: string; properties?: Record<string, string | null> }[];
+    paging?:  { next?: { after: string } };
+    total?:   number;
+  };
+
+  const allTeams: EnrichedTeam[] = [];
+  let windowFromTs  = ENRICHMENT_TEAM_START_TS;
+  let windowIdx     = 0;
+  const MAX_WINDOWS = 50;
+
+  while (windowIdx <= MAX_WINDOWS) {
+    let after:              string | undefined;
+    let windowTotal:        number | null = null;
+    let lastSeenCreatedate: string | null = null;
+    let windowEnriched      = 0;
+    let pageCount           = 0;
+
+    console.error(
+      `[getAllHubspotEnrichedTeams] window ${windowIdx}: from ${new Date(parseInt(windowFromTs)).toISOString().substring(0, 10)}`,
+    );
+
+    while (true) {
+      const reqBody: Record<string, unknown> = {
+        filterGroups: [{ filters: [{ propertyName: "createdate", operator: "GTE", value: windowFromTs }] }],
+        properties: ["mad_id", "createdate", "name"],
+        sorts: [{ propertyName: "createdate", direction: "ASCENDING" }],
+        limit: 100,
+      };
+      if (after) reqBody.after = after;
+
+      const res = await fetch(`${BASE}/crm/v3/objects/companies/search`, {
+        method: "POST",
+        headers: { ...authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify(reqBody),
+      });
+
+      if (res.status === 429) {
+        console.error(`[getAllHubspotEnrichedTeams] window ${windowIdx} page ${pageCount} rate limited, retrying in 2s…`);
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        console.error(`[getAllHubspotEnrichedTeams] window ${windowIdx} page ${pageCount} failed: ${res.status} ${text.slice(0, 300)}`);
+        break;
+      }
+
+      const data = await res.json() as HsSearchResult;
+
+      if (pageCount === 0) {
+        windowTotal = data.total ?? null;
+        console.error(`[getAllHubspotEnrichedTeams] window ${windowIdx} total=${windowTotal ?? "?"}`);
+      }
+
+      for (const c of data.results ?? []) {
+        const createdate = c.properties?.createdate ?? "";
+        if (createdate) lastSeenCreatedate = createdate;
+
+        const madId = c.properties?.mad_id;
+        if (!madId) continue; // client-side filter — skip companies without mad_id
+        allTeams.push({
+          id:         c.id,
+          madId,
+          createdate,
+          name:       c.properties?.name ?? "",
+        });
+        windowEnriched++;
+      }
+
+      after = data.paging?.next?.after ?? undefined;
+      pageCount++;
+      if (!after) break;
+      await new Promise((r) => setTimeout(r, 500)); // 500ms between pages
+    }
+
+    console.error(
+      `[getAllHubspotEnrichedTeams] window ${windowIdx} done: ${windowEnriched} enriched, running total: ${allTeams.length}`,
+    );
+
+    if (!windowTotal || windowTotal <= 10000 || !lastSeenCreatedate) break;
+
+    windowFromTs = (new Date(lastSeenCreatedate).getTime() + 1).toString();
+    console.error(`[getAllHubspotEnrichedTeams] 10k wall — restarting from ${new Date(parseInt(windowFromTs)).toISOString()}`);
+    await new Promise((r) => setTimeout(r, 1000)); // 1s between windows
+    windowIdx++;
+  }
+
+  // Deduplicate by company ID
+  const seen    = new Set<string>();
+  const deduped = allTeams.filter((t) => {
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    return true;
+  });
+
+  console.error(`[getAllHubspotEnrichedTeams] FINAL: ${deduped.length} unique enriched companies (${ENRICHMENT_TEAM_START_DATE}+)`);
+  _hubspotTeamsCache = deduped;
+  return deduped;
 }
 
-let _teamDataSnapshot: TeamDataSnapshot | null = null;
+// ── Association helpers ───────────────────────────────────────────────────────
 
 async function batchAssocMap(
   ids: string[],
   fromType: "contacts" | "companies",
-  toType: "companies" | "meetings" | "deals",
+  toType: "contacts" | "meetings" | "deals",
 ): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
   try {
@@ -115,54 +218,52 @@ async function batchReadDeals(ids: string[]): Promise<HsDeal[]> {
   return results;
 }
 
-// ── Bulk snapshot ─────────────────────────────────────────────────────────────
+// ── Bulk snapshot (for demo/deal metrics) ─────────────────────────────────────
+
+export interface TeamDataSnapshot {
+  companyIds:        string[];
+  companyContactMap: Map<string, string[]>;  // companyId → contactIds
+  contactMeetingMap: Map<string, string[]>;  // contactId → meetingIds
+  companyDealMap:    Map<string, string[]>;  // companyId → dealIds
+  meetings:          HsMeeting[];
+  deals:             HsDeal[];
+}
+
+let _teamDataSnapshot: TeamDataSnapshot | null = null;
 
 export async function getAllTeamData(): Promise<TeamDataSnapshot> {
   if (_teamDataSnapshot) return _teamDataSnapshot;
 
-  const contacts = await getAllHubspotEnrichedContacts();
-  console.error(`TEAMS INFO: getAllTeamData using ${contacts.length} enriched contacts`);
+  const teams = await getAllHubspotEnrichedTeams();
+  console.error(`TEAMS INFO: getAllTeamData using ${teams.length} enriched companies`);
 
-  if (!contacts.length) {
+  if (!teams.length) {
     const empty: TeamDataSnapshot = {
-      companyIds: [], companyContactMap: new Map(), contactCompanyMap: new Map(),
+      companyIds: [], companyContactMap: new Map(),
       contactMeetingMap: new Map(), companyDealMap: new Map(),
-      meetings: [], deals: [], contacts: [],
+      meetings: [], deals: [],
     };
     _teamDataSnapshot = empty;
     return empty;
   }
 
-  const contactIds = contacts.map((c) => c.id);
+  const companyIds = teams.map((t) => t.id);
 
-  // contacts→companies and contacts→meetings in parallel
-  const [contactCompanyRaw, contactMeetingMap] = await Promise.all([
-    batchAssocMap(contactIds, "contacts", "companies"),
-    batchAssocMap(contactIds, "contacts", "meetings"),
+  // companies → contacts and companies → deals in parallel
+  const [companyContactMap, companyDealMap] = await Promise.all([
+    batchAssocMap(companyIds, "companies", "contacts"),
+    batchAssocMap(companyIds, "companies", "deals"),
   ]);
 
-  // Build company→contacts map (invert contactCompanyRaw)
-  const companyContactMap = new Map<string, string[]>();
-  const contactCompanyMap = new Map<string, string[]>();
-  for (const [cid, compIds] of contactCompanyRaw) {
-    contactCompanyMap.set(cid, compIds);
-    for (const compId of compIds) {
-      const arr = companyContactMap.get(compId) ?? [];
-      arr.push(cid);
-      companyContactMap.set(compId, arr);
-    }
-  }
-
-  const companyIds = [...companyContactMap.keys()];
-  console.error(`TEAMS INFO: found ${companyIds.length} unique companies with enriched contacts`);
-
-  const companyDealMap = companyIds.length
-    ? await batchAssocMap(companyIds, "companies", "deals")
+  // contacts → meetings
+  const allContactIds = [...new Set([...companyContactMap.values()].flat())];
+  const contactMeetingMap = allContactIds.length
+    ? await batchAssocMap(allContactIds, "contacts", "meetings")
     : new Map<string, string[]>();
 
   const meetingIds = [...new Set([...contactMeetingMap.values()].flat())];
   const dealIds    = [...new Set([...companyDealMap.values()].flat())];
-  console.error(`TEAMS INFO: meetingIds=${meetingIds.length} dealIds=${dealIds.length}`);
+  console.error(`TEAMS INFO: getAllTeamData contacts=${allContactIds.length} meetingIds=${meetingIds.length} dealIds=${dealIds.length}`);
 
   const [meetings, deals] = await Promise.all([
     meetingIds.length ? batchReadMeetings(meetingIds) : Promise.resolve([]),
@@ -172,20 +273,60 @@ export async function getAllTeamData(): Promise<TeamDataSnapshot> {
   const snap: TeamDataSnapshot = {
     companyIds,
     companyContactMap,
-    contactCompanyMap,
     contactMeetingMap,
     companyDealMap,
     meetings,
     deals,
-    contacts: contacts.map((c) => ({ id: c.id, createdate: c.createdate })),
   };
   _teamDataSnapshot = snap;
   return snap;
 }
 
-// ── Compute helpers ───────────────────────────────────────────────────────────
+// ── Total / period helpers (operate on the teams cache) ───────────────────────
 
-export function computeTeamDemosBooked(
+export async function getTeamsEnrichedTotal(): Promise<{ count: number }> {
+  const teams = await getAllHubspotEnrichedTeams();
+  return { count: teams.length };
+}
+
+export async function getTeamsEnrichedPeriod(
+  fromDate: string,
+  toDate: string,
+): Promise<{ count: number; companyIds: string[] }> {
+  const teams  = await getAllHubspotEnrichedTeams();
+  const fromMs = new Date(fromDate + "T00:00:00.000Z").getTime();
+  const toMs   = new Date(toDate   + "T23:59:59.999Z").getTime();
+  const filtered = teams.filter((t) => {
+    if (!t.createdate) return false;
+    const ts = new Date(t.createdate).getTime();
+    return ts >= fromMs && ts <= toMs;
+  });
+  return { count: filtered.length, companyIds: filtered.map((t) => t.id) };
+}
+
+export async function getTeamsPushedToHubspot(
+  fromDate: string | null,
+  toDate: string | null,
+): Promise<{ count: number; companyIds: string[] }> {
+  const teams = await getAllHubspotEnrichedTeams();
+  if (!fromDate || !toDate) {
+    console.error(`[getTeamsPushedToHubspot] all-time total=${teams.length}`);
+    return { count: teams.length, companyIds: [] };
+  }
+  const fromMs = new Date(fromDate + "T00:00:00.000Z").getTime();
+  const toMs   = new Date(toDate   + "T23:59:59.999Z").getTime();
+  const filtered = teams.filter((t) => {
+    if (!t.createdate) return false;
+    const ts = new Date(t.createdate).getTime();
+    return ts >= fromMs && ts <= toMs;
+  });
+  console.error(`[getTeamsPushedToHubspot] from=${fromDate} to=${toDate} matched=${filtered.length} from cache of ${teams.length}`);
+  return { count: filtered.length, companyIds: filtered.map((t) => t.id) };
+}
+
+// ── Compute helpers (operate on a pre-fetched snapshot) ───────────────────────
+
+export function getTeamDemosBooked(
   snap: TeamDataSnapshot,
   date: string,
 ): { count: number; companyIds: string[] } {
@@ -206,7 +347,7 @@ export function computeTeamDemosBooked(
   return { count: companyIds.length, companyIds };
 }
 
-export function computeTeamDemosHeld(
+export function getTeamDemosHeld(
   snap: TeamDataSnapshot,
   date: string,
 ): { count: number; companyIds: string[] } {
@@ -227,7 +368,7 @@ export function computeTeamDemosHeld(
   return { count: companyIds.length, companyIds };
 }
 
-export function computeTeamClosedWon(
+export function getTeamClosedWon(
   snap: TeamDataSnapshot,
   date: string,
   closedWonIds: string[],
@@ -247,7 +388,7 @@ export function computeTeamClosedWon(
   return { count: companyIds.length, companyIds };
 }
 
-export function computeTeamArrClosed(
+export function getTeamArrClosed(
   snap: TeamDataSnapshot,
   date: string,
   closedWonIds: string[],
@@ -279,35 +420,4 @@ export function computeTeamArrClosed(
     }
   }
   return { total, arrPerCompany };
-}
-
-// ── Period / total helpers ────────────────────────────────────────────────────
-
-export function computeTeamsTotal(snap: TeamDataSnapshot): number {
-  return snap.companyIds.length;
-}
-
-export function computeTeamsPeriod(
-  snap: TeamDataSnapshot,
-  fromDate: string,
-  toDate: string,
-): { count: number; companyIds: string[] } {
-  const fromMs = new Date(fromDate + "T00:00:00.000Z").getTime();
-  const toMs   = new Date(toDate   + "T23:59:59.999Z").getTime();
-
-  const contactsInRange = new Set(
-    snap.contacts
-      .filter((c) => {
-        if (!c.createdate) return false;
-        const ts = new Date(c.createdate).getTime();
-        return ts >= fromMs && ts <= toMs;
-      })
-      .map((c) => c.id),
-  );
-
-  const companyIds = snap.companyIds.filter((compId) =>
-    (snap.companyContactMap.get(compId) ?? []).some((cid) => contactsInRange.has(cid)),
-  );
-
-  return { count: companyIds.length, companyIds };
 }

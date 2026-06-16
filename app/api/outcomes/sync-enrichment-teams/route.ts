@@ -3,12 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   getAllTeamData,
-  computeTeamDemosBooked,
-  computeTeamDemosHeld,
-  computeTeamClosedWon,
-  computeTeamArrClosed,
-  computeTeamsTotal,
-  computeTeamsPeriod,
+  getTeamsEnrichedTotal,
+  getTeamsEnrichedPeriod,
+  getTeamsPushedToHubspot,
+  getTeamDemosBooked,
+  getTeamDemosHeld,
+  getTeamClosedWon,
+  getTeamArrClosed,
 } from "@/lib/hubspot-enrichment-teams";
 import { getClosedWonStageIds } from "@/lib/hubspot-outcomes";
 import { OutcomeSyncResult } from "@/types";
@@ -72,8 +73,8 @@ export async function GET(req: NextRequest) {
 
   // ── teams_enriched_total / teams_pushed_hubspot_total ──────────────────────
   try {
-    const total = computeTeamsTotal(snap);
-    await upsertMetric(supabase, dateStr, "teams_enriched_total", total, null);
+    const { count: total } = await getTeamsEnrichedTotal();
+    await upsertMetric(supabase, dateStr, "teams_enriched_total",      total, null);
     await upsertMetric(supabase, dateStr, "teams_pushed_hubspot_total", total, null);
     result.upserted.push(
       { metric_key: "teams_enriched_total",      value: total },
@@ -86,25 +87,30 @@ export async function GET(req: NextRequest) {
 
   // ── teams_enriched_period / teams_pushed_hubspot (MTD) ─────────────────────
   try {
-    const { count, companyIds } = computeTeamsPeriod(snap, monthStart, dateStr);
+    const { count, companyIds } = await getTeamsEnrichedPeriod(monthStart, dateStr);
     await upsertMetric(supabase, dateStr, "teams_enriched_period", count, companyIds);
-    await upsertMetric(supabase, dateStr, "teams_pushed_hubspot",  count, companyIds);
-    result.upserted.push(
-      { metric_key: "teams_enriched_period", value: count },
-      { metric_key: "teams_pushed_hubspot",  value: count },
-    );
+    result.upserted.push({ metric_key: "teams_enriched_period", value: count });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     result.errors.push({ metric_key: "teams_enriched_period", error: msg });
   }
 
+  try {
+    const { count, companyIds } = await getTeamsPushedToHubspot(monthStart, dateStr);
+    await upsertMetric(supabase, dateStr, "teams_pushed_hubspot", count, companyIds);
+    result.upserted.push({ metric_key: "teams_pushed_hubspot", value: count });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    result.errors.push({ metric_key: "teams_pushed_hubspot", error: msg });
+  }
+
   // ── team demos / deals ─────────────────────────────────────────────────────
   try {
     const metrics: [string, { count?: number; total?: number; companyIds?: string[]; arrPerCompany?: Record<string, number> }][] = [
-      ["team_demos_booked_mtd", computeTeamDemosBooked(snap, dateStr)],
-      ["team_demos_held_mtd",   computeTeamDemosHeld(snap, dateStr)],
-      ["team_closed_won_mtd",   computeTeamClosedWon(snap, dateStr, closedWonIds)],
-      ["team_arr_closed_mtd",   computeTeamArrClosed(snap, dateStr, closedWonIds)],
+      ["team_demos_booked_mtd", getTeamDemosBooked(snap, dateStr)],
+      ["team_demos_held_mtd",   getTeamDemosHeld(snap, dateStr)],
+      ["team_closed_won_mtd",   getTeamClosedWon(snap, dateStr, closedWonIds)],
+      ["team_arr_closed_mtd",   getTeamArrClosed(snap, dateStr, closedWonIds)],
     ];
 
     for (const [key, res] of metrics) {
