@@ -419,19 +419,11 @@ export async function getAgentsPushedToHubspot(
 ): Promise<{ count: number; contactIds: string[] }> {
   try {
     if (!fromDate || !toDate) {
-      // All-time: read the `total` field from a single search call — accurate count
-      // regardless of HubSpot's 10k pagination cap. No contact IDs needed for this metric.
-      const data = await hsPost<{ total: number; results: unknown[] }>(
-        "/crm/v3/objects/contacts/search",
-        {
-          filterGroups: [{ filters: [{ propertyName: "mad_id", operator: "HAS_PROPERTY" }] }],
-          properties: ["mad_id"],
-          limit: 1,
-        },
-      );
-      const count = data.total ?? 0;
-      console.error(`ENRICHMENT INFO: getAgentsPushedToHubspot all-time total=${count}`);
-      return { count, contactIds: [] };
+      // All-time: use the cache which already excludes contacts with null mad_id.
+      // HubSpot's HAS_PROPERTY total counts null-valued fields too, overcounting by ~1,793.
+      const allContacts = await getAllHubspotEnrichedContacts();
+      console.error(`[getAgentsPushedToHubspot] all-time total=${allContacts.length} (null mad_ids excluded)`);
+      return { count: allContacts.length, contactIds: [] };
     }
 
     // Scoped — never call HubSpot with date filters (always 400); filter cache client-side
