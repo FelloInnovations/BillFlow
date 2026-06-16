@@ -104,12 +104,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Auto-release safety net: if the backfill somehow runs >30 minutes, unlock regardless
+  const autoRelease = setTimeout(async () => {
+    try {
+      await releaseBackfillLock(supabase);
+      console.error("[backfill-enrichment] lock auto-released after 30m timeout");
+    } catch { /* best-effort */ }
+  }, 30 * 60 * 1000);
+
   // Fire and forget — return immediately while backfill runs in background
-  runBackfill(supabase, from, to).finally(() => {
-    releaseBackfillLock(supabase).catch((err) =>
-      console.error("[backfill-enrichment] failed to release lock:", err?.message ?? err),
-    );
-  });
+  runBackfill(supabase, from, to)
+    .catch((err) => {
+      console.error("[backfill-enrichment] run failed:", err?.message ?? err);
+    })
+    .finally(async () => {
+      clearTimeout(autoRelease);
+      try {
+        await releaseBackfillLock(supabase);
+        console.error("[backfill-enrichment] lock released");
+      } catch (e) {
+        console.error("[backfill-enrichment] failed to release lock:", e);
+      }
+    });
 
   return NextResponse.json({
     status:  "started",

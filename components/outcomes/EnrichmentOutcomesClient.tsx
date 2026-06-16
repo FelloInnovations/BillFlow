@@ -303,6 +303,25 @@ export function EnrichmentOutcomesClient({
     return () => clearInterval(id);
   }, [backfillOpen]);
 
+  // While a backfill is running, poll every 60s; when it finishes refresh data + toast
+  useEffect(() => {
+    if (!backfillRunning) return;
+    const id = setInterval(async () => {
+      try {
+        const res  = await fetch("/api/outcomes/backfill-status");
+        const data = await res.json() as { running: boolean };
+        if (!data.running) {
+          clearInterval(id);
+          setBackfillRunning(false);
+          await fetchData();
+          setToast({ msg: "Backfill complete — data updated.", type: "success" });
+          setTimeout(() => setToast(null), 5000);
+        }
+      } catch { /* non-fatal */ }
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [backfillRunning, fetchData]);
+
   async function releaseLock() {
     try {
       const res = await fetch("/api/outcomes/trigger-backfill-enrichment?force=true");
