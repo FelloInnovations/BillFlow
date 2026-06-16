@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { MonthlyOutcomeBreakdown, MonthlyOutcomeMetrics, OutcomeMetricConfig, OutcomeMetricRow, OutcomeMtdSummary } from "@/types";
 
+// Traffic keys are summed across all rows in a date range (sub-daily granularity)
 const DAILY_KEYS = new Set([
   "llm_traffic_daily",
   "llm_chatgpt_daily",
   "llm_perplexity_daily",
   "llm_claude_daily",
   "llm_other_daily",
+]);
+
+// Period count metrics: one row per month from backfill, summed across months for all-time.
+// MTD loop still uses DAILY_KEYS only (these cumulative-MTD values need latest, not sum).
+const SUM_KEYS = new Set([
+  ...DAILY_KEYS,
+  "agents_enriched_period",
+  "agents_pushed_hubspot",
 ]);
 
 function buildMonthlyBreakdown(
@@ -27,10 +36,10 @@ function buildMonthlyBreakdown(
     .map(([month, keys]) => {
       const metrics: MonthlyOutcomeMetrics = {};
       for (const [key, rows] of Object.entries(keys)) {
-        if (DAILY_KEYS.has(key)) {
+        if (SUM_KEYS.has(key)) {
           metrics[key] = rows.reduce((s, r) => s + r.value, 0);
         } else {
-          // Latest snapshot per month
+          // Latest snapshot per month (cumulative MTD keys, demo/deal counts)
           metrics[key] = [...rows].sort((a, b) => b.date.localeCompare(a.date))[0]?.value ?? 0;
         }
       }

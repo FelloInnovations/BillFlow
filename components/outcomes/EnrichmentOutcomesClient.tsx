@@ -95,26 +95,11 @@ function BackfillModal({
   onDone: (from: string, to: string) => void;
   onStarted: (from: string, to: string) => void;
 }) {
-  const [from, setFrom]           = useState("");
-  const [to, setTo]               = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [err, setErr]             = useState<string | null>(null);
-  const [earliestDate, setEarliestDate] = useState<string | null>(null);
-  const [hintLoading, setHintLoading]  = useState(true);
-
-  // Fetch earliest contact date from HubSpot cache on mount
-  useEffect(() => {
-    fetch("/api/outcomes/trigger-earliest-date")
-      .then((r) => r.json())
-      .then((d: { earliest_date?: string }) => {
-        if (d.earliest_date) {
-          setEarliestDate(d.earliest_date);
-          setFrom(d.earliest_date);
-        }
-      })
-      .catch(() => { /* non-fatal */ })
-      .finally(() => setHintLoading(false));
-  }, []);
+  const today = new Date().toISOString().substring(0, 10);
+  const [from, setFrom]       = useState("2022-01-01");
+  const [to, setTo]           = useState(today);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr]         = useState<string | null>(null);
 
   async function run() {
     if (!from || !to) return;
@@ -144,12 +129,9 @@ function BackfillModal({
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-80">
         <h3 className="font-bold text-slate-900 dark:text-white mb-4">Backfill Enrichment Metrics</h3>
-        {earliestDate && (
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">
-            Earliest enriched contact in HubSpot: <span className="font-semibold text-slate-600 dark:text-slate-300">{earliestDate}</span>
-            {" — backfill from this date for complete history"}
-          </p>
-        )}
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">
+          Set &lsquo;From&rsquo; to your earliest expected data date
+        </p>
         <div className="space-y-3 mb-4">
           <div>
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">From</label>
@@ -159,9 +141,6 @@ function BackfillModal({
               onChange={(e) => setFrom(e.target.value)}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
             />
-            {hintLoading && (
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Loading earliest date…</p>
-            )}
           </div>
           <div>
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">To</label>
@@ -413,11 +392,7 @@ export function EnrichmentOutcomesClient({
             c.metric_key !== "agents_pushed_hubspot_total",
           )
           .map((c) => {
-            // "Pushed to HubSpot": show all-time total when scope = all_time
-            const metricKey =
-              c.metric_key === "agents_pushed_hubspot" && scope === "all_time"
-                ? "agents_pushed_hubspot_total"
-                : c.metric_key;
+            const metricKey = c.metric_key;
             const value = (displayValues[metricKey] as number) ?? 0;
             const isCurrency = c.metric_key === "arr_closed_mtd";
             return (
