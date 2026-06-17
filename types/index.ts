@@ -57,6 +57,7 @@ export interface DashboardMetrics {
   unpaidCount: number;
   unpaidTotal: number;
   overdueCount: number;
+  todaySpend?: number;
   upcomingDue: FinancialRecord[];
   spendByVendor: { vendor: string; total: number }[];
   monthlyTrend: { month: string; total: number; paid: number; unpaid: number; unpaidCount: number; overdueCount: number; source?: "invoice" | "snapshot" | "none" }[];

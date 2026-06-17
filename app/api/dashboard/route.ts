@@ -28,8 +28,9 @@ export async function GET() {
   // Upcoming-due checks use the real clock (future due dates are always real-time)
   const today = new Date().toISOString().split("T")[0];
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const currentMonth = new Date().toISOString().substring(0, 7);
 
-  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes, allInvoicesRes, orSnapshotsRes, liveTodayRes] = await Promise.all([
+  const [monthlyRes, unpaidRes, vendorRes, trendRes, upcomingRes, hiddenRes, allInvoicesRes, orSnapshotsRes, todaySnapshotRes] = await Promise.all([
     // Last complete month paid spend (anchor month - 1)
     supabase
       .from("financial_records")
@@ -87,12 +88,11 @@ export async function GET() {
       .select("key_name, month, usage_total")
       .gte("month", twelveMonthsAgo.substring(0, 7)),
 
-    // Live-today rows: partial current-day spend not yet in snapshots
+    // Today's live spend per key from usage_today snapshots (updated hourly, more accurate than log rows)
     supabase
-      .from("api_invocation_logs")
-      .select("invoked_at, cost_usd")
-      .eq("source", "live_today")
-      .gte("invoked_at", twelveMonthsAgo),
+      .from("openrouter_usage_snapshots")
+      .select("usage_today")
+      .eq("month", currentMonth),
   ]);
 
   const hiddenKeys = new Set((hiddenRes.data ?? []).map((r) => r.tool_key as string));
@@ -110,10 +110,12 @@ export async function GET() {
     orByMonth[period] = (orByMonth[period] ?? 0) + Number(row.usage_total ?? 0);
   }
 
-  // Merge live-today rows into orByMonth — adds current month's partial spend
-  for (const row of liveTodayRes.data ?? []) {
-    const period = (row.invoked_at as string).substring(0, 7);
-    orByMonth[period] = (orByMonth[period] ?? 0) + Number(row.cost_usd ?? 0);
+  // Merge today's snapshot spend into current month (usage_today is updated hourly)
+  const todayLiveSpend = (todaySnapshotRes.data ?? []).reduce(
+    (sum, row) => sum + Number(row.usage_today ?? 0), 0
+  );
+  if (todayLiveSpend > 0) {
+    orByMonth[currentMonth] = (orByMonth[currentMonth] ?? 0) + todayLiveSpend;
   }
 
   // Previous calendar month key (real clock — not invoice anchor — so May snapshot appears)
@@ -238,6 +240,7 @@ export async function GET() {
     unpaidCount,
     unpaidTotal,
     overdueCount,
+    todaySpend: todayLiveSpend,
     upcomingDue: (upcomingRes.data ?? []) as FinancialRecord[],
     spendByVendor,
     monthlyTrend,
