@@ -663,7 +663,19 @@ export function SpendTab({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+              {(() => {
+                if (!activity.latest_date) return null;
+                const daysBehind = Math.floor(
+                  (Date.now() - new Date(activity.latest_date + "T00:00:00Z").getTime()) / 86_400_000
+                );
+                if (daysBehind <= 3) return null;
+                return (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2">
+                    ⚠ Log data is {daysBehind} days behind — last entry {activity.latest_date}. OpenRouter activity API lag is typically 1–2 days; if this exceeds 3 days the sync may need attention.
+                  </p>
+                );
+              })()}
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
                 Last 30 days · today&apos;s bar reflects the latest hourly snapshot
               </p>
             </>

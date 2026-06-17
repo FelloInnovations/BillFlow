@@ -7,7 +7,7 @@ export async function GET() {
   const currentMonth = new Date().toISOString().substring(0, 7);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().substring(0, 10);
 
-  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes, hiddenKeys, liveTodayRes, dailyLogsRes, todaySnapshotsRes] = await Promise.all([
+  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes, hiddenKeys, dailyLogsRes, todaySnapshotsRes] = await Promise.all([
     supabase
       .from("agents_portfolio")
       .select("agents_projects, openrouter_api_key, status")
@@ -32,13 +32,6 @@ export async function GET() {
       .order("invoked_at", { ascending: false })
       .limit(1),
     getHiddenToolKeys(),
-    // Live-today rows: all partial-day spend stored this calendar month
-    // Use month start (not just today) so rows from earlier syncs this month are included
-    supabase
-      .from("api_invocation_logs")
-      .select("key_name, cost_usd")
-      .eq("source", "live_today")
-      .gte("invoked_at", `${new Date().toISOString().substring(0, 7)}-01T00:00:00Z`),
     // Daily totals for the by-day chart (last 30 days, excluding live_today rows)
     supabase
       .from("api_invocation_logs")
@@ -60,14 +53,7 @@ export async function GET() {
     ? (latestLogRes.data[0].invoked_at as string).substring(0, 10)
     : null;
 
-  // Per-key sum of live-today rows (partial spend for current UTC day)
-  const liveTodayByKey: Record<string, number> = {};
-  for (const row of liveTodayRes.data ?? []) {
-    const k = row.key_name as string;
-    liveTodayByKey[k] = (liveTodayByKey[k] ?? 0) + (Number(row.cost_usd) || 0);
-  }
-
-  // Per-key today spend from usage_today snapshot (more accurate than log rows)
+  // Per-key today spend from usage_today snapshot (updated hourly — canonical source)
   const todayLiveByKey: Record<string, number> = {};
   for (const row of todaySnapshotsRes.data ?? []) {
     todayLiveByKey[row.key_name as string] = Number(row.usage_today ?? 0);
@@ -192,8 +178,8 @@ export async function GET() {
       max:   completedSpends.length ? Math.max(...completedSpends) : 0,
       avg,
       trend,
-      // Snapshots cover through yesterday; add live_today rows for today's partial data
-      current_month_spend: (monthly.find((m) => m.month === currentMonth)?.spend ?? 0) + (liveTodayByKey[keyName] ?? 0),
+      // Snapshots cover through yesterday; add usage_today for today's partial spend
+      current_month_spend: (monthly.find((m) => m.month === currentMonth)?.spend ?? 0) + (todayLiveByKey[keyName] ?? 0),
       today_spend: todayLiveByKey[keyName] ?? 0,
       models: [...(modelsByKey[keyName] ?? new Set<string>())],
     };
