@@ -87,8 +87,6 @@ export function SpendTab({
   const [inactiveExpanded, setInactiveExpanded] = useState(false);
   const [keyDetails, setKeyDetails] = useState<Record<string, KeyDetail>>({});
   const [keyDetailLoading, setKeyDetailLoading] = useState<Record<string, boolean>>({});
-  const [todaySpend, setTodaySpend] = useState<Record<string, number>>({});
-
   const currentMonth = useMemo(() => new Date().toISOString().substring(0, 7), []);
   const todayUtc     = useMemo(() => new Date().toISOString().substring(0, 10), []);
 
@@ -110,14 +108,6 @@ export function SpendTab({
     const cutoff = new Date(y, m - 1 - (monthRange - 1), 1);
     return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}`;
   }, [monthRange, activity.latest_date, activity.months]);
-
-  // Fetch today's spend from usage_today in snapshots (n8n writes this hourly)
-  useEffect(() => {
-    fetch("/api/activity/today")
-      .then(r => r.json())
-      .then(d => { if (d?.today) setTodaySpend(d.today); })
-      .catch(() => {});
-  }, []);
 
   // Fetch per-key detail when a row is expanded
   useEffect(() => {
@@ -273,7 +263,7 @@ export function SpendTab({
       const sb = periodStats.get(b.key_name) ?? { total: 0, avg: 0, latestMonthSpend: 0, weekly: 0, daily: 0 };
       if (sortBy === "project")        { va = a.project_name;      vb = b.project_name; }
       else if (sortBy === "thisMonth") { va = sa.latestMonthSpend; vb = sb.latestMonthSpend; }
-      else if (sortBy === "today")     { va = todaySpend[a.key_name] ?? 0; vb = todaySpend[b.key_name] ?? 0; }
+      else if (sortBy === "today")     { va = a.today_spend ?? 0; vb = b.today_spend ?? 0; }
       else if (sortBy === "pctTotal")  { va = sa.total;            vb = sb.total; }
       else if (sortBy === "avgMonth")  { va = sa.avg;              vb = sb.avg; }
       else if (sortBy === "avgWeek")   { va = sa.weekly;           vb = sb.weekly; }
@@ -289,14 +279,14 @@ export function SpendTab({
   const tableActiveKeys = useMemo(
     () => sortKeys(activity.keys.filter(k => (periodStats.get(k.key_name)?.total ?? 0) > 0)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activity.keys, sortBy, sortDir, periodStats, todaySpend]
+    [activity.keys, sortBy, sortDir, periodStats]
   );
 
   // Inactive = zero spend across the entire selected period
   const tableInactiveKeys = useMemo(
     () => sortKeys(activity.keys.filter(k => (periodStats.get(k.key_name)?.total ?? 0) === 0)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activity.keys, sortBy, sortDir, periodStats, todaySpend]
+    [activity.keys, sortBy, sortDir, periodStats]
   );
 
   function statusDot(k: ActivityKeyData) {
@@ -377,9 +367,9 @@ export function SpendTab({
           </td>
           {/* Today — usage_today from openrouter_usage_snapshots, written by n8n hourly */}
           <td className="px-5 py-3 text-sm whitespace-nowrap">
-            {(todaySpend[k.key_name] ?? 0) > 0
-              ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(todaySpend[k.key_name])}</span>
-              : <span className="text-slate-300 dark:text-slate-600">—</span>
+            {k.today_spend != null && k.today_spend > 0
+              ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">{`$${k.today_spend.toFixed(2)}`}</span>
+              : <span className="text-slate-400 dark:text-slate-500">—</span>
             }
           </td>
           {/* % of Total (period) */}
