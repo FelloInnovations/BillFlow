@@ -12,14 +12,6 @@ const PLATFORMS = [
   { key: "llm_other_daily",      label: "Other AI",   bar: "bg-slate-400",   text: "text-slate-500 dark:text-slate-400"    },
 ] as const;
 
-interface PortfolioTotals {
-  llm_traffic:    number;
-  demos_booked:   { value: number; deduped: boolean };
-  demos_held:     { value: number; deduped: boolean };
-  closed_won:     { value: number; deduped: boolean };
-  arr_closed:     { value: number; deduped: boolean };
-}
-
 type Scope = "all_time" | "this_month" | "last_3m" | "last_6m" | "last_12m";
 
 const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
@@ -29,9 +21,6 @@ const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
   { value: "last_6m",   label: "Last 6 Months" },
   { value: "last_12m",  label: "Last 12 Months"},
 ];
-
-const COMBINED_TOOLTIP =
-  "Combined across Arthur and Enrichment. Contacts appearing in both projects are counted once.";
 
 function timeAgo(ts: string): string {
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
@@ -170,57 +159,21 @@ function EnrichmentProjectCard({
 
 export function OutcomesIndexClient() {
   const [scope, setScope]                   = useState<Scope>("all_time");
-  const [projects, setProjects]             = useState<ProjectOutcomeSummary[]>([]);
-  const [portfolioTotals, setPortfolioTotals] = useState<PortfolioTotals | null>(null);
-  const [loading, setLoading]               = useState(true);
+  const [projects, setProjects] = useState<ProjectOutcomeSummary[]>([]);
+  const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
     setLoading(true);
     fetch(`/api/outcomes?scope=${scope}`)
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) {
-          setProjects(data);
-        } else {
-          setProjects(Array.isArray(data.projects) ? data.projects : []);
-          setPortfolioTotals(data.portfolioTotals ?? null);
-        }
+        setProjects(Array.isArray(data) ? data : (Array.isArray(data.projects) ? data.projects : []));
       })
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
   }, [scope]);
 
-  const scopeLabel      = SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? "All Time";
-  const scopeLabelLower = scopeLabel.toLowerCase();
-
-  const pt = portfolioTotals;
-
-  const statCards = pt ? [
-    {
-      label:    "LLM Traffic",
-      value:    pt.llm_traffic.toLocaleString(),
-      sub:      `Arthur only · ${scopeLabelLower}`,
-      combined: false,
-    },
-    {
-      label:    "Demos Booked",
-      value:    pt.demos_booked.value.toLocaleString(),
-      sub:      `${pt.demos_booked.deduped ? "deduped" : "combined"} · ${scopeLabelLower}`,
-      combined: true,
-    },
-    {
-      label:    "Closed Won",
-      value:    pt.closed_won.value.toLocaleString(),
-      sub:      `${pt.closed_won.deduped ? "deduped" : "combined"} · ${scopeLabelLower}`,
-      combined: true,
-    },
-    {
-      label:    "ARR Closed",
-      value:    formatCurrency(pt.arr_closed.value),
-      sub:      `${pt.arr_closed.deduped ? "deduped revenue" : "combined revenue"} · ${scopeLabelLower}`,
-      combined: true,
-    },
-  ] : [];
+  const scopeLabel = SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? "All Time";
 
   const enrichmentProject = projects.find((p) => p.projectId === "enrichment");
   const standardProjects  = projects.filter((p) => p.projectId !== "enrichment");
@@ -264,28 +217,6 @@ export function OutcomesIndexClient() {
           </div>
         ) : (
           <>
-            {/* Portfolio summary cards */}
-            {statCards.length > 0 && (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                {statCards.map(({ label, value, sub, combined }) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5"
-                    title={combined ? COMBINED_TOOLTIP : undefined}
-                  >
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1">
-                      {label}
-                      {combined && (
-                        <span className="text-slate-300 dark:text-slate-600 text-[10px] cursor-help" title={COMBINED_TOOLTIP}>ⓘ</span>
-                      )}
-                    </p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Per-project cards */}
             <div className="space-y-4">
               {/* Standard projects (Arthur-style with AI traffic funnel) */}
