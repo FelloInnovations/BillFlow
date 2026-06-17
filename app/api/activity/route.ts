@@ -3,9 +3,11 @@ import { supabase } from "@/lib/supabase";
 import { getHiddenToolKeys, hiddenOrKeyNames } from "@/lib/hidden-tools";
 
 export async function GET() {
-  const todayUtc = new Date().toISOString().substring(0, 10);
+  const todayUtc     = new Date().toISOString().substring(0, 10);
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().substring(0, 10);
 
-  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes, hiddenKeys, liveTodayRes] = await Promise.all([
+  const [projectsRes, snapshotsRes, modelRowsRes, lastSyncRes, latestLogRes, hiddenKeys, liveTodayRes, dailyLogsRes, todaySnapshotsRes] = await Promise.all([
     supabase
       .from("agents_portfolio")
       .select("agents_projects, openrouter_api_key, status")
@@ -37,6 +39,18 @@ export async function GET() {
       .select("key_name, cost_usd")
       .eq("source", "live_today")
       .gte("invoked_at", `${new Date().toISOString().substring(0, 7)}-01T00:00:00Z`),
+    // Daily totals for the by-day chart (last 30 days, excluding live_today rows)
+    supabase
+      .from("api_invocation_logs")
+      .select("invoked_at, cost_usd")
+      .neq("source", "live_today")
+      .gte("invoked_at", `${thirtyDaysAgo}T00:00:00Z`)
+      .order("invoked_at"),
+    // Today's live spend per key from the latest snapshot's usage_today field
+    supabase
+      .from("openrouter_usage_snapshots")
+      .select("key_name, usage_today")
+      .eq("month", currentMonth),
   ]);
 
   const projects   = projectsRes.data  ?? [];
@@ -51,6 +65,32 @@ export async function GET() {
   for (const row of liveTodayRes.data ?? []) {
     const k = row.key_name as string;
     liveTodayByKey[k] = (liveTodayByKey[k] ?? 0) + (Number(row.cost_usd) || 0);
+  }
+
+  // Per-key today spend from usage_today snapshot (more accurate than log rows)
+  const todayLiveByKey: Record<string, number> = {};
+  for (const row of todaySnapshotsRes.data ?? []) {
+    todayLiveByKey[row.key_name as string] = Number(row.usage_today ?? 0);
+  }
+  const todayLiveTotal = Object.values(todayLiveByKey).reduce((s, v) => s + v, 0);
+
+  // Build by-day chart array from log rows, then replace/add today with live snapshot
+  const byDayMap = new Map<string, number>();
+  for (const row of dailyLogsRes.data ?? []) {
+    const date = (row.invoked_at as string).substring(0, 10);
+    byDayMap.set(date, (byDayMap.get(date) ?? 0) + (Number(row.cost_usd) || 0));
+  }
+  const byDayData: { date: string; total: number; isLive?: boolean }[] = [
+    ...byDayMap.entries(),
+  ]
+    .map(([date, total]) => ({ date, total }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const todayEntryIndex = byDayData.findIndex((d) => d.date === todayUtc);
+  if (todayEntryIndex >= 0) {
+    byDayData[todayEntryIndex] = { date: todayUtc, total: todayLiveTotal, isLive: true };
+  } else if (todayLiveTotal > 0) {
+    byDayData.push({ date: todayUtc, total: todayLiveTotal, isLive: true });
   }
 
   // Per-key distinct models from logs
@@ -93,7 +133,6 @@ export async function GET() {
     }
   }
 
-  const currentMonth = new Date().toISOString().substring(0, 7);
   const allMonthsSet = new Set<string>();
 
   // Only keys that have snapshot data — keys with no activity don't appear
@@ -155,6 +194,7 @@ export async function GET() {
       trend,
       // Snapshots cover through yesterday; add live_today rows for today's partial data
       current_month_spend: (monthly.find((m) => m.month === currentMonth)?.spend ?? 0) + (liveTodayByKey[keyName] ?? 0),
+      today_spend: todayLiveByKey[keyName] ?? 0,
       models: [...(modelsByKey[keyName] ?? new Set<string>())],
     };
   });
@@ -174,5 +214,5 @@ export async function GET() {
       status:       p.status as string | null,
     }));
 
-  return NextResponse.json({ keys, months, all_projects, last_synced_at: lastSyncAt, latest_date: latestDate });
+  return NextResponse.json({ keys, months, all_projects, last_synced_at: lastSyncAt, latest_date: latestDate, byDay: byDayData });
 }
