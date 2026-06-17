@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Cell, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from "recharts";
 import { ChevronDown, ChevronUp, ChevronRight, Loader2 } from "lucide-react";
@@ -65,11 +65,6 @@ interface KeyDetail {
   }[];
 }
 
-interface DayData {
-  days: Record<string, number | string>[];
-  key_names: string[];
-}
-
 interface SpendTabProps {
   activity: ActivityData;
   monthRange: 1 | 3 | 6 | 12;
@@ -90,8 +85,6 @@ export function SpendTab({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [inactiveExpanded, setInactiveExpanded] = useState(false);
-  const [dayData, setDayData] = useState<DayData | null>(null);
-  const [dayLoading, setDayLoading] = useState(false);
   const [keyDetails, setKeyDetails] = useState<Record<string, KeyDetail>>({});
   const [keyDetailLoading, setKeyDetailLoading] = useState<Record<string, boolean>>({});
   const [todaySpend, setTodaySpend] = useState<Record<string, number>>({});
@@ -117,19 +110,6 @@ export function SpendTab({
     const cutoff = new Date(y, m - 1 - (monthRange - 1), 1);
     return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}`;
   }, [monthRange, activity.latest_date, activity.months]);
-
-  // Fetch daily data when switching to day view or changing period
-  useEffect(() => {
-    if (chartView !== "day") return;
-    let cancelled = false;
-    setDayLoading(true);
-    fetch(`/api/activity/daily?period=${monthRange}m`)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) setDayData(d); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setDayLoading(false); });
-    return () => { cancelled = true; };
-  }, [chartView, monthRange]);
 
   // Fetch today's spend from usage_today in snapshots (n8n writes this hourly)
   useEffect(() => {
@@ -607,28 +587,24 @@ export function SpendTab({
           )}
         </div>
 
-        {chartView === "day" ? (
-          (dayLoading || dayData === null) ? (
-            <div className="flex items-center justify-center h-40 gap-2 text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading daily data…
-            </div>
-          ) : dayData.days.length === 0 ? (
+        {chartView === "day" ? (() => {
+          const byDay = activity.byDay ?? [];
+          if (byDay.length === 0) return (
             <div className="flex items-center justify-center h-40">
-              <p className="text-sm text-slate-400 dark:text-slate-500 text-center max-w-sm">
-                No daily data for this period.
-              </p>
+              <p className="text-sm text-slate-400 dark:text-slate-500">No daily data available.</p>
             </div>
-          ) : (
+          );
+          return (
             <>
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={dayData.days} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <BarChart data={byDay} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatDay}
                     tick={{ fontSize: 10, fill: "#94a3b8" }}
                     axisLine={false} tickLine={false}
-                    interval={Math.floor(dayData.days.length / 8)}
+                    interval={Math.floor(byDay.length / 8)}
                   />
                   <YAxis
                     tickFormatter={v => `$${v}`}
@@ -637,46 +613,62 @@ export function SpendTab({
                     width={52}
                   />
                   <Tooltip
-                    formatter={(value: number, name: string) => {
-                      const k = activity.keys.find(x => x.key_name === name);
-                      return [formatCurrency(value), k?.project_name ?? name];
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const entry = payload[0].payload as { date: string; total: number; isLive?: boolean };
+                      return (
+                        <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-md">
+                          <p className="font-semibold text-slate-700 mb-1">{formatDay(label as string)}</p>
+                          <p className="text-slate-600">{formatCurrency(payload[0].value as number)}</p>
+                          {entry.isLive && (
+                            <p className="text-indigo-500 mt-1.5 border-t border-slate-100 pt-1.5">
+                              Updated hourly — partial day total
+                            </p>
+                          )}
+                        </div>
+                      );
                     }}
-                    contentStyle={{ borderRadius: "0.75rem", border: "1px solid #e2e8f0", fontSize: 12 }}
                   />
-                  {dayData.key_names
-                    .filter(k => !hiddenKeys.has(k))
-                    .map((k, i) => (
-                      <Bar
-                        key={k} dataKey={k}
-                        stackId="stack"
-                        fill={KEY_COLORS[(keyColorIndex.get(k) ?? i) % KEY_COLORS.length]}
-                        radius={i === dayData.key_names.length - 1 ? [2, 2, 0, 0] : [0, 0, 0, 0]}
+                  <Bar dataKey="total" radius={[3, 3, 0, 0]}>
+                    {byDay.map((entry, i) => (
+                      <Cell
+                        key={i}
+                        fill={entry.isLive ? "#818cf8" : "#6366f1"}
+                        fillOpacity={entry.isLive ? 0.65 : 1}
+                        stroke={entry.isLive ? "#6366f1" : "none"}
+                        strokeWidth={entry.isLive ? 1 : 0}
+                        strokeDasharray={entry.isLive ? "3 2" : undefined}
                       />
                     ))}
+                    <LabelList
+                      dataKey="total"
+                      content={(props) => {
+                        const { x, y, width, index } = props as { x: number; y: number; width: number; index: number };
+                        if (!byDay[index]?.isLive) return null;
+                        return (
+                          <text
+                            x={x + width / 2}
+                            y={y - 5}
+                            textAnchor="middle"
+                            fontSize={9}
+                            fontWeight={700}
+                            fill="#6366f1"
+                            letterSpacing={0.5}
+                          >
+                            LIVE
+                          </text>
+                        );
+                      }}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {dayData.key_names.map(k => {
-                  const color = KEY_COLORS[(keyColorIndex.get(k) ?? 0) % KEY_COLORS.length];
-                  const hidden = hiddenKeys.has(k);
-                  const label = activity.keys.find(x => x.key_name === k)?.project_name ?? k;
-                  return (
-                    <button key={k} onClick={() => toggleKey(k)}
-                      className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
-                        hidden
-                          ? "border-slate-200 dark:border-slate-700 text-slate-400 opacity-50"
-                          : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900"
-                      )}>
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hidden ? "#94a3b8" : color }} />
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+                Last 30 days · today&apos;s bar reflects the latest hourly snapshot
+              </p>
             </>
-          )
-        ) : visibleMonths.length === 0 ? (
+          );
+        })() : visibleMonths.length === 0 ? (
           <div className="flex items-center justify-center h-40">
             <p className="text-sm text-slate-400 dark:text-slate-500">No usage data yet.</p>
           </div>
