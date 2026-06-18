@@ -42,8 +42,8 @@ function monthRange(date: string): { start: number; end: number } {
 type EnrichedContact = { id: string; madId: string; arrValue: number; createdate: string };
 
 // Only contacts created on or after this date are attributable to Fello's enrichment pipeline
-const ENRICHMENT_CONTACT_START_DATE = "2025-04-01";
-const ENRICHMENT_CONTACT_START_TS   = new Date("2025-04-01T00:00:00.000Z").getTime().toString();
+const ENRICHMENT_CONTACT_START_DATE = "2025-05-01";
+const ENRICHMENT_CONTACT_START_TS   = new Date("2025-05-01T00:00:00.000Z").getTime().toString();
 
 // Module-level cache — valid for one process/request lifetime
 let _hubspotEnrichedCache: EnrichedContact[] | null = null;
@@ -370,8 +370,8 @@ export async function getAgentsEnrichedPeriod(
   fromDate: string | null,
   toDate: string | null,
 ): Promise<{ count: number }> {
-  // mad.agents was not populated before April 2025 — return 0 for earlier periods
-  const MAD_START = "2025-04-01";
+  // mad.agents was not populated before May 2025 — return 0 for earlier periods
+  const MAD_START = "2025-05-01";
   if (toDate && toDate < MAD_START) return { count: 0 };
   const effectiveFrom = fromDate && fromDate < MAD_START ? MAD_START : fromDate;
 

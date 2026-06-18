@@ -38,8 +38,8 @@ function monthRange(date: string): { start: number; end: number } {
 type EnrichedTeam = { id: string; madId: string; createdate: string; name: string };
 
 // Only companies created on or after this date are attributable to Fello's enrichment pipeline
-const ENRICHMENT_TEAM_START_DATE = "2025-04-01";
-const ENRICHMENT_TEAM_START_TS   = new Date("2025-04-01T00:00:00.000Z").getTime().toString();
+const ENRICHMENT_TEAM_START_DATE = "2025-05-01";
+const ENRICHMENT_TEAM_START_TS   = new Date("2025-05-01T00:00:00.000Z").getTime().toString();
 
 // Module-level cache — completely independent from the contacts cache
 let _hubspotTeamsCache: EnrichedTeam[] | null = null;
