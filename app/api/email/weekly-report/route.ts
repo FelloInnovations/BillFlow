@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "RESEND_API_KEY not set" }, { status: 500 });
   }
 
-  const recipientsRaw = process.env.WEEKLY_REPORT_RECIPIENTS ?? "";
+  const toOverride = req.nextUrl.searchParams.get("to");
+  const recipientsRaw = toOverride ?? process.env.WEEKLY_REPORT_RECIPIENTS ?? "";
   const recipients = recipientsRaw.split(",").map((r) => r.trim()).filter(Boolean);
   if (!recipients.length) {
     return NextResponse.json({ error: "WEEKLY_REPORT_RECIPIENTS not set" }, { status: 500 });
