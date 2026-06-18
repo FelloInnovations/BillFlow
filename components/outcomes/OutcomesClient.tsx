@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import * as RTooltip from "@radix-ui/react-tooltip";
-import {
-  AreaChart, Area,
-  XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from "recharts";
-import { RefreshCw, CheckCircle2, X, Info, MoreHorizontal } from "lucide-react";
+import { RefreshCw, CheckCircle2, X, MoreHorizontal } from "lucide-react";
 import { MonthlyOutcomeBreakdown, OutcomeMetricConfig, OutcomeMtdSummary } from "@/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { OutcomesPageLayout, MonthlyColumn, MonthlyRow } from "./OutcomesPageLayout";
@@ -59,25 +54,6 @@ function computeScoped(breakdown: MonthlyOutcomeBreakdown[], scope: Scope): Outc
     }
   }
   return result;
-}
-
-// ── Tooltip wrapper ───────────────────────────────────────────────────────────
-
-function Tip({ content, children }: { content: string; children: React.ReactElement }) {
-  return (
-    <RTooltip.Root delayDuration={200}>
-      <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
-      <RTooltip.Portal>
-        <RTooltip.Content
-          className="z-50 max-w-[280px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-200 shadow-xl leading-snug"
-          sideOffset={6}
-        >
-          {content}
-          <RTooltip.Arrow className="fill-slate-700" />
-        </RTooltip.Content>
-      </RTooltip.Portal>
-    </RTooltip.Root>
-  );
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -238,23 +214,6 @@ function LogModal({ projectId, config, onClose, onSaved }: {
   );
 }
 
-// ── Chart tooltip ─────────────────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label }: {
-  active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 shadow-xl text-xs">
-      <p className="text-slate-400 mb-1.5">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }} className="font-semibold">
-          {p.name}: {p.value.toLocaleString()}
-        </p>
-      ))}
-    </div>
-  );
-}
-
 // ── Source row ────────────────────────────────────────────────────────────────
 function SourceRow({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
   const pct = sourcePct(count, total);
@@ -268,136 +227,6 @@ function SourceRow({ label, count, total, color }: { label: string; count: numbe
         <span className="text-xs text-slate-400">{pct}</span>
         <span className="text-xs font-bold text-slate-900 dark:text-white">{count > 0 ? count.toLocaleString() : "—"}</span>
       </div>
-    </div>
-  );
-}
-
-// ── Sparkline ─────────────────────────────────────────────────────────────────
-function Sparkline({ data, color, height = 28 }: { data: number[]; color: string; height?: number }) {
-  if (data.length < 2) return <div style={{ height }} />;
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data.map((v, i) => ({ i, v }))} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-        <Area type="monotone" dataKey="v" stroke={color} fill={color} fillOpacity={0.15} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-// ── Hero stat helpers ─────────────────────────────────────────────────────────
-
-const COHORT_TOOLTIP = "Demos Booked and Demos Held are measured independently per month. A demo booked in one month but held in another counts in both — so this ratio can exceed 100%.";
-const ARR_INFO_TOOLTIP = "Sum of deal amount for AI-referral contacts with closed-won deals in scope. Falls back to deal amount when current_arr__sync_ is not set.";
-
-interface SubInfo { text: string; warn: boolean }
-
-function heroRatio(n: number | undefined, d: number | undefined): SubInfo {
-  if (!d) return { text: "—", warn: false };
-  if (n == null) return { text: "—", warn: false };
-  const pct = (n / d) * 100;
-  return { text: `${pct.toFixed(1)}%`, warn: pct > 100 };
-}
-
-function topSourceSub(chatgpt: number, perplexity: number, claude: number, other: number): string {
-  const total = chatgpt + perplexity + claude + other;
-  if (!total) return "—";
-  const sources = [
-    { name: "ChatGPT",    count: chatgpt },
-    { name: "Perplexity", count: perplexity },
-    { name: "Claude",     count: claude },
-    { name: "Other AI",   count: other },
-  ];
-  const max = Math.max(...sources.map((s) => s.count));
-  if (max === 0) return "—";
-  const tops = sources.filter((s) => s.count === max);
-  if (tops.length > 1) return "Multiple sources";
-  return `${((tops[0].count / total) * 100).toFixed(1)}% from ${tops[0].name}`;
-}
-
-function HeroStatCard({
-  label, value, sub, accentEmerald = false, sparkData, sparkColor, labelTooltip,
-}: {
-  label: string;
-  value: string;
-  sub?: SubInfo;
-  accentEmerald?: boolean;
-  sparkData?: number[];
-  sparkColor?: string;
-  labelTooltip?: string;
-}) {
-  return (
-    <div className={cn(
-      "rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5",
-      accentEmerald && "border-t-2 border-t-emerald-400",
-    )}>
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1">
-        {label}
-        {labelTooltip && (
-          <Tip content={labelTooltip}>
-            <Info className="w-3 h-3 text-slate-400 dark:text-slate-500 cursor-help shrink-0" />
-          </Tip>
-        )}
-      </p>
-      <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
-        {value}
-      </p>
-      {sub && (
-        <p className={cn(
-          "text-xs mt-1.5",
-          sub.warn ? "text-amber-500 dark:text-amber-400" : "text-slate-400 dark:text-slate-500",
-        )}>
-          {sub.warn ? (
-            <Tip content={COHORT_TOOLTIP}>
-              <span className="cursor-help inline-flex items-center gap-1">
-                {sub.text} <span className="text-[10px]">⚠</span>
-              </span>
-            </Tip>
-          ) : sub.text}
-        </p>
-      )}
-      {sparkData && sparkColor && sparkData.length >= 2 && (
-        <div className="mt-3">
-          <Sparkline data={sparkData} color={sparkColor} height={40} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Visual funnel ─────────────────────────────────────────────────────────────
-function VisualStage({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="w-2.5 h-2.5 rounded-full bg-salmon-200 dark:bg-navy-800" />
-      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center leading-tight whitespace-nowrap">
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function VisualArrow({ ratio, isLast = false }: { ratio: SubInfo; isLast?: boolean }) {
-  void isLast;
-  const color = ratio.warn ? "#f59e0b" : "#ff8778";
-  const labelSpan = (
-    <span
-      className={cn(
-        "text-[10px] font-bold whitespace-nowrap",
-        ratio.warn ? "text-amber-500 dark:text-amber-400 cursor-help" : "text-salmon-400",
-      )}
-    >
-      {ratio.text}{ratio.warn && " ⚠"}
-    </span>
-  );
-  return (
-    <div className="flex flex-col items-center gap-0.5 shrink-0">
-      {ratio.warn ? <Tip content={COHORT_TOOLTIP}>{labelSpan}</Tip> : labelSpan}
-      <svg width="28" height="14" viewBox="0 0 28 14">
-        <path
-          d="M0 7 H22 M16 2 L26 7 L16 12"
-          stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"
-        />
-      </svg>
     </div>
   );
 }
@@ -525,32 +354,11 @@ export function OutcomesClient({
   }
 
   // ── Derived values ────────────────────────────────────────────────────────
-  const llm    = (scoped.llm_traffic_daily as number) ?? 0;
-  const booked = (scoped.demos_booked_mtd  as number) ?? 0;
-  const held   = (scoped.demos_held_mtd    as number) ?? 0;
-  const won    = (scoped.closed_won_mtd    as number) ?? 0;
-  const arr    = (scoped.arr_closed_mtd    as number) ?? 0;
-
   const chatgptS    = (scoped.llm_chatgpt_daily    as number) ?? 0;
   const perplexityS = (scoped.llm_perplexity_daily as number) ?? 0;
   const claudeS     = (scoped.llm_claude_daily     as number) ?? 0;
   const otherS      = (scoped.llm_other_daily      as number) ?? 0;
   const totalLlmS   = chatgptS + perplexityS + claudeS + otherS;
-
-  const spark6 = monthlyBreakdown.slice(0, 6).reverse();
-
-  const heroSparks = {
-    llm:    spark6.map((m) => m.metrics.llm_traffic_daily),
-    booked: spark6.map((m) => m.metrics.demos_booked_mtd),
-    held:   spark6.map((m) => m.metrics.demos_held_mtd),
-    won:    spark6.map((m) => m.metrics.closed_won_mtd),
-    arr:    spark6.map((m) => m.metrics.arr_closed_mtd),
-  };
-
-  const bookedSub = heroRatio(booked, llm);
-  const heldSub   = heroRatio(held, booked);
-  const wonSub    = heroRatio(won, held);
-  const avgDealStr = won > 0 ? `${usd(arr / won)}/deal` : "—";
 
   // ── Funnel stages ─────────────────────────────────────────────────────────
   const funnelStages = useMemo((): FunnelStage[] => {
@@ -609,41 +417,16 @@ export function OutcomesClient({
     [monthlyBreakdown],
   );
 
-  // ── Project-specific section (LLM breakdown) ──────────────────────────────
+  // ── Project-specific section (LLM breakdown — full width) ────────────────
   const projectSpecificSection = (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
-      {/* Left: AI Traffic Sources */}
-      <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">AI Traffic Sources</p>
-        <p className="text-xs text-muted-foreground mb-4">{scopeLabel}</p>
-        <div className="divide-y divide-border">
-          <SourceRow label="ChatGPT"    count={chatgptS}    total={totalLlmS} color={SOURCE_COLORS.ChatGPT} />
-          <SourceRow label="Perplexity" count={perplexityS} total={totalLlmS} color={SOURCE_COLORS.Perplexity} />
-          <SourceRow label="Claude"     count={claudeS}     total={totalLlmS} color={SOURCE_COLORS.Claude} />
-          <SourceRow label="Other AI"   count={otherS}      total={totalLlmS} color={SOURCE_COLORS["Other AI"]} />
-        </div>
-      </div>
-
-      {/* Right: Visual funnel */}
-      <div className="lg:col-span-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex flex-col justify-between">
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">AI Referral Funnel</p>
-          <p className="text-xs text-muted-foreground mb-6">{scopeLabel}</p>
-          <div className="flex flex-wrap items-center justify-center gap-2 py-2">
-            <VisualStage label="LLM Traffic" />
-            <VisualArrow ratio={bookedSub.text === "—" ? { text: "—", warn: false } : { text: bookedSub.text, warn: bookedSub.warn }} />
-            <VisualStage label="Demos Booked" />
-            <VisualArrow ratio={heldSub.text === "—" ? { text: "—", warn: false } : { text: heldSub.text, warn: heldSub.warn }} />
-            <VisualStage label="Demos Held" />
-            <VisualArrow ratio={wonSub.text === "—" ? { text: "—", warn: false } : { text: wonSub.text, warn: wonSub.warn }} />
-            <VisualStage label="Closed Won" />
-            <VisualArrow ratio={{ text: won > 0 ? `${usd(arr / won)}/deal` : "—", warn: false }} isLast />
-            <VisualStage label="ARR Closed" />
-          </div>
-        </div>
-        <p className="text-[11px] text-muted-foreground italic mt-4 leading-snug border-t border-border pt-3">
-          Demos Booked and Demos Held are measured independently per month.
-        </p>
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-6">
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">AI Traffic Sources</p>
+      <p className="text-xs text-gray-400 mb-4">{scopeLabel}</p>
+      <div className="divide-y divide-gray-100">
+        <SourceRow label="ChatGPT"    count={chatgptS}    total={totalLlmS} color={SOURCE_COLORS.ChatGPT} />
+        <SourceRow label="Perplexity" count={perplexityS} total={totalLlmS} color={SOURCE_COLORS.Perplexity} />
+        <SourceRow label="Claude"     count={claudeS}     total={totalLlmS} color={SOURCE_COLORS.Claude} />
+        <SourceRow label="Other AI"   count={otherS}      total={totalLlmS} color={SOURCE_COLORS["Other AI"]} />
       </div>
     </div>
   );
@@ -653,7 +436,7 @@ export function OutcomesClient({
     <>
       <button
         onClick={() => setLogOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-card transition-colors"
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
       >
         Log Metrics
       </button>
@@ -663,13 +446,11 @@ export function OutcomesClient({
     </>
   );
 
-  // Suppress series reference (kept for fetchData but not rendered)
+  // series kept for fetchData compatibility
   void series;
-  void heroSparks;
-  void avgDealStr;
 
   return (
-    <RTooltip.Provider delayDuration={200}>
+    <>
       <OutcomesPageLayout
         title="Arthur — Business Outcomes"
         subtitle="AI referral funnel · HubSpot"
@@ -702,6 +483,6 @@ export function OutcomesClient({
         />
       )}
       {toast && <Toast msg={toast.msg} type={toast.type} />}
-    </RTooltip.Provider>
+    </>
   );
 }

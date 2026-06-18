@@ -11,6 +11,13 @@ export interface FunnelStage {
   conversionFromPrev?: number | null;
 }
 
+function formatConversion(rate: number | null | undefined): string | null {
+  if (rate == null) return null;
+  const pct = rate * 100;
+  if (pct > 100) return ">100%";
+  return `${pct.toFixed(1)}%`;
+}
+
 export function FunnelFlow({ stages }: { stages: FunnelStage[] }) {
   return (
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm p-4 md:p-6 mb-6">
@@ -33,9 +40,9 @@ export function FunnelFlow({ stages }: { stages: FunnelStage[] }) {
                   <div className="h-px bg-gray-200 flex-1" />
                   <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
                 </div>
-                {stages[index + 1].conversionFromPrev != null && (
+                {formatConversion(stages[index + 1].conversionFromPrev) && (
                   <span className="text-xs font-medium text-gray-500 mt-1 whitespace-nowrap">
-                    {(stages[index + 1].conversionFromPrev! * 100).toFixed(1)}%
+                    {formatConversion(stages[index + 1].conversionFromPrev)}
                   </span>
                 )}
               </div>
