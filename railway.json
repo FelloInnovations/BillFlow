@@ -23,9 +23,9 @@
         "command": "curl -sf -H \"x-sync-secret: $OUTCOMES_SYNC_SECRET\" $NEXT_PUBLIC_BASE_URL/api/outcomes/sync-enrichment-teams"
       },
       {
-        "name": "weekly-report-friday",
+        "name": "weekly-report-email",
         "schedule": "30 16 * * 5",
-        "command": "curl -sf -X POST $NEXT_PUBLIC_BASE_URL/api/email/trigger-weekly-report"
+        "command": "curl -sf -H \"x-report-secret: $WEEKLY_REPORT_SECRET\" $NEXT_PUBLIC_BASE_URL/api/email/weekly-report"
       }
     ]
   }

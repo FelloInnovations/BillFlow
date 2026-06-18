@@ -6,6 +6,9 @@ import { WeeklyReportEmail } from "@/emails/weekly-report";
 
 export const dynamic = "force-dynamic";
 
+// This route is safe to call manually at any time.
+// It does not affect the Railway cron schedule.
+// All Supabase queries are read-only.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-report-secret");
   if (!secret || secret !== process.env.WEEKLY_REPORT_SECRET) {

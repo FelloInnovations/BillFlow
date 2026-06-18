@@ -91,7 +91,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
                   <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>ARR</Text>
                 </Column>
               </Row>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>MTD this month</Text>
+              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
             </Section>
 
             {/* Enrichment Contact */}
@@ -124,7 +124,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
                   <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>ARR</Text>
                 </Column>
               </Row>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>MTD this month</Text>
+              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
             </Section>
 
             {/* Enrichment Team */}
@@ -157,7 +157,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
                   <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>ARR</Text>
                 </Column>
               </Row>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>MTD this month</Text>
+              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
             </Section>
           </Section>
 
