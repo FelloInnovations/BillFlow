@@ -14,13 +14,18 @@ const instrumentSans = Instrument_Sans({
 export const metadata: Metadata = {
   title: "BillFlow",
   description: "Internal AI spend tracking",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={instrumentSans.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
           <VaultAuthRedirect />
           <div className="flex min-h-screen bg-background">
             <Sidebar />

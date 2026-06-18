@@ -1,71 +1,16 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import {
   OutcomeMetricConfig,
   OutcomeMtdSummary,
   MonthlyOutcomeBreakdown,
 } from "@/types";
-
-// ── Sparkline ─────────────────────────────────────────────────────────────────
-function Sparkline({ data, color = "#ff725c" }: { data: number[]; color?: string }) {
-  if (data.length < 2) return null;
-  const max = Math.max(...data, 1);
-  const w = 80; const h = 28;
-  const pts = data
-    .map((v, i) => `${(i / (data.length - 1)) * w},${h - (v / max) * h}`)
-    .join(" ");
-  return (
-    <svg width={w} height={h} className="opacity-70">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// ── HeroStatCard ──────────────────────────────────────────────────────────────
-function HeroStatCard({
-  label,
-  value,
-  sparkData,
-  isCurrency = false,
-  accent = "salmon",
-  note,
-}: {
-  label: string;
-  value: number;
-  sparkData?: number[];
-  isCurrency?: boolean;
-  accent?: "salmon" | "emerald" | "amber" | "violet" | "sky";
-  note?: string;
-}) {
-  const accentColor = {
-    salmon: "#ff725c",
-    emerald: "#10b981",
-    amber: "#f59e0b",
-    violet: "#8b5cf6",
-    sky: "#0ea5e9",
-  }[accent];
-
-  const display = isCurrency ? formatCurrency(value) : value.toLocaleString();
-
-  return (
-    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex flex-col gap-1">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-        {label}
-      </p>
-      <div className="flex items-end justify-between gap-2 mt-1">
-        <p className="text-2xl font-bold text-slate-900 dark:text-white leading-none">{display}</p>
-        {sparkData && sparkData.length >= 2 && (
-          <Sparkline data={sparkData} color={accentColor} />
-        )}
-      </div>
-      {note && (
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{note}</p>
-      )}
-    </div>
-  );
-}
+import { OutcomesPageLayout, MonthlyColumn, MonthlyRow } from "./OutcomesPageLayout";
+import type { FunnelStage } from "./FunnelFlow";
+import type { TrendChartData } from "./TrendChartsGrid";
+import { cn } from "@/lib/utils";
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
@@ -255,19 +200,22 @@ function computeAllTime(
   return result;
 }
 
-function noteFor(key: string, scope: Scope): string {
-  if (key === "agents_enriched_total" || key === "teams_enriched_total") return "all time";
-  if (scope === "all_time") return "all time";
-  return (key === "agents_enriched_period" || key === "teams_enriched_period") ? "this month" : "month-to-date";
-}
-
-function accentFor(key: string): "salmon" | "emerald" | "amber" | "violet" | "sky" {
-  if (key === "agents_enriched_total"  || key === "teams_enriched_total")  return "violet";
-  if (key === "agents_enriched_period" || key === "teams_enriched_period") return "sky";
-  if (key === "agents_pushed_hubspot"  || key === "teams_pushed_hubspot")  return "salmon";
-  if (key.includes("arr"))             return "amber";
-  if (key.includes("closed_won"))      return "emerald";
-  return "salmon";
+// Helper to build trend chart data from monthly breakdown
+function mkTrend(
+  monthly: MonthlyOutcomeBreakdown[],
+  label: string,
+  key: string,
+  monetary = false,
+): TrendChartData {
+  const data = [...monthly]
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map((m) => ({ month: m.month, value: (m.metrics[key] as number) ?? 0 }));
+  const total = data.reduce((s, d) => s + d.value, 0);
+  return {
+    label, metricKey: key, data, totalValue: total,
+    displayTotal: monetary ? formatCurrency(total) : total.toLocaleString(),
+    isMonetary: monetary,
+  };
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -411,277 +359,140 @@ export function EnrichmentOutcomesClient({
     }
   }
 
+  // ── Contact tab pipeline metric keys ──────────────────────────────────────
+  const contactPipelineFilter = (c: OutcomeMetricConfig) =>
+    !["agents_enriched_total", "agents_enriched_period", "agents_pushed_hubspot_total"].includes(c.metric_key);
+
+  // ── Team tab pipeline metric keys ─────────────────────────────────────────
+  const teamPipelineFilter = (c: OutcomeMetricConfig) =>
+    !["teams_enriched_total", "teams_enriched_period", "teams_pushed_hubspot_total"].includes(c.metric_key);
+
   // All-time aggregation
   const allTimeValues = useMemo(
     () => computeAllTime(monthly, [...contactConfigKeys, ...teamConfigKeys]),
-    [monthly, contactConfigKeys, teamConfigKeys],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [monthly],
   );
 
   const contactDisplay: OutcomeMtdSummary = contactScope === "all_time" ? allTimeValues : mtd;
   const teamDisplay: OutcomeMtdSummary    = teamScope    === "all_time" ? allTimeValues : mtd;
 
-  // Sparklines
-  const sparkMap = useMemo(() => {
-    const map = new Map<string, number[]>();
-    for (const key of [...contactConfigKeys, ...teamConfigKeys]) {
-      const pts = [...monthly]
-        .sort((a, b) => a.month.localeCompare(b.month))
-        .map((b) => (b.metrics[key] as number) ?? 0);
-      if (pts.some((v) => v > 0)) map.set(key, pts);
-    }
-    return map;
-  }, [monthly, contactConfigKeys, teamConfigKeys]);
+  // Contact funnel stages
+  const contactFunnelStages = useMemo((): FunnelStage[] => {
+    const pushed = (contactDisplay["agents_pushed_hubspot"] as number) ?? 0;
+    const booked = (contactDisplay["demos_booked_mtd"]      as number) ?? 0;
+    const held   = (contactDisplay["demos_held_mtd"]        as number) ?? 0;
+    const won    = (contactDisplay["closed_won_mtd"]        as number) ?? 0;
+    const arr    = (contactDisplay["arr_closed_mtd"]        as number) ?? 0;
+    return [
+      { label: "PUSHED", value: pushed, displayValue: pushed.toLocaleString(), conversionFromPrev: null },
+      { label: "BOOKED", value: booked, displayValue: booked.toLocaleString(), conversionFromPrev: pushed > 0 ? booked / pushed : null },
+      { label: "HELD",   value: held,   displayValue: held.toLocaleString(),   conversionFromPrev: booked > 0 ? held / booked : null },
+      { label: "WON",    value: won,    displayValue: won.toLocaleString(),    conversionFromPrev: held > 0 ? won / held : null },
+      { label: "ARR",    value: arr,    displayValue: formatCurrency(arr), isMonetary: true, conversionFromPrev: null },
+    ];
+  }, [contactDisplay]);
 
-  function timeAgo(ts: string) {
-    const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
-    if (diff < 1) return "just now";
-    if (diff < 60) return `${diff}m ago`;
-    const h = Math.floor(diff / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  }
+  // Team funnel stages
+  const teamFunnelStages = useMemo((): FunnelStage[] => {
+    const pushed = (teamDisplay["teams_pushed_hubspot"]   as number) ?? 0;
+    const booked = (teamDisplay["team_demos_booked_mtd"]  as number) ?? 0;
+    const held   = (teamDisplay["team_demos_held_mtd"]    as number) ?? 0;
+    const won    = (teamDisplay["team_closed_won_mtd"]    as number) ?? 0;
+    const arr    = (teamDisplay["team_arr_closed_mtd"]    as number) ?? 0;
+    return [
+      { label: "PUSHED", value: pushed, displayValue: pushed.toLocaleString(), conversionFromPrev: null },
+      { label: "BOOKED", value: booked, displayValue: booked.toLocaleString(), conversionFromPrev: pushed > 0 ? booked / pushed : null },
+      { label: "HELD",   value: held,   displayValue: held.toLocaleString(),   conversionFromPrev: booked > 0 ? held / booked : null },
+      { label: "WON",    value: won,    displayValue: won.toLocaleString(),    conversionFromPrev: held > 0 ? won / held : null },
+      { label: "ARR",    value: arr,    displayValue: formatCurrency(arr), isMonetary: true, conversionFromPrev: null },
+    ];
+  }, [teamDisplay]);
 
-  // ── Contact tab pipeline metric keys (excludes total / period totals) ────────
-  const contactPipelineFilter = (c: OutcomeMetricConfig) =>
-    !["agents_enriched_total", "agents_enriched_period", "agents_pushed_hubspot_total"].includes(c.metric_key);
+  // Contact trend charts
+  const contactTrendCharts = useMemo((): TrendChartData[] => [
+    mkTrend(monthly, "Pushed to HubSpot",  "agents_pushed_hubspot"),
+    mkTrend(monthly, "Demos Booked",        "demos_booked_mtd"),
+    mkTrend(monthly, "Demos Held",          "demos_held_mtd"),
+    mkTrend(monthly, "Closed Won",          "closed_won_mtd"),
+    mkTrend(monthly, "ARR Closed",          "arr_closed_mtd", true),
+  ], [monthly]);
 
-  // ── Team tab pipeline metric keys ─────────────────────────────────────────────
-  const teamPipelineFilter = (c: OutcomeMetricConfig) =>
-    !["teams_enriched_total", "teams_enriched_period", "teams_pushed_hubspot_total"].includes(c.metric_key);
+  // Team trend charts
+  const teamTrendCharts = useMemo((): TrendChartData[] => [
+    mkTrend(monthly, "Teams Pushed",       "teams_pushed_hubspot"),
+    mkTrend(monthly, "Demos Booked",        "team_demos_booked_mtd"),
+    mkTrend(monthly, "Demos Held",          "team_demos_held_mtd"),
+    mkTrend(monthly, "Closed Won",          "team_closed_won_mtd"),
+    mkTrend(monthly, "ARR Closed",          "team_arr_closed_mtd", true),
+  ], [monthly]);
 
-  const isRunning = backfillRunning;
+  // Monthly table columns
+  const contactColumns: MonthlyColumn[] = [
+    { key: "agents_pushed_hubspot", label: "Pushed" },
+    { key: "demos_booked_mtd",      label: "Booked" },
+    { key: "demos_held_mtd",        label: "Held" },
+    { key: "closed_won_mtd",        label: "Won" },
+    { key: "arr_closed_mtd",        label: "ARR", isMonetary: true },
+  ];
+  const teamColumns: MonthlyColumn[] = [
+    { key: "teams_pushed_hubspot",  label: "Pushed" },
+    { key: "team_demos_booked_mtd", label: "Booked" },
+    { key: "team_demos_held_mtd",   label: "Held" },
+    { key: "team_closed_won_mtd",   label: "Won" },
+    { key: "team_arr_closed_mtd",   label: "ARR", isMonetary: true },
+  ];
+
+  const monthlyTableData = useMemo((): MonthlyRow[] =>
+    [...monthly]
+      .sort((a, b) => b.month.localeCompare(a.month))
+      .map((m) => ({ month: m.monthLabel, ...m.metrics })),
+    [monthly],
+  );
+
+  // Suppress unused variable warnings for pipeline filters (kept for potential future use)
+  void contactPipelineFilter;
+  void teamPipelineFilter;
+
+  // Tabs slot
+  const tabsSlot = (
+    <div className="flex border-b border-border mb-6">
+      {(["contact", "team"] as const).map((tab) => (
+        <button
+          key={tab}
+          onClick={() => setActiveTab(tab)}
+          className={cn(
+            "px-4 py-2 text-sm font-semibold transition-colors",
+            activeTab === tab
+              ? "text-[#FF725C] border-b-2 border-[#FF725C] -mb-px"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {tab === "contact" ? "Contact Level" : "Team Level"}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
-    <div className="flex-1 min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Enrichment — Outcomes
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            MAD-ID enriched agent pipeline metrics
-            {lastSynced && (
-              <span className="ml-2 text-slate-400 dark:text-slate-500">
-                · Synced {timeAgo(lastSynced)}
-              </span>
-            )}
-          </p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-6">
-        {(["contact", "team"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-semibold transition-colors ${
-              activeTab === tab
-                ? "text-salmon-600 dark:text-salmon-400 border-b-2 border-salmon-600 dark:border-navy-400 -mb-px"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
-          >
-            {tab === "contact" ? "Contact Level" : "Team Level"}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Contact Level Tab ─────────────────────────────────────────────────── */}
-      {activeTab === "contact" && (
-        <>
-          {/* Tab toolbar */}
-          <div className="flex items-center justify-end gap-2 mb-6">
-            <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
-              {SCOPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setContactScope(opt.value)}
-                  className={`px-3 py-2 transition-colors ${
-                    contactScope === opt.value
-                      ? "bg-salmon-600 text-white"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={syncContactNow}
-              disabled={syncingContact}
-              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
-            >
-              {syncingContact ? "Syncing…" : "Sync Now"}
-            </button>
-            <button
-              onClick={() => { setBackfillType("contact"); setBackfillOpen(true); }}
-              className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
-                isRunning
-                  ? "border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 cursor-default"
-                  : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
-              }`}
-            >
-              {isRunning ? "Backfill Running…" : "Backfill"}
-            </button>
-          </div>
-
-          {/* Hero cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-            {contactConfig.filter(contactPipelineFilter).map((c) => {
-              const value = (contactDisplay[c.metric_key] as number) ?? 0;
-              return (
-                <HeroStatCard
-                  key={c.metric_key}
-                  label={c.label}
-                  value={value}
-                  sparkData={sparkMap.get(c.metric_key)}
-                  isCurrency={c.metric_key === "arr_closed_mtd"}
-                  accent={accentFor(c.metric_key)}
-                  note={noteFor(c.metric_key, contactScope)}
-                />
-              );
-            })}
-          </div>
-
-          {/* Monthly table */}
-          {monthly.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Breakdown</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800">
-                      <th className="text-left px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Month</th>
-                      {contactConfig.filter(contactPipelineFilter).map((c) => (
-                        <th key={c.metric_key} className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                          {c.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                    {monthly.map((row) => (
-                      <tr key={row.month} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.monthLabel}</td>
-                        {contactConfig.filter(contactPipelineFilter).map((c) => {
-                          const val = (row.metrics[c.metric_key] as number) ?? 0;
-                          return (
-                            <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
-                              {c.metric_key === "arr_closed_mtd" ? formatCurrency(val) : val.toLocaleString()}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Team Level Tab ────────────────────────────────────────────────────── */}
-      {activeTab === "team" && (
-        <>
-          {/* Tab toolbar */}
-          <div className="flex items-center justify-end gap-2 mb-6">
-            <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
-              {SCOPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setTeamScope(opt.value)}
-                  className={`px-3 py-2 transition-colors ${
-                    teamScope === opt.value
-                      ? "bg-salmon-600 text-white"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={syncTeamNow}
-              disabled={syncingTeam}
-              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
-            >
-              {syncingTeam ? "Syncing…" : "Sync Now"}
-            </button>
-            <button
-              onClick={() => { setBackfillType("team"); setBackfillOpen(true); }}
-              className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
-                isRunning
-                  ? "border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 cursor-default"
-                  : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
-              }`}
-            >
-              {isRunning ? "Backfill Running…" : "Backfill"}
-            </button>
-          </div>
-
-          {/* Hero cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-            {teamConfig.filter(teamPipelineFilter).map((c) => {
-              const value = (teamDisplay[c.metric_key] as number) ?? 0;
-              return (
-                <HeroStatCard
-                  key={c.metric_key}
-                  label={c.label}
-                  value={value}
-                  sparkData={sparkMap.get(c.metric_key)}
-                  isCurrency={c.metric_key === "team_arr_closed_mtd"}
-                  accent={accentFor(c.metric_key)}
-                  note={noteFor(c.metric_key, teamScope)}
-                />
-              );
-            })}
-          </div>
-
-          {/* Team monthly table */}
-          {monthly.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Monthly Breakdown</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800">
-                      <th className="text-left px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Month</th>
-                      {teamConfig.filter(teamPipelineFilter).map((c) => (
-                        <th key={c.metric_key} className="text-right px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                          {c.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                    {monthly.map((row) => (
-                      <tr key={row.month} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.monthLabel}</td>
-                        {teamConfig.filter(teamPipelineFilter).map((c) => {
-                          const val = (row.metrics[c.metric_key] as number) ?? 0;
-                          return (
-                            <td key={c.metric_key} className="text-right px-4 py-3 text-slate-600 dark:text-slate-400 tabular-nums">
-                              {c.metric_key === "team_arr_closed_mtd" ? formatCurrency(val) : val.toLocaleString()}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Modals / toasts */}
+    <>
+      <OutcomesPageLayout
+        title="Enrichment — Outcomes"
+        subtitle="MAD-ID enriched agent pipeline metrics"
+        lastSynced={lastSynced ? formatRelativeTime(lastSynced) : ""}
+        scope={activeTab === "contact" ? contactScope : teamScope}
+        onScopeChange={(s) => activeTab === "contact" ? setContactScope(s as Scope) : setTeamScope(s as Scope)}
+        scopeOptions={SCOPE_OPTIONS}
+        funnelStages={activeTab === "contact" ? contactFunnelStages : teamFunnelStages}
+        trendCharts={activeTab === "contact" ? contactTrendCharts : teamTrendCharts}
+        monthlyData={monthlyTableData}
+        monthlyColumns={activeTab === "contact" ? contactColumns : teamColumns}
+        onSyncNow={activeTab === "contact" ? syncContactNow : syncTeamNow}
+        onBackfill={() => { setBackfillType(activeTab); setBackfillOpen(true); }}
+        backfillRunning={backfillRunning}
+        syncingNow={activeTab === "contact" ? syncingContact : syncingTeam}
+        tabs={tabsSlot}
+      />
       {backfillOpen && (
         <BackfillModal
           type={backfillType}
@@ -691,7 +502,7 @@ export function EnrichmentOutcomesClient({
           onStarted={(from, to) => {
             setBackfillOpen(false);
             setBackfillRunning(true);
-            setToast({ msg: `Backfill started for ${from} → ${to}. Running in background — refresh in a few minutes to see updated data.`, type: "success" });
+            setToast({ msg: `Backfill started for ${from} → ${to}. Running in background.`, type: "success" });
             setTimeout(() => setToast(null), 8000);
           }}
           onDone={(from, to) => {
@@ -703,6 +514,6 @@ export function EnrichmentOutcomesClient({
         />
       )}
       {toast && <Toast msg={toast.msg} type={toast.type} />}
-    </div>
+    </>
   );
 }
