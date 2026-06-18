@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const resend = new Resend(resendKey);
   const { data: sendResult, error } = await resend.emails.send({
-    from:    "BillFlow <reports@fello.ai>",
+    from:    "BillFlow <onboarding@resend.dev>",
     to:      recipients,
     subject: `BillFlow Weekly Digest · ${data.weekLabel}`,
     html,
