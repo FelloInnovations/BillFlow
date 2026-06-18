@@ -123,7 +123,7 @@ export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {
                           return next;
                         });
                       }}
-                      className="accent-indigo-600"
+                      className="accent-salmon-600"
                     />
                     <span className="text-xs text-slate-700 dark:text-slate-300 font-mono truncate">{key}</span>
                   </label>
@@ -143,7 +143,7 @@ export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {
               value={pendingModel}
               onChange={e => setPendingModel(e.target.value)}
               placeholder="e.g. gpt-4o"
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 w-36"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-salmon-400 w-36"
             />
           </div>
 
@@ -154,7 +154,7 @@ export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {
               type="date"
               value={pendingFrom}
               onChange={e => setPendingFrom(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-salmon-400"
             />
           </div>
 
@@ -165,14 +165,14 @@ export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {
               type="date"
               value={pendingTo}
               onChange={e => setPendingTo(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-salmon-400"
             />
           </div>
 
           <div className="flex gap-2 items-end">
             <button
               onClick={applyFilters}
-              className="px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+              className="px-4 py-1.5 rounded-lg text-xs font-bold bg-salmon-600 hover:bg-salmon-700 text-white transition-colors"
             >
               Apply
             </button>
@@ -241,7 +241,7 @@ export function LogsTab({ allKeyNames, initialData }: LogsTabProps) {
                           : <span className="text-slate-300 dark:text-slate-600">—</span>
                         }
                       </td>
-                      <td className="px-5 py-3 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                      <td className="px-5 py-3 text-xs font-semibold text-salmon-600 dark:text-salmon-400">
                         {log.cost_usd !== null ? formatCurrency(log.cost_usd) : <span className="text-slate-300 dark:text-slate-600 font-normal">—</span>}
                       </td>
                     </tr>

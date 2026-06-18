@@ -19,24 +19,25 @@ const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD",
 const usdCents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function formatDelta(current: number, previous: number): { text: string; color: string } {
-  if (previous === 0 && current === 0) return { text: "—", color: "#94a3b8" };
-  if (previous === 0) return { text: `+${usdCents.format(current)}`, color: "#f87171" };
+  if (previous === 0 && current === 0) return { text: "—", color: "#7F7F7F" };
+  if (previous === 0) return { text: `+${usdCents.format(current)}`, color: "#e85440" };
   const pct = ((current - previous) / previous) * 100;
   const sign = pct >= 0 ? "+" : "";
-  const color = pct > 10 ? "#f87171" : pct < -10 ? "#34d399" : "#94a3b8";
+  const color = pct > 10 ? "#e85440" : pct < -10 ? "#10b981" : "#7F7F7F";
   return { text: `${sign}${pct.toFixed(0)}%`, color };
 }
 
 function alertStatusColor(status: "warning" | "breached"): string {
-  return status === "breached" ? "#f87171" : "#fbbf24";
+  return status === "breached" ? "#e85440" : "#f59e0b";
 }
 
-const BG       = "#0f172a";
-const CARD_BG  = "#1e293b";
-const BORDER   = "#334155";
-const TEXT_MUT = "#94a3b8";
-const TEXT_LG  = "#e2e8f0";
-const INDIGO   = "#818cf8";
+const BG       = "#FEFBF9";
+const CARD_BG  = "#FFFFFF";
+const BORDER   = "#E8E8E8";
+const TEXT_MUT = "#7F7F7F";
+const TEXT_LG  = "#353E5A";
+const SALMON   = "#FF725C";
+const NAVY     = "#093555";
 
 function FunnelRow({ steps }: {
   steps: { label: string; value: number; currency?: boolean }[];
@@ -46,7 +47,7 @@ function FunnelRow({ steps }: {
       {steps.map(({ label, value, currency }, i) => (
         <React.Fragment key={label}>
           <Column style={{ textAlign: "center" }}>
-            <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>
+            <Text style={{ color: NAVY, fontSize: 18, fontWeight: 800, margin: 0 }}>
               {currency ? usd.format(value) : value.toLocaleString()}
             </Text>
             <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>
@@ -70,12 +71,17 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
     <Html>
       <Head />
       <Preview>BillFlow Weekly Digest · {data.weekLabel}</Preview>
-      <Body style={{ backgroundColor: BG, fontFamily: "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace", margin: 0, padding: 0 }}>
+      <Body style={{ backgroundColor: BG, fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif", margin: 0, padding: 0 }}>
         <Container style={{ maxWidth: 600, margin: "0 auto", padding: "32px 16px" }}>
 
-          {/* Header — no FELLO AI label (Fix 7) */}
+          {/* Header */}
           <Section style={{ marginBottom: 24 }}>
-            <Heading style={{ color: "#ffffff", fontSize: 24, fontWeight: 800, margin: "0 0 4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: SALMON, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: "#fff", fontSize: 11, fontWeight: 900, letterSpacing: "-0.5px" }}>BF</span>
+              </div>
+            </div>
+            <Heading style={{ color: NAVY, fontSize: 24, fontWeight: 800, margin: "0 0 4px" }}>
               BillFlow Weekly Digest
             </Heading>
             <Text style={{ color: TEXT_MUT, fontSize: 12, margin: 0 }}>{data.weekLabel}</Text>
@@ -93,7 +99,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
               </Text>
             ) : (
               <>
-                {/* Arthur (Fix 3 — hidden when all zeros) */}
+                {/* Arthur */}
                 {data.arthurHasData && (
                   <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
                     <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>Arthur</Text>
@@ -107,7 +113,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
                   </Section>
                 )}
 
-                {/* Enrichment Contacts (Fix 3 — hidden when all zeros) */}
+                {/* Enrichment Contacts */}
                 {data.enrichmentContactsHasData && (
                   <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
                     <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Enrichment · Contact Funnel</Text>
@@ -123,7 +129,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
                   </Section>
                 )}
 
-                {/* Enrichment Teams (Fix 3 — hidden when all zeros) */}
+                {/* Enrichment Teams */}
                 {data.enrichmentTeamsHasData && (
                   <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 0 }}>
                     <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Enrichment · Team Funnel</Text>
@@ -150,12 +156,12 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
               SPENDS THIS WEEK
             </Text>
 
-            {/* Total with OR + invoice breakdown (Fix 4) */}
+            {/* Total with OR + invoice breakdown */}
             <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
               <Row>
                 <Column>
                   <Text style={{ color: TEXT_MUT, fontSize: 11, margin: "0 0 4px" }}>Total spend this week</Text>
-                  <Text style={{ color: "#ffffff", fontSize: 28, fontWeight: 800, margin: "0 0 6px" }}>
+                  <Text style={{ color: NAVY, fontSize: 28, fontWeight: 800, margin: "0 0 6px" }}>
                     {usdCents.format(data.totalSpendThisWeek)}
                   </Text>
                   <Text style={{ color: TEXT_MUT, fontSize: 11, margin: 0 }}>
@@ -175,14 +181,13 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
               </Row>
             </Section>
 
-            {/* Per-key rows with budget status (Fix 5 + Fix 6) */}
+            {/* Per-key rows with budget status */}
             {data.spendRows.length > 0 && (
               <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "4px 0", marginBottom: 12 }}>
                 {data.spendRows.map((row, i) => {
                   const delta    = formatDelta(row.thisWeek, row.lastWeek);
                   const usedPct  = row.monthlyLimit > 0 ? (row.mtdSpend / row.monthlyLimit) * 100 : 0;
                   const budgetIcon = usedPct >= 100 ? "🔴" : usedPct >= row.warningPct ? "🟡" : "🟢";
-                  // Fix 5: show key name subtitle only when it differs from project name
                   const showKey  = row.keyName !== row.projectName;
                   return (
                     <Row key={row.keyName} style={{ borderTop: i > 0 ? `1px solid ${BORDER}` : undefined, padding: "10px 20px" }}>
@@ -198,7 +203,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
                         )}
                       </Column>
                       <Column style={{ textAlign: "right" }}>
-                        <Text style={{ color: "#ffffff", fontSize: 13, fontWeight: 700, margin: 0 }}>{usdCents.format(row.thisWeek)}</Text>
+                        <Text style={{ color: NAVY, fontSize: 13, fontWeight: 700, margin: 0 }}>{usdCents.format(row.thisWeek)}</Text>
                         <Text style={{ color: delta.color, fontSize: 10, margin: "2px 0 0" }}>{delta.text}</Text>
                       </Column>
                     </Row>
@@ -209,8 +214,8 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
 
             {/* Budget alerts */}
             {data.activeAlerts.length > 0 && (
-              <Section style={{ backgroundColor: "#1a1218", borderRadius: 12, border: "1px solid #7c3347", padding: "16px 20px", marginBottom: 12 }}>
-                <Text style={{ color: "#f87171", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", margin: "0 0 10px" }}>
+              <Section style={{ backgroundColor: "#FFF5F4", borderRadius: 12, border: "1px solid #ffc8c0", padding: "16px 20px", marginBottom: 12 }}>
+                <Text style={{ color: "#e85440", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", margin: "0 0 10px" }}>
                   BUDGET ALERTS
                 </Text>
                 {data.activeAlerts.map((alert) => (
@@ -242,7 +247,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
             <Button
               href={`${process.env.NEXT_PUBLIC_BASE_URL ?? "https://spendsync-production.up.railway.app"}`}
               style={{
-                backgroundColor: INDIGO,
+                backgroundColor: SALMON,
                 color: "#fff",
                 fontSize: 13,
                 fontWeight: 700,
@@ -255,7 +260,7 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
             </Button>
           </Section>
 
-          <Text style={{ color: "#475569", fontSize: 10, textAlign: "center", margin: 0 }}>
+          <Text style={{ color: "#B0B0B0", fontSize: 10, textAlign: "center", margin: 0 }}>
             Generated {new Date(data.generatedAt).toUTCString()} · BillFlow by Fello AI
           </Text>
         </Container>

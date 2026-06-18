@@ -4,44 +4,44 @@
 
 @layer base {
   :root {
-    --background: 248 250 252;
-    --foreground: 15 23 42;
+    --background: 254 251 249;
+    --foreground: 53 62 90;
     --card: 255 255 255;
-    --card-foreground: 15 23 42;
-    --primary: 79 70 229;
+    --card-foreground: 53 62 90;
+    --primary: 255 114 92;
     --primary-foreground: 255 255 255;
-    --secondary: 241 245 249;
-    --secondary-foreground: 71 85 105;
-    --muted: 241 245 249;
-    --muted-foreground: 100 116 139;
-    --accent: 238 242 255;
-    --accent-foreground: 79 70 229;
+    --secondary: 248 244 242;
+    --secondary-foreground: 127 127 127;
+    --muted: 245 245 245;
+    --muted-foreground: 127 127 127;
+    --accent: 255 242 238;
+    --accent-foreground: 255 114 92;
     --destructive: 239 68 68;
     --destructive-foreground: 255 255 255;
-    --border: 226 232 240;
-    --input: 226 232 240;
-    --ring: 79 70 229;
+    --border: 232 232 232;
+    --input: 232 232 232;
+    --ring: 255 114 92;
     --radius: 0.625rem;
   }
 
   .dark {
-    --background: 10 10 15;
+    --background: 6 30 52;
     --foreground: 241 245 249;
-    --card: 20 24 35;
+    --card: 9 53 85;
     --card-foreground: 241 245 249;
-    --primary: 99 102 241;
+    --primary: 255 114 92;
     --primary-foreground: 255 255 255;
-    --secondary: 30 35 50;
+    --secondary: 17 54 92;
     --secondary-foreground: 148 163 184;
-    --muted: 30 35 50;
+    --muted: 17 54 92;
     --muted-foreground: 148 163 184;
-    --accent: 30 35 50;
+    --accent: 17 54 92;
     --accent-foreground: 148 163 184;
     --destructive: 239 68 68;
     --destructive-foreground: 255 255 255;
-    --border: 40 48 65;
-    --input: 40 48 65;
-    --ring: 99 102 241;
+    --border: 20 56 92;
+    --input: 20 56 92;
+    --ring: 255 114 92;
   }
 }
 
@@ -49,5 +49,7 @@
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground antialiased;
+    font-variation-settings: 'wdth' 100;
+    font-feature-settings: 'ss01' 1;
   }
 }

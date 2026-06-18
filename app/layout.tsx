@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { VaultAuthRedirect } from "@/components/providers/VaultAuthRedirect";
 
-const inter = Inter({ subsets: ["latin"] });
+const instrumentSans = Instrument_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal"],
+});
 
 export const metadata: Metadata = {
   title: "BillFlow",
@@ -15,7 +19,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={instrumentSans.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <VaultAuthRedirect />
           <div className="flex min-h-screen bg-background">

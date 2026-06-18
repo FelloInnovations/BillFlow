@@ -33,16 +33,16 @@ function StatCard({
   title,
   value,
   sub,
-  accent = "indigo",
+  accent = "salmon",
 }: {
   title: string;
   value: string;
   sub?: string;
-  accent?: "cyan" | "indigo" | "slate";
+  accent?: "cyan" | "salmon" | "slate";
 }) {
   const accentClass = {
     cyan: "border-t-cyan-400",
-    indigo: "border-t-indigo-400",
+    salmon: "border-t-salmon-400",
     slate: "border-t-slate-400",
   }[accent];
 
@@ -179,7 +179,7 @@ export function ForecastingClient({ initial }: Props) {
           <button
             onClick={refresh}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-40 transition-colors shadow-sm"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
@@ -199,7 +199,7 @@ export function ForecastingClient({ initial }: Props) {
           title="Vendors Tracked"
           value={String(data.forecasts.length)}
           sub="With activity in last 3 months"
-          accent="indigo"
+          accent="salmon"
         />
         <StatCard
           title="Highest Spend Vendor"

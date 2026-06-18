@@ -56,7 +56,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-salmon-600 flex items-center justify-center shrink-0">
             <span className="text-white text-xs font-black tracking-tighter leading-none">BF</span>
           </div>
           <div>
@@ -80,13 +80,13 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300"
+                  ? "bg-salmon-50 dark:bg-navy-950/60 text-salmon-700 dark:text-salmon-300"
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-800 dark:hover:text-slate-200"
               )}
             >
-              <Icon className={cn("w-4 h-4 shrink-0", active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500")} />
+              <Icon className={cn("w-4 h-4 shrink-0", active ? "text-salmon-600 dark:text-salmon-400" : "text-slate-400 dark:text-slate-500")} />
               {label}
-              {active && <div className="ml-auto w-1 h-4 rounded-full bg-indigo-500" />}
+              {active && <div className="ml-auto w-1 h-4 rounded-full bg-salmon-500" />}
             </Link>
           );
         })}

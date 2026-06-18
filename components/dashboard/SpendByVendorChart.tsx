@@ -9,16 +9,16 @@ interface Props {
 }
 
 const BAR_COLORS = [
-  "#818cf8", // indigo-400
+  "#ff725c", // salmon-500 (brand)
+  "#4b90c8", // navy-400
+  "#34d399", // emerald-400
+  "#fbbf24", // amber-400
   "#a78bfa", // violet-400
-  "#93c5fd", // blue-300
-  "#c084fc", // purple-400
-  "#a5b4fc", // indigo-300
-  "#7dd3fc", // sky-300
-  "#c4b5fd", // violet-300
-  "#6366f1", // indigo-500
-  "#8b5cf6", // violet-500
-  "#d8b4fe", // purple-300
+  "#fb7185", // rose-400
+  "#38bdf8", // sky-400
+  "#e85440", // salmon-600
+  "#1d5b92", // navy-600
+  "#ff8778", // salmon-400
 ];
 
 interface TooltipState {
@@ -116,7 +116,7 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
               <ul className="space-y-0.5">
                 {tooltip.projects.map((p) => (
                   <li key={p} className="text-xs text-slate-200 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-salmon-400 shrink-0" />
                     {p}
                   </li>
                 ))}

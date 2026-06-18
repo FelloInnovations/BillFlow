@@ -7,13 +7,13 @@ interface KPICardProps {
   sub?: string;
   icon: LucideIcon;
   isCurrency?: boolean;
-  accent: "indigo" | "amber" | "rose" | "emerald";
+  accent: "salmon" | "amber" | "rose" | "emerald";
 }
 
 const ACCENT = {
-  indigo: {
-    icon: "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-400",
-    border: "border-t-indigo-400",
+  salmon: {
+    icon: "bg-salmon-50 dark:bg-navy-950/60 text-salmon-400",
+    border: "border-t-salmon-400",
   },
   amber: {
     icon: "bg-violet-50 dark:bg-violet-950/60 text-violet-400",

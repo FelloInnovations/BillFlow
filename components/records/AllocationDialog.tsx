@@ -100,7 +100,7 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                   className={cn(
                     "flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
                     costType === opt.value
-                      ? "border-indigo-500 bg-indigo-950/40"
+                      ? "border-salmon-500 bg-salmon-950/40"
                       : "border-slate-700 hover:border-slate-600"
                   )}
                 >
@@ -113,7 +113,7 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                       setCostType(opt.value);
                       setError(null);
                     }}
-                    className="mt-0.5 accent-indigo-400"
+                    className="mt-0.5 accent-salmon-400"
                   />
                   <div>
                     <p className="text-sm font-medium text-slate-200">{opt.label}</p>
@@ -137,7 +137,7 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                       setError(null);
                     }}
                     placeholder="Search projects…"
-                    className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+                    className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors"
                   />
                   {showDropdown && filteredProjects.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden max-h-40 overflow-y-auto">
@@ -158,7 +158,7 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                   )}
                 </div>
                 {projectId && (
-                  <p className="mt-1 text-xs text-indigo-400">Selected: {projectId}</p>
+                  <p className="mt-1 text-xs text-salmon-400">Selected: {projectId}</p>
                 )}
               </div>
             )}
@@ -177,7 +177,7 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold transition-colors"
+              className="flex-1 py-2 rounded-lg bg-salmon-600 hover:bg-salmon-500 disabled:opacity-50 text-white text-sm font-bold transition-colors"
             >
               {saving ? "Saving…" : "Save Allocation"}
             </button>

@@ -29,8 +29,8 @@ export function MonthlyTrendChart({ data }: Props) {
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#6366f1" stopOpacity={0.1} />
-              <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+              <stop offset="0%" stopColor="#ff725c" stopOpacity={0.1} />
+              <stop offset="100%" stopColor="#ff725c" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e2535" vertical={false} />
@@ -51,11 +51,11 @@ export function MonthlyTrendChart({ data }: Props) {
           <Area
             type="monotone"
             dataKey="total"
-            stroke="#6366f1"
+            stroke="#ff725c"
             strokeWidth={2}
             fill="url(#areaGrad)"
             dot={false}
-            activeDot={{ r: 4, fill: "#6366f1", stroke: "#fff", strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: "#ff725c", stroke: "#fff", strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>

@@ -9,7 +9,7 @@ import {
 } from "@/types";
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
-function Sparkline({ data, color = "#6366f1" }: { data: number[]; color?: string }) {
+function Sparkline({ data, color = "#ff725c" }: { data: number[]; color?: string }) {
   if (data.length < 2) return null;
   const max = Math.max(...data, 1);
   const w = 80; const h = 28;
@@ -29,18 +29,18 @@ function HeroStatCard({
   value,
   sparkData,
   isCurrency = false,
-  accent = "indigo",
+  accent = "salmon",
   note,
 }: {
   label: string;
   value: number;
   sparkData?: number[];
   isCurrency?: boolean;
-  accent?: "indigo" | "emerald" | "amber" | "violet" | "sky";
+  accent?: "salmon" | "emerald" | "amber" | "violet" | "sky";
   note?: string;
 }) {
   const accentColor = {
-    indigo: "#6366f1",
+    salmon: "#ff725c",
     emerald: "#10b981",
     amber: "#f59e0b",
     violet: "#8b5cf6",
@@ -181,7 +181,7 @@ function BackfillModal({
           <button
             onClick={run}
             disabled={loading || !from || !to || backfillRunning}
-            className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold py-2 transition-colors"
+            className="flex-1 rounded-lg bg-salmon-600 hover:bg-salmon-700 disabled:opacity-50 text-white text-sm font-semibold py-2 transition-colors"
           >
             {loading ? "Running…" : "Run Backfill"}
           </button>
@@ -261,13 +261,13 @@ function noteFor(key: string, scope: Scope): string {
   return (key === "agents_enriched_period" || key === "teams_enriched_period") ? "this month" : "month-to-date";
 }
 
-function accentFor(key: string): "indigo" | "emerald" | "amber" | "violet" | "sky" {
+function accentFor(key: string): "salmon" | "emerald" | "amber" | "violet" | "sky" {
   if (key === "agents_enriched_total"  || key === "teams_enriched_total")  return "violet";
   if (key === "agents_enriched_period" || key === "teams_enriched_period") return "sky";
-  if (key === "agents_pushed_hubspot"  || key === "teams_pushed_hubspot")  return "indigo";
+  if (key === "agents_pushed_hubspot"  || key === "teams_pushed_hubspot")  return "salmon";
   if (key.includes("arr"))             return "amber";
   if (key.includes("closed_won"))      return "emerald";
-  return "indigo";
+  return "salmon";
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -478,7 +478,7 @@ export function EnrichmentOutcomesClient({
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-semibold transition-colors ${
               activeTab === tab
-                ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 -mb-px"
+                ? "text-salmon-600 dark:text-salmon-400 border-b-2 border-salmon-600 dark:border-navy-400 -mb-px"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
@@ -499,7 +499,7 @@ export function EnrichmentOutcomesClient({
                   onClick={() => setContactScope(opt.value)}
                   className={`px-3 py-2 transition-colors ${
                     contactScope === opt.value
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-salmon-600 text-white"
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >
@@ -596,7 +596,7 @@ export function EnrichmentOutcomesClient({
                   onClick={() => setTeamScope(opt.value)}
                   className={`px-3 py-2 transition-colors ${
                     teamScope === opt.value
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-salmon-600 text-white"
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >

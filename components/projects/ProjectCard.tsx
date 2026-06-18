@@ -125,7 +125,7 @@ function SpendDisplay({ project, pctOfTotal }: { project: Project; pctOfTotal?: 
           {invoiceValue > 0 && (
             <RTooltip.Root delayDuration={150}>
               <RTooltip.Trigger asChild>
-                <span className="cursor-help text-indigo-500 dark:text-indigo-400 whitespace-nowrap">
+                <span className="cursor-help text-salmon-500 dark:text-salmon-400 whitespace-nowrap">
                   Invoices {formatCurrency(invoiceValue)}
                 </span>
               </RTooltip.Trigger>
@@ -192,7 +192,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
   const llmAccounts = project.llms[0]?.owner || null;
 
   const isSharedKey = project.expenseBreakdown?.breakdown.openrouter.isShared ?? false;
-  const barColor = isSharedKey ? "from-amber-400 to-orange-400" : "from-indigo-400 to-violet-400";
+  const barColor = isSharedKey ? "from-amber-400 to-orange-400" : "from-salmon-400 to-salmon-700";
 
   return (
     <div
@@ -232,12 +232,12 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
         {project.llms.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Brain className="w-3 h-3 text-indigo-400" />
+              <Brain className="w-3 h-3 text-salmon-400" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">LLMs</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {project.llms.map((llm, i) => (
-                <span key={i} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 font-medium border border-indigo-100 dark:border-indigo-800 px-2.5 py-0.5 rounded-full">
+                <span key={i} className="text-xs bg-salmon-50 dark:bg-navy-900/30 text-salmon-600 dark:text-salmon-300 font-medium border border-salmon-100 dark:border-navy-800 px-2.5 py-0.5 rounded-full">
                   {llm.provider}{llm.model ? ` · ${llm.model}` : ""}
                 </span>
               ))}
@@ -261,7 +261,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
 
             {expanded && (
               <div className="mt-2 flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <User className="w-3.5 h-3.5 text-salmon-400 shrink-0" />
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Account</p>
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mt-0.5">{llmAccounts}</p>
@@ -277,7 +277,7 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
         <div className="flex items-center justify-between pt-1 px-5 pb-3">
           <Link
             href="/projects/arthur/outcomes"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-salmon-500 dark:text-salmon-400 hover:text-salmon-700 dark:hover:text-salmon-300 transition-colors"
           >
             Outcomes →
           </Link>

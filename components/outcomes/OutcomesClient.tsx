@@ -148,12 +148,12 @@ function BackfillModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">From</label>
                 <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-salmon-500" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">To</label>
                 <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-salmon-500" />
               </div>
             </div>
             {result && (
@@ -175,7 +175,7 @@ function BackfillModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
           <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3">
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">Close</button>
             <button onClick={handleRun} disabled={running || !from || !to}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors">
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-50 transition-colors">
               <RefreshCw className={cn("w-3.5 h-3.5", running && "animate-spin")} />
               {running ? "Running…" : result ? "Run Again" : "Run Backfill"}
             </button>
@@ -223,7 +223,7 @@ function LogModal({ projectId, config, onClose, onSaved }: {
             <div>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Date</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-salmon-500 focus:border-salmon-500" />
             </div>
             {config.map((c) => (
               <div key={c.metric_key}>
@@ -231,14 +231,14 @@ function LogModal({ projectId, config, onClose, onSaved }: {
                 <input type="number" min="0" step="any" placeholder="leave blank to skip"
                   value={values[c.metric_key] ?? ""}
                   onChange={(e) => setValues((v) => ({ ...v, [c.metric_key]: e.target.value }))}
-                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
+                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 focus:border-salmon-500" />
               </div>
             ))}
           </div>
           <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3">
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">Cancel</button>
             <button onClick={handleSubmit} disabled={saving}
-              className="px-4 py-2 text-sm font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors">
+              className="px-4 py-2 text-sm font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-50 transition-colors">
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
@@ -394,7 +394,7 @@ function HeroStatCard({
 function VisualStage({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <div className="w-2.5 h-2.5 rounded-full bg-indigo-200 dark:bg-indigo-800" />
+      <div className="w-2.5 h-2.5 rounded-full bg-salmon-200 dark:bg-navy-800" />
       <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center leading-tight whitespace-nowrap">
         {label}
       </span>
@@ -405,12 +405,12 @@ function VisualStage({ label }: { label: string }) {
 // Fix 6: use Radix Tooltip instead of title attribute
 function VisualArrow({ ratio, isLast = false }: { ratio: SubInfo; isLast?: boolean }) {
   void isLast;
-  const color = ratio.warn ? "#f59e0b" : "#818cf8";
+  const color = ratio.warn ? "#f59e0b" : "#ff8778";
   const labelSpan = (
     <span
       className={cn(
         "text-[10px] font-bold whitespace-nowrap",
-        ratio.warn ? "text-amber-500 dark:text-amber-400 cursor-help" : "text-indigo-400",
+        ratio.warn ? "text-amber-500 dark:text-amber-400 cursor-help" : "text-salmon-400",
       )}
     >
       {ratio.text}{ratio.warn && " ⚠"}
@@ -485,7 +485,7 @@ type Range = "7D" | "30D" | "MTD";
 
 const SOURCE_COLORS = {
   ChatGPT:    "#10b981",
-  Perplexity: "#818cf8",
+  Perplexity: "#ff8778",
   Claude:     "#f59e0b",
   "Other AI": "#94a3b8",
 } as const;
@@ -626,12 +626,12 @@ export function OutcomesClient({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <select value={scope} onChange={(e) => setScope(e.target.value as Scope)}
-              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-salmon-500 cursor-pointer">
               {SCOPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">{syncedLabel}</span>
             <button onClick={syncNow} disabled={syncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-50 transition-colors">
               <RefreshCw className={cn("w-3.5 h-3.5", syncing && "animate-spin")} />
               Sync Now
             </button>
@@ -653,14 +653,14 @@ export function OutcomesClient({
             value={llm.toLocaleString()}
             sub={{ text: topSourceSub(chatgptS, perplexityS, claudeS, otherS), warn: false }}
             sparkData={heroSparks.llm}
-            sparkColor="#6366f1"
+            sparkColor="#ff725c"
           />
           <HeroStatCard
             label="Demos Booked"
             value={booked.toLocaleString()}
             sub={{ text: bookedSub.text === "—" ? "—" : `${bookedSub.text} of traffic`, warn: bookedSub.warn }}
             sparkData={heroSparks.booked}
-            sparkColor="#818cf8"
+            sparkColor="#ff8778"
           />
           <HeroStatCard
             label="Demos Held"
@@ -747,7 +747,7 @@ export function OutcomesClient({
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800">
                       <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Month</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide whitespace-nowrap">LLM Traffic</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-salmon-500 dark:text-salmon-400 uppercase tracking-wide whitespace-nowrap">LLM Traffic</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap border-l border-slate-100 dark:border-slate-800">ChatGPT</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Perplexity</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Claude</th>
@@ -765,15 +765,15 @@ export function OutcomesClient({
                       return (
                         <tr key={row.month} className={cn(
                           "hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors",
-                          isCurrent && "bg-indigo-50/40 dark:bg-indigo-950/20",
+                          isCurrent && "bg-salmon-50/40 dark:bg-navy-950/20",
                         )}>
                           <td className="px-6 py-3 whitespace-nowrap">
                             <span className={cn("font-medium text-slate-800 dark:text-slate-200", isCurrent && "font-semibold")}>{row.monthLabel}</span>
                             {isCurrent && (
-                              <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 uppercase tracking-wide align-middle">current</span>
+                              <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-salmon-100 dark:bg-navy-900/40 text-salmon-600 dark:text-salmon-400 uppercase tracking-wide align-middle">current</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{m.llm_traffic_daily.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-salmon-600 dark:text-salmon-400 whitespace-nowrap">{m.llm_traffic_daily.toLocaleString()}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap border-l border-slate-100 dark:border-slate-800">{m.llm_chatgpt_daily.toLocaleString()}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_perplexity_daily.toLocaleString()}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">{m.llm_claude_daily.toLocaleString()}</td>
@@ -800,7 +800,7 @@ export function OutcomesClient({
             <button key={r} onClick={() => handleRangeChange(r)}
               className={cn(
                 "px-3 py-1.5 text-xs font-bold rounded-lg transition-colors",
-                range === r ? "bg-indigo-600 text-white" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800",
+                range === r ? "bg-salmon-600 text-white" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800",
               )}>
               {r}
             </button>
@@ -840,7 +840,7 @@ export function OutcomesClient({
                   <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="Demos Booked" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Demos Booked" fill="#ff725c" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="Demos Held"   fill="#10b981" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

@@ -73,7 +73,12 @@ components/
 
 ### Styling rules
 - Card pattern: `rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm`
-- Accent colors: indigo (spend/primary), amber (unpaid/warning), rose (overdue/danger), emerald (done/success)
+- Accent colors: **salmon** (spend/primary — `salmon-500` = `#FF725C`), amber (unpaid/warning), rose (overdue/danger), emerald (done/success)
+- Dark mode accents: `dark:bg-navy-950/60` for tinted backgrounds, `dark:text-salmon-300/400` for accent text, `dark:border-navy-800` for accent borders
+- Primary brand: salmon `#FF725C` (salmon-500 in Tailwind), navy `#093555` (navy-900)
+- Background: warm white `#FEFBF9`, cards `#FFFFFF`, border `#E8E8E8`, muted text `#7F7F7F`
+- Font: Instrument Sans (weights 400/500/600, loaded via next/font/google)
+- Never use `indigo-*` Tailwind classes — use `salmon-*` (light mode) or `navy-*` (dark mode backgrounds) instead
 - Always support dark mode with `dark:` variants
 
 ## Environment Variables

@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 
 const PLATFORMS = [
   { key: "llm_chatgpt_daily",    label: "ChatGPT",    bar: "bg-emerald-400", text: "text-emerald-600 dark:text-emerald-400" },
-  { key: "llm_perplexity_daily", label: "Perplexity", bar: "bg-indigo-400",  text: "text-indigo-600 dark:text-indigo-400"  },
+  { key: "llm_perplexity_daily", label: "Perplexity", bar: "bg-salmon-400",  text: "text-salmon-600 dark:text-salmon-400"  },
   { key: "llm_claude_daily",     label: "Claude",     bar: "bg-amber-400",   text: "text-amber-600 dark:text-amber-400"    },
   { key: "llm_other_daily",      label: "Other AI",   bar: "bg-slate-400",   text: "text-slate-500 dark:text-slate-400"    },
 ] as const;
@@ -124,7 +124,7 @@ function EnrichmentProjectCard({
         </div>
         <Link
           href="/projects/enrichment/outcomes"
-          className="text-sm font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors shrink-0"
+          className="text-sm font-semibold text-salmon-500 dark:text-salmon-400 hover:text-salmon-700 dark:hover:text-salmon-300 transition-colors shrink-0"
         >
           View Details →
         </Link>
@@ -193,7 +193,7 @@ export function OutcomesIndexClient() {
         <select
           value={scope}
           onChange={(e) => setScope(e.target.value as Scope)}
-          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-salmon-500 cursor-pointer"
         >
           {SCOPE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -256,7 +256,7 @@ export function OutcomesIndexClient() {
                       </div>
                       <Link
                         href={`/projects/${projectId}/outcomes`}
-                        className="text-sm font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors shrink-0"
+                        className="text-sm font-semibold text-salmon-500 dark:text-salmon-400 hover:text-salmon-700 dark:hover:text-salmon-300 transition-colors shrink-0"
                       >
                         View Details →
                       </Link>

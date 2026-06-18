@@ -342,7 +342,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                     className={cn(
                       "flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors text-sm",
                       form.costType === opt.value
-                        ? "border-indigo-500 bg-indigo-950/40 text-indigo-300"
+                        ? "border-salmon-500 bg-salmon-950/40 text-salmon-300"
                         : "border-slate-700 text-slate-400 hover:border-slate-600"
                     )}
                   >
@@ -358,7 +358,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                           setField("projectSearch", "");
                         }
                       }}
-                      className="accent-indigo-400"
+                      className="accent-salmon-400"
                     />
                     {opt.label}
                   </label>
@@ -403,7 +403,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   )}
                 </div>
                 {form.projectId && (
-                  <p className="mt-1 text-xs text-indigo-400">Selected: {form.projectId}</p>
+                  <p className="mt-1 text-xs text-salmon-400">Selected: {form.projectId}</p>
                 )}
                 <FieldError msg={errors.projectId} />
               </div>

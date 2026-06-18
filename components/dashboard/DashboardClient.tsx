@@ -107,7 +107,7 @@ export function DashboardClient({ initial }: Props) {
           <button
             onClick={refresh}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-40 transition-colors shadow-sm"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
@@ -194,11 +194,11 @@ export function DashboardClient({ initial }: Props) {
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                      isOverdue ? "bg-indigo-100 dark:bg-indigo-900/40" : "bg-violet-50 dark:bg-violet-950/50"
+                      isOverdue ? "bg-salmon-100 dark:bg-navy-900/40" : "bg-violet-50 dark:bg-violet-950/50"
                     )}>
                       <span className={cn(
                         "text-xs font-bold",
-                        isOverdue ? "text-indigo-600 dark:text-indigo-300" : "text-violet-500 dark:text-violet-300"
+                        isOverdue ? "text-salmon-600 dark:text-salmon-300" : "text-violet-500 dark:text-violet-300"
                       )}>
                         {(inv.vendor_name ?? "?")[0].toUpperCase()}
                       </span>
@@ -207,7 +207,7 @@ export function DashboardClient({ initial }: Props) {
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{inv.vendor_name ?? "Unknown"}</p>
                         {isOverdue && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300">OVERDUE</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-salmon-100 dark:bg-navy-900/40 text-salmon-600 dark:text-salmon-300">OVERDUE</span>
                         )}
                       </div>
                       <p className="text-xs text-slate-400 dark:text-slate-500">

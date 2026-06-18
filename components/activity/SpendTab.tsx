@@ -10,7 +10,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { ActivityData, ActivityKeyData } from "@/types";
 
 const KEY_COLORS = [
-  "#6366f1", "#f59e0b", "#10b981", "#f43f5e",
+  "#ff725c", "#f59e0b", "#10b981", "#f43f5e",
   "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6",
   "#f97316", "#06b6d4",
 ];
@@ -252,8 +252,8 @@ export function SpendTab({
   function SortIcon({ col }: { col: SortCol }) {
     if (sortBy !== col) return <ChevronDown className="w-3 h-3 text-slate-300 dark:text-slate-600" />;
     return sortDir === "asc"
-      ? <ChevronUp className="w-3 h-3 text-indigo-500" />
-      : <ChevronDown className="w-3 h-3 text-indigo-500" />;
+      ? <ChevronUp className="w-3 h-3 text-salmon-500" />
+      : <ChevronDown className="w-3 h-3 text-salmon-500" />;
   }
 
   function sortKeys(keys: ActivityKeyData[]) {
@@ -349,7 +349,7 @@ export function SpendTab({
             ) : (
               <div className="flex flex-wrap gap-1">
                 {shownModels.map(m => (
-                  <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap">
+                  <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-salmon-50 dark:bg-navy-950/40 text-salmon-600 dark:text-salmon-400 font-mono whitespace-nowrap">
                     {m}
                   </span>
                 ))}
@@ -362,7 +362,7 @@ export function SpendTab({
             )}
           </td>
           {/* Latest Month */}
-          <td className="px-5 py-3 font-semibold text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap">
+          <td className="px-5 py-3 font-semibold text-salmon-600 dark:text-salmon-400 text-sm whitespace-nowrap">
             {formatCurrency(ps.latestMonthSpend)}
           </td>
           {/* Today — usage_today from openrouter_usage_snapshots, written by n8n hourly */}
@@ -437,7 +437,7 @@ export function SpendTab({
                           />
                           <Area
                             type="monotone" dataKey="cost"
-                            stroke="#6366f1" fill="#6366f133" strokeWidth={1.5}
+                            stroke="#ff725c" fill="#ff725c33" strokeWidth={1.5}
                           />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -471,7 +471,7 @@ export function SpendTab({
                                 <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{m.requests.toLocaleString()}</td>
                                 <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{m.prompt_tokens.toLocaleString()}</td>
                                 <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{m.completion_tokens.toLocaleString()}</td>
-                                <td className="py-1.5 text-right font-semibold text-indigo-600 dark:text-indigo-400">{formatCurrency(m.total_cost)}</td>
+                                <td className="py-1.5 text-right font-semibold text-salmon-600 dark:text-salmon-400">{formatCurrency(m.total_cost)}</td>
                                 <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{formatCurrency(m.avg_cost)}</td>
                               </tr>
                             ))}
@@ -530,7 +530,7 @@ export function SpendTab({
             <button key={n} onClick={() => setMonthRange(n)}
               className={cn("px-3 py-1 rounded-md text-xs font-semibold transition-all",
                 monthRange === n
-                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  ? "bg-white dark:bg-slate-900 text-salmon-600 dark:text-salmon-400 shadow-sm"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
               )}>
               {n}M
@@ -544,7 +544,7 @@ export function SpendTab({
             <button key={v} onClick={() => setChartView(v)}
               className={cn("px-3 py-1 rounded-md text-xs font-semibold transition-all",
                 chartView === v
-                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  ? "bg-white dark:bg-slate-900 text-salmon-600 dark:text-salmon-400 shadow-sm"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
               )}>
               {v === "key" ? "By Key" : "By Day"}
@@ -553,7 +553,7 @@ export function SpendTab({
         </div>
 
         <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer select-none">
-          <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="accent-indigo-600 rounded" />
+          <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="accent-salmon-600 rounded" />
           Show inactive
         </label>
 
@@ -611,7 +611,7 @@ export function SpendTab({
                           <p className="font-semibold text-slate-700 mb-1">{formatDay(label as string)}</p>
                           <p className="text-slate-600">{formatCurrency(payload[0].value as number)}</p>
                           {entry.isLive && (
-                            <p className="text-indigo-500 mt-1.5 border-t border-slate-100 pt-1.5">
+                            <p className="text-salmon-500 mt-1.5 border-t border-slate-100 pt-1.5">
                               Updated hourly — partial day total
                             </p>
                           )}
@@ -623,9 +623,9 @@ export function SpendTab({
                     {byDay.map((entry, i) => (
                       <Cell
                         key={i}
-                        fill={entry.isLive ? "#818cf8" : "#6366f1"}
+                        fill={entry.isLive ? "#ff8778" : "#ff725c"}
                         fillOpacity={entry.isLive ? 0.65 : 1}
-                        stroke={entry.isLive ? "#6366f1" : "none"}
+                        stroke={entry.isLive ? "#ff725c" : "none"}
                         strokeWidth={entry.isLive ? 1 : 0}
                         strokeDasharray={entry.isLive ? "3 2" : undefined}
                       />
@@ -642,7 +642,7 @@ export function SpendTab({
                             textAnchor="middle"
                             fontSize={9}
                             fontWeight={700}
-                            fill="#6366f1"
+                            fill="#ff725c"
                             letterSpacing={0.5}
                           >
                             LIVE

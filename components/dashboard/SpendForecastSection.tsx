@@ -64,7 +64,7 @@ export function SpendForecastSection() {
       {/* Link */}
       <Link
         href="/forecasting"
-        className="flex items-center gap-1 text-xs font-semibold text-indigo-500 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors whitespace-nowrap shrink-0"
+        className="flex items-center gap-1 text-xs font-semibold text-salmon-500 dark:text-salmon-400 hover:text-salmon-600 dark:hover:text-salmon-300 transition-colors whitespace-nowrap shrink-0"
       >
         View full forecast
         <ArrowRight className="w-3 h-3" />

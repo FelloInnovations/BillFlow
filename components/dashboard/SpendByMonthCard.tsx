@@ -73,18 +73,18 @@ export function SpendRangeCard() {
   const hasUnpaid = data.unpaidCount > 0 || data.upcomingCount > 0;
 
   return (
-    <div ref={ref} className="relative rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 border-t-4 border-t-indigo-500 shadow-sm hover:shadow-md transition-shadow">
+    <div ref={ref} className="relative rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 border-t-4 border-t-salmon-500 shadow-sm hover:shadow-md transition-shadow">
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <button
             onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 hover:text-salmon-600 dark:hover:text-salmon-400 transition-colors"
           >
             <CalendarDays className="w-3.5 h-3.5 shrink-0" />
             {formatRange(applied.from, applied.to)}
           </button>
-          <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-500">
+          <div className="p-2 rounded-xl bg-salmon-50 dark:bg-navy-950 text-salmon-500">
             <DollarSign className="w-4 h-4" />
           </div>
         </div>
@@ -97,8 +97,8 @@ export function SpendRangeCard() {
 
         {/* Date picker popover */}
         {open && (
-          <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-slate-800 border-2 border-indigo-100 dark:border-slate-600 rounded-2xl shadow-2xl p-4 space-y-3.5 w-64">
-            <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest">Select Date Range</p>
+          <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-slate-800 border-2 border-salmon-100 dark:border-slate-600 rounded-2xl shadow-2xl p-4 space-y-3.5 w-64">
+            <p className="text-[10px] font-bold text-salmon-500 dark:text-salmon-400 uppercase tracking-widest">Select Date Range</p>
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wider">From</label>
@@ -106,7 +106,7 @@ export function SpendRangeCard() {
                   type="date"
                   value={from}
                   onChange={(e) => setFrom(e.target.value)}
-                  className="mt-1.5 w-full text-xs bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-500 rounded-lg px-2 py-1.5 text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="mt-1.5 w-full text-xs bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-500 rounded-lg px-2 py-1.5 text-slate-800 dark:text-slate-100 outline-none focus:border-salmon-500 focus:ring-1 focus:ring-salmon-500"
                 />
               </div>
               <div>
@@ -115,14 +115,14 @@ export function SpendRangeCard() {
                   type="date"
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
-                  className="mt-1.5 w-full text-xs bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-500 rounded-lg px-2 py-1.5 text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="mt-1.5 w-full text-xs bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-500 rounded-lg px-2 py-1.5 text-slate-800 dark:text-slate-100 outline-none focus:border-salmon-500 focus:ring-1 focus:ring-salmon-500"
                 />
               </div>
             </div>
             <button
               onClick={apply}
               disabled={!from || !to || from > to}
-              className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold tracking-wide transition-colors shadow-sm"
+              className="w-full py-2 rounded-xl bg-salmon-600 hover:bg-salmon-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold tracking-wide transition-colors shadow-sm"
             >
               Apply
             </button>

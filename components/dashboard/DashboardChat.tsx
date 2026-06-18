@@ -87,13 +87,13 @@ export function DashboardChat(_props: Props) {
               What's on your mind today?
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center justify-center gap-1">
-              <Sparkles className="w-3 h-3 text-indigo-400" />
+              <Sparkles className="w-3 h-3 text-salmon-400" />
               Orion · Spend Intelligence
             </p>
           </>
         ) : (
           <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
-            <Sparkles className="w-3 h-3 text-indigo-400" />
+            <Sparkles className="w-3 h-3 text-salmon-400" />
             Orion · Spend Intelligence
           </p>
         )}
@@ -109,7 +109,7 @@ export function DashboardChat(_props: Props) {
           {messages.map((m, i) => (
             <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
               {m.role === "assistant" && (
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0 mr-2 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-salmon-400 to-salmon-700 flex items-center justify-center shrink-0 mr-2 mt-0.5">
                   <Sparkles className="w-3 h-3 text-white" />
                 </div>
               )}
@@ -117,13 +117,13 @@ export function DashboardChat(_props: Props) {
                 className={cn(
                   "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
                   m.role === "user"
-                    ? "bg-indigo-600 text-white rounded-br-sm"
+                    ? "bg-salmon-600 text-white rounded-br-sm"
                     : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm"
                 )}
               >
                 {m.content ? (
                   m.role === "assistant" ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-headings:text-sm prose-strong:text-indigo-700 dark:prose-strong:text-indigo-300 prose-td:px-2 prose-td:py-1 prose-th:px-2 prose-th:py-1 prose-table:text-xs">
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-headings:text-sm prose-strong:text-salmon-700 dark:prose-strong:text-salmon-300 prose-td:px-2 prose-td:py-1 prose-th:px-2 prose-th:py-1 prose-table:text-xs">
                       <ReactMarkdown>{m.content}</ReactMarkdown>
                     </div>
                   ) : (
@@ -143,7 +143,7 @@ export function DashboardChat(_props: Props) {
         className={cn(
           "flex items-center gap-3 rounded-full border px-5 py-3 transition-all duration-200",
           focused
-            ? "bg-white dark:bg-slate-800 border-indigo-400 shadow-lg shadow-indigo-500/10"
+            ? "bg-white dark:bg-slate-800 border-salmon-400 shadow-lg shadow-salmon-500/10"
             : "bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 shadow-sm"
         )}
       >
@@ -190,7 +190,7 @@ export function DashboardChat(_props: Props) {
             <button
               key={s}
               onClick={() => send(s)}
-              className="text-xs px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all font-medium"
+              className="text-xs px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-salmon-300 hover:text-salmon-600 dark:hover:text-salmon-300 hover:bg-salmon-50 dark:hover:bg-navy-950/40 transition-all font-medium"
             >
               {s}
             </button>

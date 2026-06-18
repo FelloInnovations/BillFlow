@@ -114,7 +114,7 @@ function UnallocatedCard({ data }: { data: UnallocatedSpend }) {
       <p className="text-[10px] text-slate-400 dark:text-slate-500 italic border-t border-slate-200 dark:border-slate-700 pt-2 leading-snug">
         {miscCount > 0 && (
           <>
-            <Link href="/records?costType=unallocated" className="hover:text-indigo-400 transition-colors">
+            <Link href="/records?costType=unallocated" className="hover:text-salmon-400 transition-colors">
               {miscCount} invoice{miscCount !== 1 ? "s" : ""} in &lsquo;Unallocated Invoices&rsquo; still need allocation. Triage them in Financial Records →.
             </Link>{" "}
           </>
@@ -205,14 +205,14 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
               placeholder="Search projects…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-salmon-400"
             />
           </div>
 
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="ml-auto px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer"
+            className="ml-auto px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-salmon-400 cursor-pointer"
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>

@@ -104,7 +104,7 @@ function AllocationBadge({
     return (
       <button
         onClick={onAllocate}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800 hover:ring-indigo-400 transition-shadow max-w-[140px] truncate"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-salmon-50 dark:bg-navy-950 text-salmon-700 dark:text-salmon-300 ring-1 ring-salmon-200 dark:ring-navy-800 hover:ring-salmon-400 transition-shadow max-w-[140px] truncate"
         title={project_id}
       >
         {project_id}
@@ -138,7 +138,7 @@ function AllocationBadge({
   return (
     <button
       onClick={onAllocate}
-      className="text-xs text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+      className="text-xs text-slate-400 hover:text-salmon-500 dark:hover:text-salmon-400 transition-colors"
     >
       Allocate →
     </button>
@@ -217,7 +217,7 @@ function BulkAllocationDialog({
                 className={cn(
                   "flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
                   costType === opt.value
-                    ? "border-indigo-500 bg-indigo-950/40"
+                    ? "border-salmon-500 bg-salmon-950/40"
                     : "border-slate-700 hover:border-slate-600"
                 )}
               >
@@ -227,7 +227,7 @@ function BulkAllocationDialog({
                   value={opt.value}
                   checked={costType === opt.value}
                   onChange={() => { setCostType(opt.value); setError(null); }}
-                  className="mt-0.5 accent-indigo-400"
+                  className="mt-0.5 accent-salmon-400"
                 />
                 <div>
                   <p className="text-sm font-medium text-slate-200">{opt.label}</p>
@@ -245,7 +245,7 @@ function BulkAllocationDialog({
                     value={projectSearch}
                     onChange={(e) => { setProjectSearch(e.target.value); setProjectId(""); setError(null); }}
                     placeholder="Search projects…"
-                    className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+                    className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors"
                   />
                   {projectSearch && !projectId && filteredProjects.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden max-h-36 overflow-y-auto">
@@ -262,7 +262,7 @@ function BulkAllocationDialog({
                     </div>
                   )}
                 </div>
-                {projectId && <p className="mt-1 text-xs text-indigo-400">Selected: {projectId}</p>}
+                {projectId && <p className="mt-1 text-xs text-salmon-400">Selected: {projectId}</p>}
               </div>
             )}
             {error && <p className="text-xs text-red-400">{error}</p>}
@@ -277,7 +277,7 @@ function BulkAllocationDialog({
             </button>
             <button
               onClick={handleConfirm}
-              className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition-colors"
+              className="flex-1 py-2 rounded-lg bg-salmon-600 hover:bg-salmon-500 text-white text-sm font-bold transition-colors"
             >
               Allocate {count}
             </button>
@@ -570,9 +570,9 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             <button
               onClick={() => setVendorOpen((o) => !o)}
               className={cn(
-                "flex items-center gap-2 text-sm border rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors",
+                "flex items-center gap-2 text-sm border rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors",
                 selectedVendors.length > 0
-                  ? "border-indigo-400 dark:border-indigo-500 text-indigo-700 dark:text-indigo-300"
+                  ? "border-salmon-400 dark:border-navy-500 text-salmon-700 dark:text-salmon-300"
                   : "border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
               )}
             >
@@ -596,7 +596,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                       className={cn(
                         "w-full text-left flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
                         selectedVendors.includes(v)
-                          ? "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300"
+                          ? "bg-salmon-50 dark:bg-navy-950 text-salmon-700 dark:text-salmon-300"
                           : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                       )}
                     >
@@ -604,7 +604,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                         className={cn(
                           "w-4 h-4 rounded border flex items-center justify-center shrink-0",
                           selectedVendors.includes(v)
-                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            ? "bg-salmon-600 border-salmon-600 text-white"
                             : "border-slate-300 dark:border-slate-600"
                         )}
                       >
@@ -631,7 +631,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           <select
             value={filters.status}
             onChange={(e) => applyFilter("status", e.target.value)}
-            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s || "All Statuses"}</option>
@@ -642,9 +642,9 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             value={filters.costType}
             onChange={(e) => applyFilter("costType", e.target.value)}
             className={cn(
-              "text-sm border rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors",
+              "text-sm border rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors",
               filters.costType
-                ? "border-indigo-400 dark:border-indigo-500 text-indigo-700 dark:text-indigo-300"
+                ? "border-salmon-400 dark:border-navy-500 text-salmon-700 dark:text-salmon-300"
                 : "border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
             )}
           >
@@ -657,13 +657,13 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             type="date"
             value={filters.dateFrom}
             onChange={(e) => applyFilter("dateFrom", e.target.value)}
-            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
           />
           <input
             type="date"
             value={filters.dateTo}
             onChange={(e) => applyFilter("dateTo", e.target.value)}
-            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
           />
         </div>
 
@@ -675,7 +675,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           <button
             onClick={handleRefresh}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-salmon-50 dark:bg-navy-950 border border-salmon-200 dark:border-navy-800 text-salmon-700 dark:text-salmon-300 hover:bg-salmon-100 dark:hover:bg-navy-900 disabled:opacity-40 transition-colors"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
@@ -729,7 +729,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                   className={cn(
                     "group cursor-pointer transition-colors",
                     isChecked
-                      ? "bg-indigo-50/40 dark:bg-indigo-950/20 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/30"
+                      ? "bg-salmon-50/40 dark:bg-navy-950/20 hover:bg-salmon-50/70 dark:hover:bg-navy-950/30"
                       : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
                   )}
                   onClick={() => {
@@ -902,7 +902,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               <button
                 onClick={() => setShowBulkAllocate(true)}
                 disabled={bulkAllocating}
-                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-salmon-600 hover:bg-salmon-500 disabled:opacity-50 text-white text-xs font-bold transition-colors"
               >
                 {bulkAllocating ? "Allocating…" : "Allocate"}
               </button>
