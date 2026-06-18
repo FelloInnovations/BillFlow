@@ -409,22 +409,20 @@ export function EnrichmentOutcomesClient({
     ];
   }, [teamDisplay]);
 
-  // Contact trend charts
+  // Contact trend charts — 4 charts in 2×2 grid (Pushed removed, it's in the funnel)
   const contactTrendCharts = useMemo((): TrendChartData[] => [
-    mkTrend(monthly, "Pushed to HubSpot",  "agents_pushed_hubspot"),
-    mkTrend(monthly, "Demos Booked",        "demos_booked_mtd"),
-    mkTrend(monthly, "Demos Held",          "demos_held_mtd"),
-    mkTrend(monthly, "Closed Won",          "closed_won_mtd"),
-    mkTrend(monthly, "ARR Closed",          "arr_closed_mtd", true),
+    mkTrend(monthly, "Demos Booked",  "demos_booked_mtd"),
+    mkTrend(monthly, "Demos Held",    "demos_held_mtd"),
+    mkTrend(monthly, "Closed Won",    "closed_won_mtd"),
+    mkTrend(monthly, "ARR Closed",    "arr_closed_mtd", true),
   ], [monthly]);
 
-  // Team trend charts
+  // Team trend charts — 4 charts in 2×2 grid
   const teamTrendCharts = useMemo((): TrendChartData[] => [
-    mkTrend(monthly, "Teams Pushed",       "teams_pushed_hubspot"),
-    mkTrend(monthly, "Demos Booked",        "team_demos_booked_mtd"),
-    mkTrend(monthly, "Demos Held",          "team_demos_held_mtd"),
-    mkTrend(monthly, "Closed Won",          "team_closed_won_mtd"),
-    mkTrend(monthly, "ARR Closed",          "team_arr_closed_mtd", true),
+    mkTrend(monthly, "Demos Booked",  "team_demos_booked_mtd"),
+    mkTrend(monthly, "Demos Held",    "team_demos_held_mtd"),
+    mkTrend(monthly, "Closed Won",    "team_closed_won_mtd"),
+    mkTrend(monthly, "ARR Closed",    "team_arr_closed_mtd", true),
   ], [monthly]);
 
   // Monthly table columns
@@ -456,7 +454,7 @@ export function EnrichmentOutcomesClient({
 
   // Tabs slot
   const tabsSlot = (
-    <div className="flex border-b border-border mb-6">
+    <div className="flex border-b border-gray-200 mb-6">
       {(["contact", "team"] as const).map((tab) => (
         <button
           key={tab}
@@ -465,7 +463,7 @@ export function EnrichmentOutcomesClient({
             "px-4 py-2 text-sm font-semibold transition-colors",
             activeTab === tab
               ? "text-[#FF725C] border-b-2 border-[#FF725C] -mb-px"
-              : "text-muted-foreground hover:text-foreground",
+              : "text-gray-500 hover:text-gray-700",
           )}
         >
           {tab === "contact" ? "Contact Level" : "Team Level"}

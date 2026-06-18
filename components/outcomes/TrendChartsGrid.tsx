@@ -56,18 +56,20 @@ function MomBadge({ filteredData }: { filteredData: { month: string; value: numb
   const prevVal = filteredData[filteredData.length - 2]?.value ?? 0;
 
   if (filteredData.length < 2) return null;
-  if (lastVal === 0) return <span className="text-xs text-gray-400 px-1.5 py-0.5">—</span>;
+  if (lastVal === 0) return <span className="text-xs text-gray-400 font-medium">—</span>;
   if (prevVal === 0) return null;
 
   const momPct = ((lastVal - prevVal) / prevVal) * 100;
-  const capped = Math.min(Math.abs(momPct), 99);
+
+  // Show "—" for extreme changes (≥99%) — they're misleading as a percentage
+  if (Math.abs(momPct) >= 99) return <span className="text-xs text-gray-400 font-medium">—</span>;
 
   return (
     <span className={cn(
       "text-xs font-medium px-1.5 py-0.5 rounded-full",
       momPct >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600",
     )}>
-      {momPct >= 0 ? "↑" : "↓"} {capped.toFixed(0)}%
+      {momPct >= 0 ? "↑" : "↓"} {Math.abs(momPct).toFixed(0)}%
     </span>
   );
 }
@@ -82,7 +84,7 @@ function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string
   const chartData = filteredData.map((d) => ({ month: formatMonthLabel(d.month), value: d.value }));
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white shadow-sm p-4">
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col">
       <div className="flex items-start justify-between mb-1">
         <span className="text-xs font-semibold uppercase tracking-widest text-gray-500 block">
           {chart.label}
@@ -90,7 +92,8 @@ function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string
         <MomBadge filteredData={filteredData} />
       </div>
       <div className="text-xl font-bold text-gray-900 mb-2">{displayScopeTotal}</div>
-      <ResponsiveContainer width="100%" height={64}>
+      <div className="flex-1 min-h-[64px] mt-1">
+      <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={`fill-${chart.metricKey}`} x1="0" y1="0" x2="0" y2="1">
@@ -128,6 +131,7 @@ function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string
           />
         </AreaChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

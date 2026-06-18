@@ -65,8 +65,8 @@ export function OutcomesPageLayout({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <p className="text-sm text-gray-500 mt-1">
             {subtitle}
             {lastSynced && (
               <span className="ml-2">· Synced {lastSynced}</span>
@@ -84,7 +84,7 @@ export function OutcomesPageLayout({
                   "px-3 py-2 transition-colors",
                   scope === opt.value
                     ? "bg-[#FF725C] text-white"
-                    : "text-muted-foreground hover:bg-muted",
+                    : "text-gray-700 hover:bg-gray-50",
                 )}
               >
                 {opt.label}
@@ -94,7 +94,7 @@ export function OutcomesPageLayout({
           <button
             onClick={onSyncNow}
             disabled={syncingNow}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-card disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", syncingNow && "animate-spin")} />
             {syncingNow ? "Syncing…" : "Sync Now"}
@@ -105,7 +105,7 @@ export function OutcomesPageLayout({
               "px-3 py-2 rounded-xl border text-sm font-semibold transition-colors",
               backfillRunning
                 ? "border-amber-300 text-amber-600 bg-amber-50 cursor-default"
-                : "border-border text-muted-foreground hover:bg-card",
+                : "border-gray-200 text-gray-700 hover:bg-gray-50",
             )}
           >
             {backfillRunning ? "Backfill Running…" : "Backfill"}
@@ -125,8 +125,9 @@ export function OutcomesPageLayout({
 
       {/* Trends section */}
       {trendCharts.length > 0 && (
-        <div className="mt-6 mb-2">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Trends</h3>
+        <div className="flex items-center gap-3 mt-8 mb-4">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">Trends</h3>
+          <div className="flex-1 h-px bg-gray-100" />
         </div>
       )}
       <TrendChartsGrid charts={trendCharts} scope={scope} />
@@ -136,11 +137,11 @@ export function OutcomesPageLayout({
         <div className="mt-8">
           <button
             onClick={() => setTableExpanded((v) => !v)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
+            className="flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors mt-8 mb-3"
           >
             <ChevronDown
               className={cn(
-                "h-4 w-4 transition-transform duration-200",
+                "h-3.5 w-3.5 transition-transform duration-200",
                 tableExpanded && "rotate-180",
               )}
             />

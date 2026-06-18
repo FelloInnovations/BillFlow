@@ -5,9 +5,9 @@
 @layer base {
   :root {
     --background: 254 251 249;
-    --foreground: 53 62 90;
+    --foreground: 17 24 39;
     --card: 255 255 255;
-    --card-foreground: 53 62 90;
+    --card-foreground: 17 24 39;
     --primary: 255 114 92;
     --primary-foreground: 255 255 255;
     --secondary: 248 244 242;

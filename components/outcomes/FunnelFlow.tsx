@@ -34,7 +34,7 @@ export function FunnelFlow({ stages }: { stages: FunnelStage[] }) {
                   <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
                 </div>
                 {stages[index + 1].conversionFromPrev != null && (
-                  <span className="text-xs text-gray-400 mt-1 whitespace-nowrap">
+                  <span className="text-xs font-medium text-gray-500 mt-1 whitespace-nowrap">
                     {(stages[index + 1].conversionFromPrev! * 100).toFixed(1)}%
                   </span>
                 )}
