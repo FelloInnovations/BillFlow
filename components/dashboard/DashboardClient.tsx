@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { AlertCircle, CalendarClock, RefreshCw, OctagonAlert } from "lucide-react";
+import { AlertCircle, CalendarClock, RefreshCw, OctagonAlert, Mail } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { SpendRangeCard } from "@/components/dashboard/SpendByMonthCard";
 import { SpendByVendorChart } from "@/components/dashboard/SpendByVendorChart";
@@ -20,6 +20,8 @@ export function DashboardClient({ initial }: Props) {
   const [metrics, setMetrics] = useState<DashboardMetrics>(initial);
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [reportSending, setReportSending] = useState(false);
+  const [reportToast, setReportToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [vendorProjects, setVendorProjects] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
@@ -62,6 +64,25 @@ export function DashboardClient({ initial }: Props) {
     }
   }, []);
 
+  const sendTestReport = useCallback(async () => {
+    setReportSending(true);
+    setReportToast(null);
+    try {
+      const res  = await fetch("/api/email/trigger-weekly-report", { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setReportToast({ ok: true, msg: `Sent to ${body.recipients?.join(", ") ?? "recipients"}` });
+      } else {
+        setReportToast({ ok: false, msg: body.error ?? "Send failed" });
+      }
+    } catch {
+      setReportToast({ ok: false, msg: "Network error" });
+    } finally {
+      setReportSending(false);
+      setTimeout(() => setReportToast(null), 5000);
+    }
+  }, []);
+
   return (
     <div className="pt-10 px-7 pb-7 space-y-6 max-w-7xl">
       {/* Header row */}
@@ -75,6 +96,15 @@ export function DashboardClient({ initial }: Props) {
             {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <button
+            onClick={sendTestReport}
+            disabled={reportSending}
+            title="Send test weekly digest email"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
+          >
+            <Mail className={cn("w-3.5 h-3.5", reportSending && "animate-pulse")} />
+            {reportSending ? "Sending…" : "Test Report"}
+          </button>
+          <button
             onClick={refresh}
             disabled={loading}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 transition-colors shadow-sm"
@@ -84,6 +114,19 @@ export function DashboardClient({ initial }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Toast notification for report send */}
+      {reportToast && (
+        <div className={cn(
+          "fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all",
+          reportToast.ok
+            ? "bg-emerald-600 text-white"
+            : "bg-red-600 text-white",
+        )}>
+          <Mail className="w-4 h-4 shrink-0" />
+          {reportToast.ok ? "Report sent · " : "Send failed · "}{reportToast.msg}
+        </div>
+      )}
 
       {/* Row 1 — Orion AI */}
       <div className="max-w-2xl mx-auto">
