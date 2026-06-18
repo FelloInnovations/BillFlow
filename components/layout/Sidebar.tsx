@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   FileText,
@@ -12,8 +10,6 @@ import {
   TrendingUp,
   Activity,
   BarChart2,
-  Sun,
-  Moon,
   Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,33 +24,13 @@ const NAV = [
   { href: "/forecasting", label: "Forecasting", icon: TrendingUp },
 ];
 
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return <div className="w-8 h-8" />;
-  return (
-    <button
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-      aria-label="Toggle theme"
-    >
-      {resolvedTheme === "dark" ? (
-        <Sun className="w-4 h-4" />
-      ) : (
-        <Moon className="w-4 h-4" />
-      )}
-    </button>
-  );
-}
-
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
     <aside className="w-60 shrink-0 flex flex-col h-screen sticky top-0 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800">
       {/* Logo */}
-      <div className="h-16 flex items-center justify-between px-5">
+      <div className="h-16 flex items-center px-5">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-salmon-600 flex items-center justify-center shrink-0">
             <span className="text-white text-xs font-black tracking-tighter leading-none">BF</span>
@@ -64,7 +40,6 @@ export function Sidebar() {
             <p className="text-slate-400 dark:text-slate-600 text-[10px] font-medium tracking-widest uppercase">AI Cost Tracker</p>
           </div>
         </div>
-        <ThemeToggle />
       </div>
 
       <div className="mx-4 border-t border-slate-100 dark:border-slate-800 mb-1" />

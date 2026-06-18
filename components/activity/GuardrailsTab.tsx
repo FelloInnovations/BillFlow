@@ -478,9 +478,9 @@ export function GuardrailsTab({ activity }: GuardrailsTabProps) {
                     "text-slate-800 dark:text-slate-200"
                   )}>
                     {formatCurrency(alert.current_spend)}
-                    <span className="font-normal text-slate-400 dark:text-slate-500"> / {formatCurrency(alert.limit_usd)}</span>
+                    <span className="font-normal text-foreground/60"> / {formatCurrency(alert.limit_usd)}</span>
                   </span>
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-semibold text-foreground">
                     {Number(alert.current_pct).toFixed(1)}%
                   </span>
                 </div>

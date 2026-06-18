@@ -373,19 +373,19 @@ export function SpendTab({
             }
           </td>
           {/* % of Total (period) */}
-          <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
             {pct.toFixed(1)}%
           </td>
           {/* Avg/Month (period, active months only) */}
-          <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
             {formatCurrency(ps.avg)}
           </td>
           {/* Avg/Week */}
-          <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
             {formatCurrency(ps.weekly)}
           </td>
           {/* Avg/Day */}
-          <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
             {formatCurrency(ps.daily)}
           </td>
           {/* Trend */}
