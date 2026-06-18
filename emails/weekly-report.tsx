@@ -38,8 +38,33 @@ const TEXT_MUT = "#94a3b8";
 const TEXT_LG  = "#e2e8f0";
 const INDIGO   = "#818cf8";
 
+function FunnelRow({ steps }: {
+  steps: { label: string; value: number; currency?: boolean }[];
+}) {
+  return (
+    <Row>
+      {steps.map(({ label, value, currency }, i) => (
+        <React.Fragment key={label}>
+          <Column style={{ textAlign: "center" }}>
+            <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>
+              {currency ? usd.format(value) : value.toLocaleString()}
+            </Text>
+            <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>
+              {label}
+            </Text>
+          </Column>
+          {i < steps.length - 1 && (
+            <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11, width: 16 }}>→</Column>
+          )}
+        </React.Fragment>
+      ))}
+    </Row>
+  );
+}
+
 export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
   const spendDelta = formatDelta(data.totalSpendThisWeek, data.totalSpendLastWeek);
+  const hasAnyOutcome = data.arthurHasData || data.enrichmentContactsHasData || data.enrichmentTeamsHasData;
 
   return (
     <Html>
@@ -48,12 +73,9 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
       <Body style={{ backgroundColor: BG, fontFamily: "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace", margin: 0, padding: 0 }}>
         <Container style={{ maxWidth: 600, margin: "0 auto", padding: "32px 16px" }}>
 
-          {/* Header */}
+          {/* Header — no FELLO AI label (Fix 7) */}
           <Section style={{ marginBottom: 24 }}>
-            <Text style={{ color: INDIGO, fontSize: 11, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", margin: 0 }}>
-              FELLO AI
-            </Text>
-            <Heading style={{ color: "#ffffff", fontSize: 24, fontWeight: 800, margin: "8px 0 4px" }}>
+            <Heading style={{ color: "#ffffff", fontSize: 24, fontWeight: 800, margin: "0 0 4px" }}>
               BillFlow Weekly Digest
             </Heading>
             <Text style={{ color: TEXT_MUT, fontSize: 12, margin: 0 }}>{data.weekLabel}</Text>
@@ -65,100 +87,59 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
               OUTCOMES
             </Text>
 
-            {/* Arthur */}
-            <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
-              <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>
-                Arthur
+            {!hasAnyOutcome ? (
+              <Text style={{ color: TEXT_MUT, fontSize: 13, margin: "0 0 16px" }}>
+                No new pipeline activity this week.
               </Text>
-              <Row>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 20, fontWeight: 800, margin: 0 }}>{data.arthurDemosBooked}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Booked</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 20, fontWeight: 800, margin: 0 }}>{data.arthurDemosHeld}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Held</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 20, fontWeight: 800, margin: 0 }}>{data.arthurClosedWon}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Won</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 20, fontWeight: 800, margin: 0 }}>{usd.format(data.arthurArrClosed)}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>ARR</Text>
-                </Column>
-              </Row>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
-            </Section>
+            ) : (
+              <>
+                {/* Arthur (Fix 3 — hidden when all zeros) */}
+                {data.arthurHasData && (
+                  <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
+                    <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>Arthur</Text>
+                    <FunnelRow steps={[
+                      { label: "Booked", value: data.arthurDemosBooked },
+                      { label: "Held",   value: data.arthurDemosHeld   },
+                      { label: "Won",    value: data.arthurClosedWon   },
+                      { label: "ARR",    value: data.arthurArrClosed, currency: true },
+                    ]} />
+                    <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
+                  </Section>
+                )}
 
-            {/* Enrichment Contact */}
-            <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
-              <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Enrichment · Contact Funnel</Text>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "0 0 12px" }}>MAD ID pipeline</Text>
-              <Row>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichContactPushed.toLocaleString()}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Pushed</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichContactDemosBooked}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Booked</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichContactDemosHeld}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Held</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichContactClosedWon}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Won</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{usd.format(data.enrichContactArrClosed)}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>ARR</Text>
-                </Column>
-              </Row>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
-            </Section>
+                {/* Enrichment Contacts (Fix 3 — hidden when all zeros) */}
+                {data.enrichmentContactsHasData && (
+                  <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
+                    <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Enrichment · Contact Funnel</Text>
+                    <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "0 0 12px" }}>MAD ID pipeline</Text>
+                    <FunnelRow steps={[
+                      { label: "Pushed", value: data.enrichContactPushed },
+                      { label: "Booked", value: data.enrichContactDemosBooked },
+                      { label: "Held",   value: data.enrichContactDemosHeld   },
+                      { label: "Won",    value: data.enrichContactClosedWon   },
+                      { label: "ARR",    value: data.enrichContactArrClosed, currency: true },
+                    ]} />
+                    <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
+                  </Section>
+                )}
 
-            {/* Enrichment Team */}
-            <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 0 }}>
-              <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Enrichment · Team Funnel</Text>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "0 0 12px" }}>MAD ID pipeline</Text>
-              <Row>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichTeamPushed.toLocaleString()}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Pushed</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichTeamDemosBooked}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Booked</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichTeamDemosHeld}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Held</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{data.enrichTeamClosedWon}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>Won</Text>
-                </Column>
-                <Column style={{ textAlign: "center", color: TEXT_MUT, fontSize: 11 }}>→</Column>
-                <Column style={{ textAlign: "center" }}>
-                  <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 800, margin: 0 }}>{usd.format(data.enrichTeamArrClosed)}</Text>
-                  <Text style={{ color: TEXT_MUT, fontSize: 9, textTransform: "uppercase", letterSpacing: 1, margin: "2px 0 0" }}>ARR</Text>
-                </Column>
-              </Row>
-              <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
-            </Section>
+                {/* Enrichment Teams (Fix 3 — hidden when all zeros) */}
+                {data.enrichmentTeamsHasData && (
+                  <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 0 }}>
+                    <Text style={{ color: TEXT_LG, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Enrichment · Team Funnel</Text>
+                    <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "0 0 12px" }}>MAD ID pipeline</Text>
+                    <FunnelRow steps={[
+                      { label: "Pushed", value: data.enrichTeamPushed },
+                      { label: "Booked", value: data.enrichTeamDemosBooked },
+                      { label: "Held",   value: data.enrichTeamDemosHeld   },
+                      { label: "Won",    value: data.enrichTeamClosedWon   },
+                      { label: "ARR",    value: data.enrichTeamArrClosed, currency: true },
+                    ]} />
+                    <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "10px 0 0" }}>This week · {data.weekLabel}</Text>
+                  </Section>
+                )}
+              </>
+            )}
           </Section>
 
           <Hr style={{ borderColor: BORDER, margin: "24px 0" }} />
@@ -169,13 +150,17 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
               SPENDS THIS WEEK
             </Text>
 
-            {/* Total */}
+            {/* Total with OR + invoice breakdown (Fix 4) */}
             <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "16px 20px", marginBottom: 12 }}>
               <Row>
                 <Column>
-                  <Text style={{ color: TEXT_MUT, fontSize: 11, margin: "0 0 4px" }}>Total OpenRouter spend</Text>
-                  <Text style={{ color: "#ffffff", fontSize: 28, fontWeight: 800, margin: 0 }}>
+                  <Text style={{ color: TEXT_MUT, fontSize: 11, margin: "0 0 4px" }}>Total spend this week</Text>
+                  <Text style={{ color: "#ffffff", fontSize: 28, fontWeight: 800, margin: "0 0 6px" }}>
                     {usdCents.format(data.totalSpendThisWeek)}
+                  </Text>
+                  <Text style={{ color: TEXT_MUT, fontSize: 11, margin: 0 }}>
+                    OpenRouter: {usdCents.format(data.totalSpendThisWeek - data.thisWeekInvoiceTotal)}
+                    {data.thisWeekInvoiceTotal > 0 && `  ·  Invoices: ${usdCents.format(data.thisWeekInvoiceTotal)}`}
                   </Text>
                 </Column>
                 <Column style={{ textAlign: "right" }}>
@@ -190,16 +175,27 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
               </Row>
             </Section>
 
-            {/* Per-key rows */}
+            {/* Per-key rows with budget status (Fix 5 + Fix 6) */}
             {data.spendRows.length > 0 && (
               <Section style={{ backgroundColor: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: "4px 0", marginBottom: 12 }}>
                 {data.spendRows.map((row, i) => {
-                  const delta = formatDelta(row.thisWeek, row.lastWeek);
+                  const delta    = formatDelta(row.thisWeek, row.lastWeek);
+                  const usedPct  = row.monthlyLimit > 0 ? (row.mtdSpend / row.monthlyLimit) * 100 : 0;
+                  const budgetIcon = usedPct >= 100 ? "🔴" : usedPct >= row.warningPct ? "🟡" : "🟢";
+                  // Fix 5: show key name subtitle only when it differs from project name
+                  const showKey  = row.keyName !== row.projectName;
                   return (
                     <Row key={row.keyName} style={{ borderTop: i > 0 ? `1px solid ${BORDER}` : undefined, padding: "10px 20px" }}>
                       <Column>
                         <Text style={{ color: TEXT_LG, fontSize: 12, fontWeight: 600, margin: 0 }}>{row.projectName}</Text>
-                        <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "2px 0 0" }}>{row.keyName}</Text>
+                        {showKey && (
+                          <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "2px 0 0" }}>{row.keyName}</Text>
+                        )}
+                        {row.monthlyLimit > 0 && (
+                          <Text style={{ color: TEXT_MUT, fontSize: 10, margin: "4px 0 0" }}>
+                            {budgetIcon} MTD {usd.format(row.mtdSpend)} / {usd.format(row.monthlyLimit)} ({usedPct.toFixed(0)}%)
+                          </Text>
+                        )}
                       </Column>
                       <Column style={{ textAlign: "right" }}>
                         <Text style={{ color: "#ffffff", fontSize: 13, fontWeight: 700, margin: 0 }}>{usdCents.format(row.thisWeek)}</Text>
@@ -211,9 +207,9 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
               </Section>
             )}
 
-            {/* Alerts */}
+            {/* Budget alerts */}
             {data.activeAlerts.length > 0 && (
-              <Section style={{ backgroundColor: "#1a1218", borderRadius: 12, border: `1px solid #7c3347`, padding: "16px 20px", marginBottom: 12 }}>
+              <Section style={{ backgroundColor: "#1a1218", borderRadius: 12, border: "1px solid #7c3347", padding: "16px 20px", marginBottom: 12 }}>
                 <Text style={{ color: "#f87171", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", margin: "0 0 10px" }}>
                   BUDGET ALERTS
                 </Text>
@@ -259,7 +255,6 @@ export function WeeklyReportEmail({ data }: { data: WeeklyReportData }) {
             </Button>
           </Section>
 
-          {/* Footer */}
           <Text style={{ color: "#475569", fontSize: 10, textAlign: "center", margin: 0 }}>
             Generated {new Date(data.generatedAt).toUTCString()} · BillFlow by Fello AI
           </Text>

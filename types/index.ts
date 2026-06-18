@@ -244,6 +244,9 @@ export interface WeeklyReportSpendRow {
   projectName: string;
   thisWeek: number;
   lastWeek: number;
+  mtdSpend: number;
+  monthlyLimit: number;
+  warningPct: number;
 }
 
 export interface WeeklyReportAlertRow {
@@ -281,6 +284,13 @@ export interface WeeklyReportData {
   enrichTeamDemosHeld: number;
   enrichTeamClosedWon: number;
   enrichTeamArrClosed: number;
+  // invoices
+  thisWeekInvoiceTotal: number;
+  lastWeekInvoiceTotal: number;
+  // section visibility flags
+  arthurHasData: boolean;
+  enrichmentContactsHasData: boolean;
+  enrichmentTeamsHasData: boolean;
   // meta
   generatedAt: string;
 }
