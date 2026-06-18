@@ -51,6 +51,27 @@ function formatMonthLabel(month: string): string {
   return d.toLocaleString("en-US", { month: "short" });
 }
 
+function MomBadge({ filteredData }: { filteredData: { month: string; value: number }[] }) {
+  const lastVal = filteredData[filteredData.length - 1]?.value ?? 0;
+  const prevVal = filteredData[filteredData.length - 2]?.value ?? 0;
+
+  if (filteredData.length < 2) return null;
+  if (lastVal === 0) return <span className="text-xs text-gray-400 px-1.5 py-0.5">—</span>;
+  if (prevVal === 0) return null;
+
+  const momPct = ((lastVal - prevVal) / prevVal) * 100;
+  const capped = Math.min(Math.abs(momPct), 99);
+
+  return (
+    <span className={cn(
+      "text-xs font-medium px-1.5 py-0.5 rounded-full",
+      momPct >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600",
+    )}>
+      {momPct >= 0 ? "↑" : "↓"} {capped.toFixed(0)}%
+    </span>
+  );
+}
+
 function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string }) {
   const filteredData = filterDataByScope(chart.data, scope);
   const scopeTotal = filteredData.reduce((s, d) => s + d.value, 0);
@@ -58,31 +79,18 @@ function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string
     ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(scopeTotal)
     : scopeTotal.toLocaleString();
 
-  const lastVal = filteredData[filteredData.length - 1]?.value ?? 0;
-  const prevVal = filteredData[filteredData.length - 2]?.value ?? 0;
-  const momPct = filteredData.length >= 2 && prevVal > 0
-    ? ((lastVal - prevVal) / prevVal) * 100
-    : null;
-
   const chartData = filteredData.map((d) => ({ month: formatMonthLabel(d.month), value: d.value }));
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border border-gray-100 bg-white shadow-sm p-4">
       <div className="flex items-start justify-between mb-1">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-widest text-gray-500 block">
           {chart.label}
         </span>
-        {momPct !== null && (
-          <span className={cn(
-            "text-xs font-medium px-1.5 py-0.5 rounded-full",
-            momPct >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600",
-          )}>
-            {momPct >= 0 ? "↑" : "↓"} {Math.abs(momPct).toFixed(0)}%
-          </span>
-        )}
+        <MomBadge filteredData={filteredData} />
       </div>
-      <div className="text-2xl font-bold text-foreground mb-3">{displayScopeTotal}</div>
-      <ResponsiveContainer width="100%" height={80}>
+      <div className="text-xl font-bold text-gray-900 mb-2">{displayScopeTotal}</div>
+      <ResponsiveContainer width="100%" height={64}>
         <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={`fill-${chart.metricKey}`} x1="0" y1="0" x2="0" y2="1">
@@ -107,9 +115,9 @@ function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string
               if (!active || !payload?.length) return null;
               const val = payload[0].value ?? 0;
               return (
-                <div className="rounded-lg border bg-popover px-2 py-1.5 text-xs shadow-md">
-                  <div className="text-muted-foreground mb-0.5">{label}</div>
-                  <div className="font-semibold text-foreground">
+                <div className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs shadow-md">
+                  <div className="text-gray-500 mb-0.5">{label}</div>
+                  <div className="font-semibold text-gray-900">
                     {chart.isMonetary
                       ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val)
                       : val.toLocaleString()}

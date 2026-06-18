@@ -368,7 +368,7 @@ export function SpendTab({
           {/* Today — usage_today from openrouter_usage_snapshots, written by n8n hourly */}
           <td className="px-5 py-3 text-sm whitespace-nowrap">
             {k.today_spend != null && k.today_spend > 0
-              ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">{`$${k.today_spend.toFixed(2)}`}</span>
+              ? <span className="font-semibold text-[#FF725C]">{`$${k.today_spend.toFixed(2)}`}</span>
               : <span className="text-slate-400 dark:text-slate-500">—</span>
             }
           </td>

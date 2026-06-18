@@ -63,18 +63,18 @@ export default function TodaySpendCard() {
   const othersMonth = others.reduce((s, r) => s + r.month, 0);
 
   return (
-    <div className="rounded-xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 p-6 mb-6">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 mb-6">
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 uppercase tracking-wide">
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
             Live Spend
           </h3>
-          <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">
+          <p className="text-xs text-gray-500 mt-0.5">
             Real-time counters from OpenRouter · synced hourly by n8n
           </p>
         </div>
         {data.last_synced && (
-          <span className="text-[11px] text-emerald-700/60 dark:text-emerald-400/60">
+          <span className="text-[11px] text-gray-400">
             Updated {formatRelativeTime(data.last_synced)}
           </span>
         )}
@@ -91,7 +91,7 @@ export default function TodaySpendCard() {
         </div>
       </div>
 
-      <div className="border-t border-emerald-200/60 dark:border-emerald-900/40 pt-3">
+      <div className="border-t border-slate-100 pt-3">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -102,24 +102,24 @@ export default function TodaySpendCard() {
           </thead>
           <tbody>
             {topN.map(p => (
-              <tr key={p.key_name} className="border-t border-slate-100 dark:border-slate-800/60">
-                <td className="py-1.5 text-slate-700 dark:text-slate-300">{p.project_name}</td>
-                <td className="py-1.5 text-right tabular-nums">
-                  {p.today > 0 ? formatCurrency(p.today) : <span className="text-slate-400">—</span>}
+              <tr key={p.key_name} className="border-t border-slate-100">
+                <td className="py-1.5 text-gray-700">{p.project_name}</td>
+                <td className="py-1.5 text-right tabular-nums font-medium">
+                  {p.today > 0 ? <span className="text-[#FF725C]">{formatCurrency(p.today)}</span> : <span className="text-gray-400">—</span>}
                 </td>
-                <td className="py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-400">
-                  {p.month > 0 ? formatCurrency(p.month) : <span className="text-slate-400">—</span>}
+                <td className="py-1.5 text-right tabular-nums text-gray-900 font-medium">
+                  {p.month > 0 ? formatCurrency(p.month) : <span className="text-gray-400">—</span>}
                 </td>
               </tr>
             ))}
             {others.length > 0 && (
-              <tr className="border-t border-slate-100 dark:border-slate-800/60 text-slate-500 dark:text-slate-500">
+              <tr className="border-t border-slate-100 text-gray-500">
                 <td className="py-1.5 italic">+ {others.length} other project{others.length > 1 ? "s" : ""}</td>
-                <td className="py-1.5 text-right tabular-nums">
-                  {othersToday > 0 ? formatCurrency(othersToday) : <span className="text-slate-400">—</span>}
+                <td className="py-1.5 text-right tabular-nums font-medium">
+                  {othersToday > 0 ? <span className="text-[#FF725C]">{formatCurrency(othersToday)}</span> : <span className="text-gray-400">—</span>}
                 </td>
-                <td className="py-1.5 text-right tabular-nums">
-                  {othersMonth > 0 ? formatCurrency(othersMonth) : <span className="text-slate-400">—</span>}
+                <td className="py-1.5 text-right tabular-nums text-gray-900 font-medium">
+                  {othersMonth > 0 ? formatCurrency(othersMonth) : <span className="text-gray-400">—</span>}
                 </td>
               </tr>
             )}

@@ -123,7 +123,12 @@ export function OutcomesPageLayout({
       {/* Project-specific section (e.g. LLM breakdown for Arthur) */}
       {projectSpecificSection}
 
-      {/* Trend charts grid */}
+      {/* Trends section */}
+      {trendCharts.length > 0 && (
+        <div className="mt-6 mb-2">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Trends</h3>
+        </div>
+      )}
       <TrendChartsGrid charts={trendCharts} scope={scope} />
 
       {/* Collapsible monthly breakdown */}
