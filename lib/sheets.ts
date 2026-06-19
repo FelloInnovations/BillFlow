@@ -399,7 +399,7 @@ export const STATIC_PROJECTS: Project[] = [
     openrouter_api_key: "aurthur_audit",
   },
   {
-    name: "Scrapey 2 (code)",
+    name: "Scrappy 2",
     description: "",
     timeline: null,
     llms: [],
