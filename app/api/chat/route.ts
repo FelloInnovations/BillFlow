@@ -59,7 +59,7 @@ async function buildFullContext(): Promise<string> {
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime());
 
   // ── 2. Fetch forecast + projects + tools + expense + outcomes in parallel ──
-  const [forecastResult, sheetsRes, toolsRes, expenseMapResult, unallocatedResult, arthurOutcomesResult] = await Promise.allSettled([
+  const [forecastResult, sheetsRes, toolsRes, expenseMapResult, unallocatedResult, arthurOutcomesResult, enrichmentOutcomesResult] = await Promise.allSettled([
     buildForecast(),
     fetch(`${base}/api/sheets`).then((r) => r.json()).catch(() => null),
     fetch(`${base}/api/tools`).then((r) => r.json()).catch(() => null),
@@ -71,14 +71,21 @@ async function buildFullContext(): Promise<string> {
       .eq("project_id", "arthur")
       .order("date", { ascending: false })
       .limit(200),
+    supabase
+      .from("project_outcome_metrics")
+      .select("metric_key, value, date")
+      .eq("project_id", "enrichment")
+      .order("date", { ascending: false })
+      .limit(500),
   ]);
 
-  const forecast        = forecastResult.status        === "fulfilled" ? forecastResult.value              : null;
-  const sheets          = sheetsRes.status             === "fulfilled" ? sheetsRes.value                   : null;
-  const tools           = toolsRes.status              === "fulfilled" ? toolsRes.value                    : null;
-  const expenseMap      = expenseMapResult.status      === "fulfilled" ? expenseMapResult.value             : null;
-  const unallocated     = unallocatedResult.status     === "fulfilled" ? unallocatedResult.value            : null;
-  const arthurOutcomes  = arthurOutcomesResult.status  === "fulfilled" ? arthurOutcomesResult.value.data ?? [] : [];
+  const forecast           = forecastResult.status           === "fulfilled" ? forecastResult.value                   : null;
+  const sheets             = sheetsRes.status                === "fulfilled" ? sheetsRes.value                        : null;
+  const tools              = toolsRes.status                 === "fulfilled" ? toolsRes.value                         : null;
+  const expenseMap         = expenseMapResult.status         === "fulfilled" ? expenseMapResult.value                  : null;
+  const unallocated        = unallocatedResult.status        === "fulfilled" ? unallocatedResult.value                 : null;
+  const arthurOutcomes     = arthurOutcomesResult.status     === "fulfilled" ? arthurOutcomesResult.value.data  ?? [] : [];
+  const enrichmentOutcomes = enrichmentOutcomesResult.status === "fulfilled" ? enrichmentOutcomesResult.value.data ?? [] : [];
 
   // ── 3. Fetch OpenRouter snapshot, activity summary, guardrails, and hidden tools ──
   const [orSnapshotsRes, activityRes, guardrailsRes, hiddenToolsRes, invocationSummaryRes] = await Promise.allSettled([
@@ -402,6 +409,77 @@ async function buildFullContext(): Promise<string> {
       lines.push(`Demos booked: ${mC["demos_booked_mtd"] ?? 0} vs ${mP["demos_booked_mtd"] ?? 0}`);
       lines.push(`Closed-won: ${mC["closed_won_mtd"] ?? 0} vs ${mP["closed_won_mtd"] ?? 0}`);
       lines.push(`ARR: ${fmt(arrC)} vs ${fmt(arrP)}${arrDelta}`);
+    }
+  }
+
+  // ── Enrichment outcomes (MAD ID pipeline) ────────────────────────────────────────
+  if (enrichmentOutcomes.length > 0) {
+    type ERow = { metric_key: string; value: number; date: string };
+    const eRows = enrichmentOutcomes as ERow[];
+
+    // Latest value per metric key (rows ordered date desc, first seen = latest)
+    const latestByKey = new Map<string, number>();
+    for (const row of eRows) {
+      if (!latestByKey.has(row.metric_key)) latestByKey.set(row.metric_key, row.value);
+    }
+
+    const get = (key: string) => latestByKey.get(key) ?? latestByKey.get(key.replace("_total", "")) ?? 0;
+
+    const pushed      = get("agents_pushed_hubspot_total") || get("agents_pushed_hubspot");
+    const booked      = get("demos_booked_mtd");
+    const held        = get("demos_held_mtd");
+    const won         = get("closed_won_mtd");
+    const arr         = get("arr_closed_mtd");
+    const tPushed     = get("teams_pushed_hubspot_total") || get("teams_pushed_hubspot");
+    const tBooked     = get("team_demos_booked_mtd");
+    const tHeld       = get("team_demos_held_mtd");
+    const tWon        = get("team_closed_won_mtd");
+    const tArr        = get("team_arr_closed_mtd");
+
+    const pushToBook  = pushed  > 0 ? ((booked / pushed)  * 100).toFixed(1) : "N/A";
+    const bookToHold  = booked  > 0 ? ((held   / booked)  * 100).toFixed(1) : "N/A";
+    const holdToWin   = held    > 0 ? ((won    / held)    * 100).toFixed(1) : "N/A";
+
+    // Per-month breakdown: sum daily-style metrics, keep latest MTD snapshot per month
+    const mtdKeys = new Set(["demos_booked_mtd","demos_held_mtd","closed_won_mtd","arr_closed_mtd","team_demos_booked_mtd","team_demos_held_mtd","team_closed_won_mtd","team_arr_closed_mtd"]);
+    const eMtdByMonth = new Map<string, Record<string, number>>();
+    for (const row of eRows) {
+      const month = row.date.substring(0, 7);
+      if (mtdKeys.has(row.metric_key)) {
+        const m = eMtdByMonth.get(month) ?? {};
+        if (!(row.metric_key in m)) m[row.metric_key] = row.value;
+        eMtdByMonth.set(month, m);
+      }
+    }
+    const eMonths = [...eMtdByMonth.keys()].sort().reverse().slice(0, 6);
+
+    lines.push("\n=== ENRICHMENT OUTCOMES (MAD ID Pipeline) ===");
+    lines.push("Enrichment tracks real estate agents enriched with MAD IDs in Fello's database, then pushed to HubSpot CRM for outreach.");
+    lines.push(`Contact Level (all-time, contacts created after May 2025 with MAD ID):`);
+    lines.push(`  Pushed to HubSpot: ${pushed > 0 ? pushed.toLocaleString() : "N/A"}`);
+    lines.push(`  Demos Booked: ${booked > 0 ? booked.toLocaleString() : "N/A"}`);
+    lines.push(`  Demos Held: ${held > 0 ? held.toLocaleString() : "N/A"}`);
+    lines.push(`  Closed Won: ${won > 0 ? won.toLocaleString() : "N/A"}`);
+    lines.push(`  ARR Closed: ${fmt(arr)}`);
+    lines.push(`Team Level (all-time, teams created after May 2025 with MAD ID):`);
+    lines.push(`  Teams Pushed to HubSpot: ${tPushed > 0 ? tPushed.toLocaleString() : "N/A"}`);
+    lines.push(`  Team Demos Booked: ${tBooked > 0 ? tBooked.toLocaleString() : "N/A"}`);
+    lines.push(`  Team Demos Held: ${tHeld > 0 ? tHeld.toLocaleString() : "N/A"}`);
+    lines.push(`  Team Closed Won: ${tWon > 0 ? tWon.toLocaleString() : "N/A"}`);
+    lines.push(`  Team ARR Closed: ${fmt(tArr)}`);
+    lines.push(`Conversion rates (contact level): Push→Book=${pushToBook}% | Book→Hold=${bookToHold}% | Hold→Win=${holdToWin}%`);
+
+    if (eMonths.length > 0) {
+      lines.push("--- Last 6 months (per-month MTD snapshots) ---");
+      for (const month of eMonths) {
+        const m = eMtdByMonth.get(month) ?? {};
+        lines.push(
+          `${month}: booked=${m["demos_booked_mtd"] ?? 0} held=${m["demos_held_mtd"] ?? 0}` +
+          ` won=${m["closed_won_mtd"] ?? 0} ARR=${fmt(m["arr_closed_mtd"] ?? 0)}` +
+          ` | team: booked=${m["team_demos_booked_mtd"] ?? 0} held=${m["team_demos_held_mtd"] ?? 0}` +
+          ` won=${m["team_closed_won_mtd"] ?? 0} ARR=${fmt(m["team_arr_closed_mtd"] ?? 0)}`
+        );
+      }
     }
   }
 

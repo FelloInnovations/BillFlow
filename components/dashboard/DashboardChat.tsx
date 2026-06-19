@@ -8,11 +8,11 @@ import ReactMarkdown from "react-markdown";
 
 const STARTERS = [
   "What's our total AI spend this month?",
-  "Which project has the highest ARR from enrichment?",
-  "How is the enrichment contact pipeline performing?",
-  "Which vendors are we overspending on?",
+  "Which projects are closest to their budget limits?",
   "What's the forecast for next month's spend?",
-  "Which projects are close to their budget limits?",
+  "How is Arthur's AI referral funnel performing?",
+  "What's the enrichment pipeline conversion rate?",
+  "Which project has the best ROI right now?",
 ];
 
 interface Message {
