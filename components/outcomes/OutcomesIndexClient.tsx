@@ -5,13 +5,6 @@ import Link from "next/link";
 import { ProjectOutcomeSummary } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
-const PLATFORMS = [
-  { key: "llm_chatgpt_daily",    label: "ChatGPT",    bar: "bg-emerald-400", text: "text-emerald-600 dark:text-emerald-400" },
-  { key: "llm_perplexity_daily", label: "Perplexity", bar: "bg-salmon-400",  text: "text-salmon-600 dark:text-salmon-400"  },
-  { key: "llm_claude_daily",     label: "Claude",     bar: "bg-amber-400",   text: "text-amber-600 dark:text-amber-400"    },
-  { key: "llm_other_daily",      label: "Other AI",   bar: "bg-slate-400",   text: "text-slate-500 dark:text-slate-400"    },
-] as const;
-
 type Scope = "all_time" | "this_month" | "last_3m" | "last_6m" | "last_12m";
 
 const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
@@ -262,55 +255,26 @@ export function OutcomesIndexClient() {
                       </Link>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* LLM source breakdown */}
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-                          AI Traffic Sources &middot; {traffic.toLocaleString()} total
-                        </p>
-                        <div className="space-y-2.5">
-                          {PLATFORMS.map(({ key, label, bar, text }) => {
-                            const count = (mtd[key] as number) ?? 0;
-                            const pct = traffic > 0 ? (count / traffic) * 100 : 0;
-                            return (
-                              <div key={key} className="flex items-center gap-2">
-                                <span className={`text-[11px] font-medium w-20 shrink-0 ${text}`}>
-                                  {label}
-                                </span>
-                                <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                  <div className={`h-full ${bar} rounded-full`} style={{ width: `${pct}%` }} />
-                                </div>
-                                <span className="text-[11px] text-slate-500 dark:text-slate-400 w-16 text-right shrink-0">
-                                  {count} ({pct.toFixed(0)}%)
-                                </span>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+                        Funnel &middot; {scopeLabel}
+                      </p>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {funnelSteps.map(({ label, value, currency }, i) => (
+                          <div key={label} className="flex items-center gap-1">
+                            <div className="text-center min-w-[3.5rem]">
+                              <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                                {currency ? formatCurrency(value) : value.toLocaleString()}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Funnel */}
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-                          Funnel &middot; {scopeLabel}
-                        </p>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {funnelSteps.map(({ label, value, currency }, i) => (
-                            <div key={label} className="flex items-center gap-1">
-                              <div className="text-center min-w-[3.5rem]">
-                                <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">
-                                  {currency ? formatCurrency(value) : value.toLocaleString()}
-                                </div>
-                                <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">
-                                  {label}
-                                </div>
+                              <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">
+                                {label}
                               </div>
-                              {i < funnelSteps.length - 1 && (
-                                <span className="text-slate-300 dark:text-slate-600 text-[11px] font-bold">→</span>
-                              )}
                             </div>
-                          ))}
-                        </div>
+                            {i < funnelSteps.length - 1 && (
+                              <span className="text-slate-300 dark:text-slate-600 text-[11px] font-bold">→</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
 

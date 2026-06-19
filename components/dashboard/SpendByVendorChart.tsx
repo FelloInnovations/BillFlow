@@ -8,14 +8,10 @@ interface Props {
   vendorProjects: Record<string, string[]>;
 }
 
-const BAR_COLORS = [
-  "#FF725C",
-  "#FF8C7A",
-  "#FFA599",
-  "#FFBEB1",
-  "#FFD7CF",
-  "#FFEDE9",
-];
+function getVendorBarColor(index: number): string {
+  if (index === 0) return "#FF725C";
+  return "#d1d5db";
+}
 
 interface TooltipState {
   vendor: string;
@@ -65,17 +61,17 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
               onMouseLeave={() => setTooltip(null)}
             >
               {/* Vendor name */}
-              <span className="w-28 shrink-0 text-xs text-slate-600 dark:text-slate-400 truncate text-right">
+              <span className="w-28 shrink-0 text-xs text-gray-700 truncate text-right">
                 {vendor}
               </span>
 
               {/* Bar */}
-              <div className="flex-1 h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full"
                   style={{
                     width: `${(total / max) * 100}%`,
-                    backgroundColor: BAR_COLORS[i % BAR_COLORS.length],
+                    backgroundColor: getVendorBarColor(i),
                     transition: "width 0.5s",
                   }}
                 />
@@ -83,10 +79,10 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
 
               {/* Amount + % stacked */}
               <div className="w-28 shrink-0 text-right">
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight tabular-nums">
+                <p className="text-xs font-bold text-gray-900 leading-tight tabular-nums">
                   {total > 0 ? formatCurrency(total) : "—"}
                 </p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                <p className="text-[10px] text-gray-500 leading-tight">
                   {total > 0 ? `${pct}%` : "no spend"}
                 </p>
               </div>
