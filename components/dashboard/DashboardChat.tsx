@@ -104,7 +104,7 @@ export function DashboardChat(_props: Props) {
         <div
           ref={scrollRef}
           className="mb-4 space-y-3 max-h-96 overflow-y-auto px-1"
-          style={{ scrollbarWidth: "thin", scrollbarColor: "#c4b5fd transparent" }}
+          style={{ scrollbarWidth: "thin", scrollbarColor: "#FF725C transparent" }}
         >
           {messages.map((m, i) => (
             <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>

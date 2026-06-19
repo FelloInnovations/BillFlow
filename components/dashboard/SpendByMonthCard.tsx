@@ -73,7 +73,7 @@ export function SpendRangeCard() {
   const hasUnpaid = data.unpaidCount > 0 || data.upcomingCount > 0;
 
   return (
-    <div ref={ref} className="relative rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 border-t-4 border-t-salmon-500 shadow-sm hover:shadow-md transition-shadow">
+    <div ref={ref} className="relative rounded-xl bg-white border border-gray-200 border-l-4 border-l-[#FF725C] shadow-sm hover:shadow-md transition-shadow">
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">

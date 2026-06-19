@@ -34,7 +34,7 @@ export function SpendForecastSection() {
       <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 shrink-0" />
 
       {/* Projected total */}
-      <span className="text-[18px] font-bold tabular-nums shrink-0" style={{ color: "#00d4ff" }}>
+      <span className="text-[18px] font-bold tabular-nums shrink-0" style={{ color: "#FF725C" }}>
         {formatCurrency(data.totalForecast)}
       </span>
 

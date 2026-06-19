@@ -118,7 +118,7 @@ function EnrichmentProjectCard({
             Enrichment
           </h2>
           {project.projectStatus && <StatusBadge status={project.projectStatus} />}
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FF725C]/10 text-[#FF725C]">
             MAD ID Pipeline
           </span>
         </div>

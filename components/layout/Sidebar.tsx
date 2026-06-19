@@ -55,11 +55,11 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-salmon-50 dark:bg-navy-950/60 text-salmon-700 dark:text-salmon-300"
-                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-800 dark:hover:text-slate-200"
+                  ? "bg-[#FF725C]/10 text-[#FF725C]"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               )}
             >
-              <Icon className={cn("w-4 h-4 shrink-0", active ? "text-salmon-600 dark:text-salmon-400" : "text-slate-400 dark:text-slate-500")} />
+              <Icon className={cn("w-4 h-4 shrink-0", active ? "text-[#FF725C]" : "text-gray-400")} />
               {label}
               {active && <div className="ml-auto w-1 h-4 rounded-full bg-salmon-500" />}
             </Link>

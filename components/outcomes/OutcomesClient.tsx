@@ -215,17 +215,23 @@ function LogModal({ projectId, config, onClose, onSaved }: {
 }
 
 // ── Source row ────────────────────────────────────────────────────────────────
-function SourceRow({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
-  const pct = sourcePct(count, total);
+function SourceRow({ label, count, total }: { label: string; count: number; total: number; color: string }) {
+  const rawPct = total > 0 ? (count / total) * 100 : 0;
+  const pctLabel = sourcePct(count, total);
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
-      <div className="flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-        <span className="text-xs text-slate-700 dark:text-slate-300">{label}</span>
+    <div className="py-2 last:pb-0">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-gray-700">{label}</span>
+        <div className="flex items-center gap-2 tabular-nums">
+          <span className="text-xs text-gray-500">{pctLabel}</span>
+          <span className="text-xs font-bold text-gray-900 w-12 text-right">{count > 0 ? count.toLocaleString() : "—"}</span>
+        </div>
       </div>
-      <div className="flex items-center gap-3 tabular-nums">
-        <span className="text-xs text-slate-400">{pct}</span>
-        <span className="text-xs font-bold text-slate-900 dark:text-white">{count > 0 ? count.toLocaleString() : "—"}</span>
+      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[#FF725C] transition-all duration-500"
+          style={{ width: `${rawPct}%` }}
+        />
       </div>
     </div>
   );
@@ -431,19 +437,12 @@ export function OutcomesClient({
     </div>
   );
 
-  // ── Extra actions (Log Metrics + More) ────────────────────────────────────
+  // ── Extra actions (More menu only) ───────────────────────────────────────
   const extraActions = (
-    <>
-      <button
-        onClick={() => setLogOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-      >
-        Log Metrics
-      </button>
-      <MoreMenu>
-        <MoreMenuItem onClick={() => setBackfillOpen(true)}>Backfill Historical Data</MoreMenuItem>
-      </MoreMenu>
-    </>
+    <MoreMenu>
+      <MoreMenuItem onClick={() => setLogOpen(true)}>Log Metrics</MoreMenuItem>
+      <MoreMenuItem onClick={() => setBackfillOpen(true)}>Backfill Historical Data</MoreMenuItem>
+    </MoreMenu>
   );
 
   // series kept for fetchData compatibility

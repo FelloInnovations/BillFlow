@@ -9,16 +9,12 @@ interface Props {
 }
 
 const BAR_COLORS = [
-  "#ff725c", // salmon-500 (brand)
-  "#4b90c8", // navy-400
-  "#34d399", // emerald-400
-  "#fbbf24", // amber-400
-  "#a78bfa", // violet-400
-  "#fb7185", // rose-400
-  "#38bdf8", // sky-400
-  "#e85440", // salmon-600
-  "#1d5b92", // navy-600
-  "#ff8778", // salmon-400
+  "#FF725C",
+  "#FF8C7A",
+  "#FFA599",
+  "#FFBEB1",
+  "#FFD7CF",
+  "#FFEDE9",
 ];
 
 interface TooltipState {
@@ -56,7 +52,7 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
 
       <div
         className="overflow-y-auto max-h-72 space-y-2.5 pr-2"
-        style={{ scrollbarWidth: "thin", scrollbarColor: "#c4b5fd #f1f5f9" }}
+        style={{ scrollbarWidth: "thin", scrollbarColor: "#FF725C #f1f5f9" }}
       >
         {sorted.map(({ vendor, total }, i) => {
           const pct = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;

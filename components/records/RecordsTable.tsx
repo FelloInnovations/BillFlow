@@ -682,7 +682,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-salmon-50 border border-salmon-200 text-salmon-600 hover:bg-salmon-100 hover:border-salmon-300 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Invoice

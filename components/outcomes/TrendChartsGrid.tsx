@@ -92,9 +92,9 @@ function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string
         <MomBadge filteredData={filteredData} />
       </div>
       <div className="text-xl font-bold text-gray-900 mb-2">{displayScopeTotal}</div>
-      <div className="flex-1 min-h-[64px] mt-1">
+      <div className="flex-1 min-h-[90px] mt-1">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 8 }}>
           <defs>
             <linearGradient id={`fill-${chart.metricKey}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#FF725C" stopOpacity={0.25} />

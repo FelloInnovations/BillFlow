@@ -52,7 +52,7 @@ function FieldError({ msg }: { msg?: string }) {
   return <p className="mt-1 text-xs text-red-400">{msg}</p>;
 }
 
-const inputCls = "w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 transition-colors";
+const inputCls = "w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 focus:border-salmon-500 transition-colors";
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function AddInvoiceModal({ onClose, onSaved }: Props) {
@@ -275,7 +275,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
               <div className="flex items-center gap-2 mb-1.5">
                 <Label>Total Amount *</Label>
                 {totalIsAuto && form.totalAmount !== "" && (
-                  <span className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-900/50 text-cyan-400 border border-cyan-800/60 -mt-1">
+                  <span className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-salmon-50 text-salmon-600 border border-salmon-200 -mt-1">
                     <Sparkles className="w-2.5 h-2.5" />
                     auto
                   </span>
@@ -421,7 +421,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-900 text-sm font-bold transition-colors"
+              className="flex-1 py-2 rounded-lg bg-salmon-600 hover:bg-salmon-500 disabled:opacity-50 text-white text-sm font-bold transition-colors"
             >
               {saving ? "Saving…" : "Save Invoice"}
             </button>

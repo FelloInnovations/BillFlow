@@ -15,7 +15,7 @@ export function SharedInfraCard({ data }: Props) {
     <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-2.5">
-          <Server className="w-4 h-4 text-violet-400" />
+          <Server className="w-4 h-4 text-[#FF725C]" />
           <div>
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Shared Infrastructure</h3>
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Org-wide · not attributed to projects</p>

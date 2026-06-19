@@ -71,7 +71,7 @@ export function TrendAndForecastCard({ data }: Props) {
               <stop offset="100%" stopColor="#ff725c" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e2535" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
           <XAxis
             dataKey="month"
             tick={{ fontSize: 10, fill: "#94a3b8" }}
@@ -110,7 +110,7 @@ export function TrendAndForecastCard({ data }: Props) {
             </span>
             <Link
               href="/forecasting"
-              className="flex items-center gap-1 text-xs font-semibold text-cyan-500 dark:text-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold text-[#FF725C] hover:text-[#e55a45] transition-colors"
             >
               View full forecast
               <ArrowRight className="w-3 h-3" />
@@ -119,7 +119,7 @@ export function TrendAndForecastCard({ data }: Props) {
           <div className="flex items-baseline gap-3 flex-wrap">
             <span
               className="text-[20px] font-semibold tabular-nums leading-none"
-              style={{ color: "#00d4ff" }}
+              style={{ color: "#FF725C" }}
             >
               {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
                 forecast.totalForecast

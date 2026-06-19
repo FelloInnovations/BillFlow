@@ -152,24 +152,24 @@ export function OutcomesPageLayout({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/40">
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">
                         Month
                       </th>
                       {monthlyColumns.map((col) => (
                         <th
                           key={col.key}
-                          className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap"
+                          className="text-right px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap"
                         >
                           {col.label}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
-                    {monthlyData.map((row) => (
-                      <tr key={row.month} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-5 py-3 font-medium text-foreground whitespace-nowrap">
+                  <tbody className="divide-y divide-gray-100">
+                    {monthlyData.map((row, idx) => (
+                      <tr key={row.month} className={cn("hover:bg-gray-50 transition-colors", idx % 2 === 0 ? "bg-white" : "bg-gray-50/50")}>
+                        <td className="px-5 py-3 font-medium text-gray-900 whitespace-nowrap">
                           {row.month}
                         </td>
                         {monthlyColumns.map((col) => {
@@ -177,7 +177,7 @@ export function OutcomesPageLayout({
                           return (
                             <td
                               key={col.key}
-                              className="text-right px-4 py-3 tabular-nums text-foreground whitespace-nowrap"
+                              className="text-right px-4 py-3 tabular-nums text-gray-700 whitespace-nowrap"
                             >
                               {col.isMonetary ? formatCurrency(val) : val.toLocaleString()}
                             </td>

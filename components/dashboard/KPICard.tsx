@@ -12,20 +12,20 @@ interface KPICardProps {
 
 const ACCENT = {
   salmon: {
-    icon: "bg-salmon-50 dark:bg-navy-950/60 text-salmon-400",
-    border: "border-t-salmon-400",
+    icon: "bg-salmon-50 text-[#FF725C]",
+    border: "border-l-[#FF725C]",
   },
   amber: {
-    icon: "bg-violet-50 dark:bg-violet-950/60 text-violet-400",
-    border: "border-t-violet-400",
+    icon: "bg-amber-50 text-amber-500",
+    border: "border-l-amber-400",
   },
   rose: {
-    icon: "bg-purple-50 dark:bg-purple-950/60 text-purple-400",
-    border: "border-t-purple-400",
+    icon: "bg-red-50 text-red-500",
+    border: "border-l-red-400",
   },
   emerald: {
-    icon: "bg-blue-50 dark:bg-blue-950/60 text-blue-400",
-    border: "border-t-blue-400",
+    icon: "bg-emerald-50 text-emerald-500",
+    border: "border-l-emerald-400",
   },
 };
 
@@ -37,17 +37,17 @@ export function KPICard({ title, value, sub, icon: Icon, isCurrency, accent }: K
 
   return (
     <div className={cn(
-      "rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 border-t-4 p-5 shadow-sm hover:shadow-md transition-shadow",
+      "rounded-xl bg-white border border-gray-200 border-l-4 p-5 shadow-sm hover:shadow-md transition-shadow",
       a.border
     )}>
       <div className="flex items-start justify-between mb-4">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{title}</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</p>
         <div className={cn("p-2 rounded-xl", a.icon)}>
           <Icon className="w-4 h-4" />
         </div>
       </div>
-      <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{display}</p>
-      {sub && <p className="text-xs mt-1.5 text-slate-400 dark:text-slate-500">{sub}</p>}
+      <p className="text-3xl font-bold tracking-tight text-gray-900">{display}</p>
+      {sub && <p className="text-xs mt-1.5 text-gray-400">{sub}</p>}
     </div>
   );
 }

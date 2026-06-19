@@ -123,7 +123,7 @@ function ForecastBarChart({ forecasts }: { forecasts: VendorForecast[] }) {
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           <p className="text-xs font-bold mb-1">{tooltip.vendor}</p>
-          <p className="text-sm font-bold text-cyan-400">{formatCurrency(tooltip.amount)}</p>
+          <p className="text-sm font-bold text-[#FF725C]">{formatCurrency(tooltip.amount)}</p>
           <p className="text-[10px] text-slate-400 mt-1">Trend: {trendLabel(tooltip.trend)}</p>
         </div>
       )}
@@ -248,7 +248,7 @@ export function ForecastingClient({ initial }: Props) {
                     {monthColLabels[2]}
                   </span>
                 </th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide">
+                <th className="text-right px-4 py-3 text-xs font-semibold text-[#FF725C] uppercase tracking-wide">
                   Forecasted
                 </th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
@@ -269,7 +269,7 @@ export function ForecastingClient({ initial }: Props) {
                       )}
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-right tabular-nums font-bold text-cyan-600 dark:text-cyan-400">
+                  <td className="px-4 py-3 text-right tabular-nums font-bold text-[#FF725C]">
                     {formatCurrency(f.forecastedAmount)}
                   </td>
                   <td className="px-4 py-3 text-center">
