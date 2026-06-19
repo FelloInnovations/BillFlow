@@ -88,7 +88,7 @@ async function buildFullContext(): Promise<string> {
   const enrichmentOutcomes = enrichmentOutcomesResult.status === "fulfilled" ? enrichmentOutcomesResult.value.data ?? [] : [];
 
   // ── 3. Fetch OpenRouter snapshot, activity summary, guardrails, and hidden tools ──
-  const [orSnapshotsRes, activityRes, guardrailsRes, hiddenToolsRes, invocationSummaryRes] = await Promise.allSettled([
+  const [orSnapshotsRes, activityRes, guardrailsRes, hiddenToolsRes, invocationSummaryRes, spendAlertsRes] = await Promise.allSettled([
     supabase
       .from("openrouter_usage_snapshots")
       .select("key_name, month, usage_total")
@@ -112,6 +112,12 @@ async function buildFullContext(): Promise<string> {
     supabase
       .from("api_invocation_logs")
       .select("project_name, key_name, model, cost_usd, prompt_tokens, completion_tokens"),
+
+    supabase
+      .from("spend_alerts")
+      .select("project_name, limit_usd, current_spend, current_pct, status, warning_pct")
+      .eq("is_active", true)
+      .order("current_pct", { ascending: false }),
   ]);
 
   const orSnapshots     = orSnapshotsRes.status     === "fulfilled" ? orSnapshotsRes.value.data     ?? [] : [];
@@ -119,6 +125,7 @@ async function buildFullContext(): Promise<string> {
   const guardrails      = guardrailsRes.status       === "fulfilled" ? guardrailsRes.value.data       ?? [] : [];
   const hiddenTools     = hiddenToolsRes.status      === "fulfilled" ? hiddenToolsRes.value.data      ?? [] : [];
   const invocationRows  = invocationSummaryRes.status === "fulfilled" ? invocationSummaryRes.value.data ?? [] : [];
+  const spendAlerts     = spendAlertsRes.status       === "fulfilled" ? spendAlertsRes.value.data        ?? [] : [];
 
   const hiddenSet = new Set<string>(
     [
@@ -239,14 +246,39 @@ async function buildFullContext(): Promise<string> {
     }
   }
 
-  // ── Budget guardrails ────────────────────────────────────────────────────────────
-  lines.push("\n=== BUDGET GUARDRAILS ===");
+  // ── Budget guardrails (static config) ───────────────────────────────────────────
+  lines.push("\n=== BUDGET GUARDRAILS (static config) ===");
   if (guardrails.length > 0) {
     for (const g of guardrails) {
       lines.push(`${g.project_name}: budget ${fmt(Number(g.monthly_budget_usd))}/month | warn at ${g.warning_threshold_pct}% | recommended: ${g.recommended_budget_usd ? fmt(Number(g.recommended_budget_usd)) : "not set"}`);
     }
   } else {
     lines.push("No budget guardrails have been set yet.");
+  }
+
+  // ── Spend alerts (live — current_spend and current_pct updated by n8n) ────────────
+  type AlertRow = { project_name: string; limit_usd: number; current_spend: number; current_pct: number; status: string; warning_pct: number };
+  lines.push("\n=== BUDGET GUARDRAILS (OpenRouter monthly limits, live spend) ===");
+  lines.push("Projects sorted by % of budget used (highest first). current_spend and current_pct are updated by n8n every 15 minutes.");
+  if (spendAlerts.length > 0) {
+    for (const a of spendAlerts as AlertRow[]) {
+      const pct     = Number(a.current_pct).toFixed(1);
+      const spent   = Number(a.current_spend).toFixed(2);
+      const limit   = Number(a.limit_usd).toFixed(2);
+      const status  = a.status === "ok"
+        ? `OK (alert threshold: ${a.warning_pct}%)`
+        : a.status.toUpperCase();
+      lines.push(`- ${a.project_name}: $${spent} spent of $${limit} limit (${pct}% used) — status: ${status}`);
+    }
+    const overThreshold = (spendAlerts as AlertRow[]).filter((a) => Number(a.current_pct) >= (a.warning_pct ?? 80));
+    if (overThreshold.length > 0) {
+      lines.push("Projects over warning threshold:");
+      for (const a of overThreshold) lines.push(`  - ${a.project_name}: ${Number(a.current_pct).toFixed(1)}% used — ALERT`);
+    } else {
+      lines.push("No projects currently over their warning threshold.");
+    }
+  } else {
+    lines.push("No active spend alerts configured.");
   }
 
   // ── Project expense summary (directly attributable costs only) ───────────────────────
