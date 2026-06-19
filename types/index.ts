@@ -237,64 +237,6 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
-// ── Weekly Email Digest ───────────────────────────────────────────────────────
-
-export interface WeeklyReportSpendRow {
-  keyName: string;
-  projectName: string;
-  thisWeek: number;
-  lastWeek: number;
-  mtdSpend: number;
-  monthlyLimit: number;
-  warningPct: number;
-}
-
-export interface WeeklyReportAlertRow {
-  projectName: string;
-  keyName: string;
-  limitUsd: number;
-  currentSpend: number;
-  currentPct: number;
-  status: "warning" | "breached";
-}
-
-export interface WeeklyReportData {
-  weekLabel: string;          // e.g. "Jun 9 – Jun 15, 2026"
-  weekStart: string;          // ISO date
-  weekEnd: string;            // ISO date
-  // OR spend
-  totalSpendThisWeek: number;
-  totalSpendLastWeek: number;
-  spendRows: WeeklyReportSpendRow[];
-  activeAlerts: WeeklyReportAlertRow[];
-  // Arthur outcomes (MTD this month)
-  arthurDemosBooked: number;
-  arthurDemosHeld: number;
-  arthurClosedWon: number;
-  arthurArrClosed: number;
-  // Enrichment contact funnel (MTD)
-  enrichContactPushed: number;
-  enrichContactDemosBooked: number;
-  enrichContactDemosHeld: number;
-  enrichContactClosedWon: number;
-  enrichContactArrClosed: number;
-  // Enrichment team funnel (MTD)
-  enrichTeamPushed: number;
-  enrichTeamDemosBooked: number;
-  enrichTeamDemosHeld: number;
-  enrichTeamClosedWon: number;
-  enrichTeamArrClosed: number;
-  // invoices
-  thisWeekInvoiceTotal: number;
-  lastWeekInvoiceTotal: number;
-  // section visibility flags
-  arthurHasData: boolean;
-  enrichmentContactsHasData: boolean;
-  enrichmentTeamsHasData: boolean;
-  // meta
-  generatedAt: string;
-}
-
 // ── Outcomes / Arthur KPIs ────────────────────────────────────────────────────
 
 export interface OutcomeMetricConfig {
