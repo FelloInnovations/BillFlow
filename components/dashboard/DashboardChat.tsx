@@ -7,12 +7,12 @@ import { DashboardMetrics } from "@/types";
 import ReactMarkdown from "react-markdown";
 
 const STARTERS = [
-  "Overview of this month's spend",
-  "Which projects cost the most?",
-  "How is Arthur performing this quarter?",
-  "Which invoices still need allocation?",
-  "How much shared infrastructure do we have?",
-  "What's the true OpenRouter cost for Arthur?",
+  "What's our total AI spend this month?",
+  "Which project has the highest ARR from enrichment?",
+  "How is the enrichment contact pipeline performing?",
+  "Which vendors are we overspending on?",
+  "What's the forecast for next month's spend?",
+  "Which projects are close to their budget limits?",
 ];
 
 interface Message {
@@ -190,7 +190,7 @@ export function DashboardChat(_props: Props) {
             <button
               key={s}
               onClick={() => send(s)}
-              className="text-xs px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-salmon-300 hover:text-salmon-600 dark:hover:text-salmon-300 hover:bg-salmon-50 dark:hover:bg-navy-950/40 transition-all font-medium"
+              className="text-xs px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-600 hover:border-[#FF725C] hover:text-[#FF725C] hover:bg-[#FF725C]/5 transition-all duration-150 font-medium whitespace-nowrap"
             >
               {s}
             </button>

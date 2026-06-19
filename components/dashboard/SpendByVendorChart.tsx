@@ -8,9 +8,13 @@ interface Props {
   vendorProjects: Record<string, string[]>;
 }
 
-function getVendorBarColor(index: number): string {
-  if (index === 0) return "#FF725C";
-  return "#d1d5db";
+function getVendorBarColor(index: number, total: number): string {
+  const minOpacity = 0.15;
+  const maxOpacity = 1.0;
+  const opacity = maxOpacity - (index / Math.max(total - 1, 1)) * (maxOpacity - minOpacity);
+  const g = Math.round(255 - (255 - 114) * opacity);
+  const b = Math.round(255 - (255 - 92) * opacity);
+  return `rgb(255, ${g}, ${b})`;
 }
 
 interface TooltipState {
@@ -66,12 +70,12 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
               </span>
 
               {/* Bar */}
-              <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
+              <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ backgroundColor: "#f3f4f6" }}>
                 <div
                   className="h-full rounded-full"
                   style={{
                     width: `${(total / max) * 100}%`,
-                    backgroundColor: getVendorBarColor(i),
+                    backgroundColor: getVendorBarColor(i, sorted.length),
                     transition: "width 0.5s",
                   }}
                 />
