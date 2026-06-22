@@ -48,11 +48,11 @@
 @layer base {
   * { @apply border-border; }
   html {
-    background-color: rgb(254, 251, 249);
+    background-color: #FEFBF9;
     min-height: 100%;
   }
   html.dark {
-    background-color: rgb(6, 30, 52);
+    background-color: #061E34;
   }
   body {
     @apply bg-background text-foreground antialiased;

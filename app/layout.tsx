@@ -14,6 +14,7 @@ const instrumentSans = Instrument_Sans({
 export const metadata: Metadata = {
   title: "BillFlow",
   description: "Internal AI spend tracking",
+  themeColor: "#FEFBF9",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
