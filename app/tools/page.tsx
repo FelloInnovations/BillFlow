@@ -73,14 +73,14 @@ export default function ToolsPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <p className="text-sm text-slate-400">Loading tools...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Tools</h1>

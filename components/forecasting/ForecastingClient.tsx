@@ -163,9 +163,9 @@ export function ForecastingClient({ initial }: Props) {
   const displayMonths = (f: VendorForecast) => [f.last3Months[2], f.last3Months[1], f.last3Months[0]];
 
   return (
-    <div className="pt-10 px-7 pb-7 space-y-6 max-w-7xl">
+    <div className="pt-6 md:pt-10 px-4 md:px-7 pb-7 space-y-6 max-w-7xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Spend Forecast</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -173,7 +173,7 @@ export function ForecastingClient({ initial }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap">
+          <span className="hidden sm:block text-xs font-medium text-slate-400 dark:text-slate-500">
             {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated {lastUpdated}
           </span>
           <button

@@ -80,7 +80,7 @@ export default function TodaySpendCard() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-6 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
         <div>
           <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Today so far</p>
           <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(data.today_total)}</p>

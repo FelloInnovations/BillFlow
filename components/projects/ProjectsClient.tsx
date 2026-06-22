@@ -185,7 +185,7 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
 
   return (
     <RTooltip.Provider delayDuration={150}>
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>

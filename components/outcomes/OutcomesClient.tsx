@@ -110,7 +110,7 @@ function BackfillModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
             <p className="text-xs text-slate-400">
               Fetches all AI-referral contacts from HubSpot in one pass and populates daily traffic + monthly MTD rows for the selected range.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">From</label>
                 <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}

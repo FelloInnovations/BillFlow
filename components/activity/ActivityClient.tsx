@@ -39,7 +39,7 @@ export function ActivityClient({ initialActivity, initialLogs }: Props) {
   return (
     <div className="space-y-5">
       {/* Tab switcher */}
-      <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 w-fit">
+      <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 w-full sm:w-fit overflow-x-auto">
         {TABS.map(({ id, label, Icon }) => (
           <button
             key={id}

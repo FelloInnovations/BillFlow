@@ -562,8 +562,8 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
   return (
     <div className="space-y-4">
       {/* ── Filters ── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
 
           {/* Vendor multiselect */}
           <div className="relative" ref={vendorRef}>
@@ -657,18 +657,18 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             type="date"
             value={filters.dateFrom}
             onChange={(e) => applyFilter("dateFrom", e.target.value)}
-            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
+            className="hidden sm:block text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
           />
           <input
             type="date"
             value={filters.dateTo}
             onChange={(e) => applyFilter("dateTo", e.target.value)}
-            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
+            className="hidden sm:block text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
           />
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="hidden md:block text-xs font-medium text-slate-500 dark:text-slate-400">
             Updated{" "}
             {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
@@ -697,7 +697,8 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           loading && "opacity-60"
         )}
       >
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50">
               <th className="pl-4 pr-2 py-3.5 w-10">
@@ -833,6 +834,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* ── Pagination ── */}
@@ -861,13 +863,13 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
       {/* ── Floating bulk action toolbar ── */}
       <div
         className={cn(
-          "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-200",
+          "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-200 w-[calc(100vw-2rem)] max-w-xl",
           selCount > 0
             ? "translate-y-0 opacity-100 pointer-events-auto"
             : "translate-y-4 opacity-0 pointer-events-none"
         )}
       >
-        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border border-slate-700 bg-[#111827] shadow-2xl text-sm whitespace-nowrap">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 px-5 py-3 rounded-2xl border border-slate-700 bg-[#111827] shadow-2xl text-sm">
           {confirming ? (
             <>
               <span className="text-slate-300">

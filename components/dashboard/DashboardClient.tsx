@@ -63,15 +63,15 @@ export function DashboardClient({ initial }: Props) {
   }, []);
 
   return (
-    <div className="pt-10 px-7 pb-7 space-y-6 max-w-7xl">
+    <div className="pt-6 md:pt-10 px-4 md:px-7 pb-7 space-y-6 max-w-7xl">
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">AI infrastructure spend overview</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap">
+          <span className="hidden sm:block text-xs font-medium text-slate-400 dark:text-slate-500">
             {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <button
@@ -146,7 +146,7 @@ export function DashboardClient({ initial }: Props) {
                 : null;
               return (
                 <div key={inv.id} className={cn(
-                  "flex items-center justify-between px-6 py-3.5",
+                  "flex items-center justify-between px-4 md:px-6 py-3.5",
                   isOverdue && "bg-violet-50/60 dark:bg-violet-950/20"
                 )}>
                   <div className="flex items-center gap-3">

@@ -219,7 +219,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
             </div>
 
             {/* Date row */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Invoice Date *</Label>
                 <input
@@ -242,7 +242,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
             </div>
 
             {/* Amount row */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Subtotal *</Label>
                 <input
@@ -294,7 +294,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
             </div>
 
             {/* Currency + Status row */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Currency</Label>
                 <select
@@ -335,7 +335,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
             {/* Cost Type */}
             <div>
               <Label>Cost Type *</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {COST_TYPE_OPTIONS.map((opt) => (
                   <label
                     key={opt.value}

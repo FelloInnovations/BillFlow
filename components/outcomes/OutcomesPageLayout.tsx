@@ -61,7 +61,7 @@ export function OutcomesPageLayout({
   const [tableExpanded, setTableExpanded] = useState(false);
 
   return (
-    <div className="flex-1 min-h-screen bg-background p-8">
+    <div className="flex-1 min-h-screen bg-background p-4 md:p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>
