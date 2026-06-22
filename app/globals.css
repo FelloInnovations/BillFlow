@@ -47,8 +47,16 @@
 
 @layer base {
   * { @apply border-border; }
+  html {
+    background-color: rgb(254, 251, 249);
+    min-height: 100%;
+  }
+  html.dark {
+    background-color: rgb(6, 30, 52);
+  }
   body {
     @apply bg-background text-foreground antialiased;
+    min-height: 100%;
     font-variation-settings: 'wdth' 100;
     font-feature-settings: 'ss01' 1;
   }

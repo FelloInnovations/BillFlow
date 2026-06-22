@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={instrumentSans.className}>
         <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
           <VaultAuthRedirect />
-          <div className="flex min-h-screen bg-background">
+          <div className="flex min-h-screen bg-background w-full">
             <Sidebar />
             <main className="flex-1 overflow-auto pt-14 md:pt-0">
               {children}
