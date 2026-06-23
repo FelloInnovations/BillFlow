@@ -55,14 +55,6 @@ async function buildFullContext(): Promise<string> {
     if (r.payment_status === "paid") b.paid += amt; else b.unpaid += amt;
     monthMap.set(key, b);
   }
-  // Add OR snapshot spend into each month (matches dashboard/route.ts logic)
-  for (const snap of orSnapshots) {
-    const [y, m] = (snap.month as string).split("-");
-    const key = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const b = monthMap.get(key) ?? { paid: 0, unpaid: 0 };
-    b.paid += Number(snap.usage_total ?? 0);
-    monthMap.set(key, b);
-  }
 
   const monthlyTrend = [...monthMap.entries()]
     .sort((a, b) => new Date("1 " + a[0]).getTime() - new Date("1 " + b[0]).getTime());
@@ -130,6 +122,16 @@ async function buildFullContext(): Promise<string> {
   ]);
 
   const orSnapshots     = orSnapshotsRes.status     === "fulfilled" ? orSnapshotsRes.value.data     ?? [] : [];
+
+  // Add OR snapshot spend into each month (matches dashboard/route.ts logic)
+  for (const snap of orSnapshots) {
+    const [y, m] = (snap.month as string).split("-");
+    const key = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const b = monthMap.get(key) ?? { paid: 0, unpaid: 0 };
+    b.paid += Number(snap.usage_total ?? 0);
+    monthMap.set(key, b);
+  }
+
   const activityLogs    = activityRes.status         === "fulfilled" ? activityRes.value.data         ?? [] : [];
   const guardrails      = guardrailsRes.status       === "fulfilled" ? guardrailsRes.value.data       ?? [] : [];
   const hiddenTools     = hiddenToolsRes.status      === "fulfilled" ? hiddenToolsRes.value.data      ?? [] : [];
