@@ -26,23 +26,23 @@ function ConfirmDelete({ label, onConfirm, onCancel }: { label: string; onConfir
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-6 space-y-4">
+      <div className="relative z-10 w-full max-w-sm rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-2xl p-6 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-semibold text-slate-900 dark:text-white text-sm">Delete this tool?</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span> will be permanently removed from all views.
+            <p className="font-semibold text-[var(--text-primary)] text-sm">Delete this tool?</p>
+            <p className="text-xs text-[var(--text-tertiary)] mt-1">
+              <span className="font-medium text-[var(--text-secondary)]">{label}</span> will be permanently removed from all views.
             </p>
           </div>
-          <button onClick={onCancel} className="shrink-0 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-            <X className="w-4 h-4 text-slate-400" />
+          <button onClick={onCancel} className="shrink-0 p-1 rounded-lg hover:bg-[var(--bg-primary\_hover)]">
+            <X className="w-4 h-4 text-[var(--text-quaternary)]" />
           </button>
         </div>
         <div className="flex gap-2 justify-end">
-          <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border-tertiary)] text-[var(--text-tertiary)] hover:bg-[var(--bg-primary\_hover)] transition-colors">
             Cancel
           </button>
-          <button onClick={onConfirm} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors">
+          <button onClick={onConfirm} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--bg-error-solid)] hover:bg-[var(--bg-error-solid\_hover)] text-white transition-colors">
             Delete
           </button>
         </div>
@@ -66,29 +66,30 @@ function EditModal({ tool, onSave, onCancel }: { tool: Tool; onSave: (updates: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-6 space-y-5">
+      <div className="relative z-10 w-full max-w-md rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-2xl p-6 space-y-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-semibold text-slate-900 dark:text-white text-sm">Edit tool</p>
-            <p className="text-xs text-slate-400 mt-0.5 font-mono">{tool.name}</p>
+            <p className="font-semibold text-[var(--text-primary)] text-sm">Edit tool</p>
+            <p className="text-xs text-[var(--text-quaternary)] mt-0.5 font-mono">{tool.name}</p>
           </div>
-          <button onClick={onCancel} className="shrink-0 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-            <X className="w-4 h-4 text-slate-400" />
+          <button onClick={onCancel} className="shrink-0 p-1 rounded-lg hover:bg-[var(--bg-primary\_hover)]">
+            <X className="w-4 h-4 text-[var(--text-quaternary)]" />
           </button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Display Name</label>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-1.5">Display Name</label>
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              className="w-full text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-3 py-2 outline-none focus:ring-2 focus:ring-salmon-500/40 focus:border-salmon-400"
+              className="w-full text-sm rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] text-[var(--text-primary)] px-3 py-2 outline-none focus:ring-2 focus:border-[var(--border-brand-solid)]"
+              style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Type</label>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-1.5">Type</label>
             <div className="flex gap-2">
               {(["llm", "service"] as const).map((t) => (
                 <button
@@ -97,8 +98,8 @@ function EditModal({ tool, onSave, onCancel }: { tool: Tool; onSave: (updates: {
                   className={cn(
                     "flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors",
                     type === t
-                      ? "bg-salmon-600 border-salmon-600 text-white"
-                      : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-salmon-400 hover:text-salmon-600"
+                      ? "bg-[var(--bg-brand-solid)] border-[var(--border-brand-solid)] text-white"
+                      : "border-[var(--border-tertiary)] text-[var(--text-tertiary)] hover:border-[var(--border-brand-solid)] hover:text-[var(--text-brand-primary)]"
                   )}
                 >
                   {t === "llm" ? "LLM" : "Service"}
@@ -108,25 +109,26 @@ function EditModal({ tool, onSave, onCancel }: { tool: Tool; onSave: (updates: {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Notes</label>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-1.5">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Internal notes about this tool…"
-              className="w-full text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-3 py-2 outline-none focus:ring-2 focus:ring-salmon-500/40 focus:border-salmon-400 resize-none"
+              className="w-full text-sm rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] text-[var(--text-primary)] px-3 py-2 outline-none focus:ring-2 focus:border-[var(--border-brand-solid)] resize-none"
+              style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
             />
           </div>
         </div>
 
         <div className="flex gap-2 justify-end">
-          <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border-tertiary)] text-[var(--text-tertiary)] hover:bg-[var(--bg-primary\_hover)] transition-colors">
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white transition-colors disabled:opacity-60 flex items-center gap-1.5"
+            className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-[var(--bg-brand-solid)] hover:bg-[var(--bg-brand-solid\_hover)] text-white transition-colors disabled:opacity-60 flex items-center gap-1.5"
           >
             {saving && <Loader2 className="w-3 h-3 animate-spin" />}
             Save
@@ -211,42 +213,42 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
         />
       )}
 
-      <div className={cn("group rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden hover:shadow-md transition-shadow", borderAccent)}>
+      <div className={cn("group rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm overflow-hidden hover:shadow-md transition-shadow", borderAccent)}>
         <div
-          className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors"
+          className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-[var(--bg-primary\_hover)] transition-colors"
           onClick={() => setExpanded((v) => !v)}
         >
           <div className="flex items-center gap-3.5 min-w-0">
-            <div className="shrink-0 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800">
+            <div className="shrink-0 p-2.5 rounded-lg bg-[var(--bg-secondary)]">
               {isLLM ? (
-                <Brain className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <Brain className="w-4 h-4 text-[var(--text-tertiary)]" />
               ) : (
-                <Wrench className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <Wrench className="w-4 h-4 text-[var(--text-tertiary)]" />
               )}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{tool.displayLabel}</p>
+                <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{tool.displayLabel}</p>
                 {isPerKey && tool.rawKey && (
-                  <span title={`OpenRouter key: ${tool.rawKey}`} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-help">
+                  <span title={`OpenRouter key: ${tool.rawKey}`} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--text-quaternary)] cursor-help">
                     {tool.rawKey}
                   </span>
                 )}
                 {isBilledInactive && (
-                  <span title="Being billed but not used in any currently active project" className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 cursor-help">
+                  <span title="Being billed but not used in any currently active project" className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--bg-warning-primary)] text-[var(--text-warning-primary)] cursor-help">
                     <AlertTriangle className="w-2.5 h-2.5" />
                     No active project
                   </span>
                 )}
                 {isNeverUsed && (
-                  <span title="This tool has never appeared in any project past or present" className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 cursor-help">
+                  <span title="This tool has never appeared in any project past or present" className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--bg-error-primary)] text-[var(--text-error-primary)] cursor-help">
                     <Ban className="w-2.5 h-2.5" />
                     Never used
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                <span className="font-semibold text-slate-500">{isLLM ? "LLM" : "Service"}</span>
+              <p className="text-xs text-[var(--text-quaternary)] mt-0.5">
+                <span className="font-semibold text-[var(--text-tertiary)]">{isLLM ? "LLM" : "Service"}</span>
                 {isPerKey ? " · API usage" : tool.name === "OpenRouter" ? " · wallet top-ups" : " · invoices"}
                 {isLLM && " · "}
                 {isLLM && (tool.projects.length > 0
@@ -258,9 +260,9 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
 
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex flex-col items-end">
-              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(tool.totalSpend)}</p>
+              <p className="font-semibold text-[var(--text-primary)]">{formatCurrency(tool.totalSpend)}</p>
               {!isPerKey && tool.name === "OpenRouter" && (
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5 text-right leading-snug">
+                <p className="text-[10px] text-[var(--text-quaternary)] font-normal mt-0.5 text-right leading-snug">
                   Credit deposited into OR wallet.<br />See per-key rows below for actual usage.
                 </p>
               )}
@@ -277,8 +279,8 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
               className={cn(
                 "p-1.5 rounded-lg transition-all",
                 tool.hasManualOverride
-                  ? "text-salmon-500 dark:text-salmon-400 bg-salmon-50 dark:bg-navy-900/20"
-                  : "text-slate-300 dark:text-slate-600 hover:bg-salmon-50 dark:hover:bg-navy-900/20 hover:text-salmon-500 dark:hover:text-salmon-400 opacity-0 group-hover:opacity-100"
+                  ? "text-[var(--text-brand-primary)] bg-[var(--bg-brand-primary)]"
+                  : "text-[var(--text-disabled)] hover:bg-[var(--bg-brand-primary)] hover:text-[var(--text-brand-primary)] opacity-0 group-hover:opacity-100"
               )}
             >
               <Link2 className="w-3.5 h-3.5" />
@@ -286,38 +288,38 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
             <button
               onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
               title="Edit this tool"
-              className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:bg-salmon-50 dark:hover:bg-navy-900/20 hover:text-salmon-500 dark:hover:text-salmon-400 transition-all opacity-0 group-hover:opacity-100"
+              className="p-1.5 rounded-lg text-[var(--text-disabled)] hover:bg-[var(--bg-brand-primary)] hover:text-[var(--text-brand-primary)] transition-all opacity-0 group-hover:opacity-100"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
               title="Delete this tool"
-              className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500 dark:hover:text-rose-400 transition-all opacity-0 group-hover:opacity-100"
+              className="p-1.5 rounded-lg text-[var(--text-disabled)] hover:bg-[var(--bg-error-primary)] hover:text-[var(--text-error-primary)] transition-all opacity-0 group-hover:opacity-100"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-            <div className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            <div className="p-1 rounded-lg hover:bg-[var(--bg-primary\_hover)] transition-colors">
+              {expanded ? <ChevronUp className="w-4 h-4 text-[var(--text-quaternary)]" /> : <ChevronDown className="w-4 h-4 text-[var(--text-quaternary)]" />}
             </div>
           </div>
         </div>
 
         {expanded && (
-          <div className="border-t border-slate-100 dark:border-slate-800 px-5 py-4 space-y-4 bg-slate-50/50 dark:bg-slate-800/30">
+          <div className="border-t border-[var(--border-tertiary)] px-5 py-4 space-y-4 bg-[var(--bg-secondary\_subtle)]">
             {tool.notes && (
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Notes</p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{tool.notes}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-1">Notes</p>
+                <p className="text-xs text-[var(--text-tertiary)]">{tool.notes}</p>
               </div>
             )}
             {isLLM && (tool.autoProjects?.length ?? 0) > 0 && (
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Auto-linked Projects</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-2">Auto-linked Projects</p>
                 <div className="flex flex-wrap gap-1.5">
                   {(tool.autoProjects ?? []).map((p) => (
-                    <span key={p} title="Linked via OpenRouter key — metered" className="flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-full cursor-help">
-                      <Lock className="w-2.5 h-2.5 text-slate-400" />
+                    <span key={p} title="Linked via OpenRouter key — metered" className="flex items-center gap-1 text-xs bg-[var(--bg-secondary)] text-[var(--text-tertiary)] font-medium border border-[var(--border-tertiary)] px-2.5 py-0.5 rounded-full cursor-help">
+                      <Lock className="w-2.5 h-2.5 text-[var(--text-quaternary)]" />
                       {p}
                     </span>
                   ))}
@@ -326,7 +328,7 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
             )}
             {(tool.manualProjects?.length ?? 0) > 0 && (
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Manually Linked Projects</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-2">Manually Linked Projects</p>
                 <div className="flex flex-wrap gap-1.5">
                   {(tool.manualProjects ?? []).map((p) => (
                     <span
@@ -335,8 +337,8 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
                       className={cn(
                         "text-xs font-medium border px-2.5 py-0.5 rounded-full",
                         tool.type === "service"
-                          ? "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 cursor-help"
-                          : "bg-salmon-50 dark:bg-navy-950/40 text-salmon-600 dark:text-salmon-400 border-salmon-200 dark:border-navy-800"
+                          ? "bg-[var(--bg-warning-primary)] text-[var(--text-warning-primary)] border-[var(--border-warning\_subtle)] cursor-help"
+                          : "bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)] border-[var(--border-brand)]"
                       )}
                     >
                       {p}
@@ -347,7 +349,7 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
             )}
             {hasTrend && (
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Monthly Spend</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-2">Monthly Spend</p>
                 <ResponsiveContainer width="100%" height={120}>
                   <LineChart data={tool.monthlyTrend}>
                     <XAxis dataKey="month" tick={{ fontSize: 9, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
@@ -367,16 +369,16 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
             p.toLowerCase().includes(attrSearch.toLowerCase())
           );
           return (
-            <div className="border-t border-slate-100 dark:border-slate-800 px-5 py-4 space-y-3 bg-salmon-50/30 dark:bg-navy-950/10">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Attribute to projects</p>
+            <div className="border-t border-[var(--border-tertiary)] px-5 py-4 space-y-3 bg-[var(--bg-brand-primary)]">
+              <p className="text-xs font-semibold text-[var(--text-secondary)]">Attribute to projects</p>
 
               {/* Auto-linked (read-only) */}
               {(tool.autoProjects?.length ?? 0) > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Auto-linked via OpenRouter key</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-1.5">Auto-linked via OpenRouter key</p>
                   <div className="flex flex-wrap gap-1.5">
                     {(tool.autoProjects ?? []).map((p) => (
-                      <span key={p} className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                      <span key={p} className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border border-[var(--border-tertiary)]">
                         <Lock className="w-2.5 h-2.5" />
                         {p}
                       </span>
@@ -387,7 +389,7 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
 
               {/* Project multi-select */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-1.5">
                   {(tool.autoProjects?.length ?? 0) > 0 ? "Add more projects" : "Link to projects"}
                 </p>
                 <input
@@ -395,11 +397,12 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
                   value={attrSearch}
                   onChange={e => setAttrSearch(e.target.value)}
                   placeholder="Search projects…"
-                  className="w-full text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white mb-2 outline-none focus:ring-2 focus:ring-salmon-500/40 focus:border-salmon-400"
+                  className="w-full text-xs px-3 py-1.5 rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] text-[var(--text-primary)] mb-2 outline-none focus:ring-2 focus:border-[var(--border-brand-solid)]"
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 />
-                <div className="max-h-36 overflow-y-auto space-y-0.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1">
+                <div className="max-h-36 overflow-y-auto space-y-0.5 rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] p-1">
                   {filtered.map(p => (
-                    <label key={p} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+                    <label key={p} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--bg-primary\_hover)] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={attrSelected.has(p)}
@@ -410,31 +413,32 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
                             return next;
                           });
                         }}
-                        className="accent-salmon-600"
+                        className="accent-[var(--bg-brand-solid)]"
                       />
-                      <span className="text-xs text-slate-700 dark:text-slate-300">{p}</span>
+                      <span className="text-xs text-[var(--text-secondary)]">{p}</span>
                     </label>
                   ))}
                   {filtered.length === 0 && (
-                    <p className="text-xs text-slate-400 px-2 py-1.5">No projects found</p>
+                    <p className="text-xs text-[var(--text-quaternary)] px-2 py-1.5">No projects found</p>
                   )}
                 </div>
               </div>
 
               {/* Notes */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Notes (optional)</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-1">Notes (optional)</label>
                 <input
                   type="text"
                   value={attrNotes}
                   onChange={e => setAttrNotes(e.target.value)}
                   placeholder="e.g. confirmed by Adarsh"
-                  className="w-full text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-salmon-500/40 focus:border-salmon-400"
+                  className="w-full text-xs px-3 py-1.5 rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] text-[var(--text-primary)] outline-none focus:ring-2 focus:border-[var(--border-brand-solid)]"
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 />
               </div>
 
               {tool.type === "service" && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                <p className="text-[10px] text-[var(--text-warning-primary)]">
                   Display link only — cost stays in Shared Infrastructure, not attributed to these projects.
                 </p>
               )}
@@ -442,14 +446,14 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setAttributeOpen(false)}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border-tertiary)] text-[var(--text-tertiary)] hover:bg-[var(--bg-primary\_hover)] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveAttribution}
                   disabled={savingAttribution}
-                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white transition-colors disabled:opacity-60 flex items-center gap-1.5"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-[var(--bg-brand-solid)] hover:bg-[var(--bg-brand-solid\_hover)] text-white transition-colors disabled:opacity-60 flex items-center gap-1.5"
                 >
                   {savingAttribution && <Loader2 className="w-3 h-3 animate-spin" />}
                   Save

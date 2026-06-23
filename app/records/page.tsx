@@ -36,10 +36,10 @@ export default async function RecordsPage() {
   return (
     <div className="p-4 md:p-6 space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Financial Records</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">All invoices, sorted by date</p>
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Financial Records</h1>
+        <p className="text-sm text-[var(--text-tertiary)] mt-0.5">All invoices, sorted by date</p>
       </div>
-      <Suspense fallback={<p className="text-sm text-slate-400">Loading records...</p>}>
+      <Suspense fallback={<p className="text-sm text-[var(--text-quaternary)]">Loading records...</p>}>
         <RecordsTable initial={records} vendors={vendors} />
       </Suspense>
     </div>

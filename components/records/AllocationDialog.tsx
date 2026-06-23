@@ -68,40 +68,38 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="pointer-events-auto w-full max-w-[440px] flex flex-col rounded-2xl bg-[#0e1219] border border-slate-700 shadow-2xl overflow-hidden"
+          className="pointer-events-auto w-full max-w-[440px] flex flex-col rounded-xl bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 shrink-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-tertiary)] shrink-0">
             <div>
-              <h2 className="text-sm font-semibold text-slate-100">Allocate Invoice</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Allocate Invoice</h2>
+              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
                 {invoice.vendor_name} · {formatCurrency(invoice.total_amount, invoice.currency)}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--bg-secondary)] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Form */}
           <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Cost Type</p>
+            <p className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wide">Cost Type</p>
             <div className="space-y-2">
               {COST_TYPE_OPTIONS.map((opt) => (
                 <label
                   key={opt.value}
                   className={cn(
-                    "flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
+                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
                     costType === opt.value
-                      ? "border-salmon-500 bg-salmon-950/40"
-                      : "border-slate-700 hover:border-slate-600"
+                      ? "border-[var(--border-brand-solid)] bg-[var(--bg-brand-primary)]"
+                      : "border-[var(--border-tertiary)] hover:border-[var(--border-secondary)]"
                   )}
                 >
                   <input
@@ -113,20 +111,19 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                       setCostType(opt.value);
                       setError(null);
                     }}
-                    className="mt-0.5 accent-salmon-400"
+                    className="mt-0.5"
                   />
                   <div>
-                    <p className="text-sm font-medium text-slate-200">{opt.label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">{opt.label}</p>
+                    <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{opt.description}</p>
                   </div>
                 </label>
               ))}
             </div>
 
-            {/* Project search (only when project_specific) */}
             {costType === "project_specific" && (
               <div className="mt-1">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Project *</p>
+                <p className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wide mb-1.5">Project *</p>
                 <div className="relative">
                   <input
                     type="text"
@@ -137,10 +134,10 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                       setError(null);
                     }}
                     placeholder="Search projects…"
-                    className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors"
+                    className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm px-3 py-2 placeholder-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:border-[var(--border-brand-solid)] transition-colors"
                   />
                   {showDropdown && filteredProjects.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden max-h-40 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] shadow-md overflow-hidden max-h-40 overflow-y-auto">
                       {filteredProjects.map((p) => (
                         <button
                           key={p}
@@ -149,7 +146,7 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                             setProjectId(p);
                             setProjectSearch(p);
                           }}
-                          className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                          className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
                         >
                           {p}
                         </button>
@@ -158,26 +155,26 @@ export function AllocationDialog({ invoice, onClose, onAllocated }: Props) {
                   )}
                 </div>
                 {projectId && (
-                  <p className="mt-1 text-xs text-salmon-400">Selected: {projectId}</p>
+                  <p className="mt-1 text-xs text-[var(--text-brand-primary)]">Selected: {projectId}</p>
                 )}
               </div>
             )}
 
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-[var(--text-error-primary)]">{error}</p>}
           </div>
 
-          {/* Footer */}
-          <div className="px-5 py-4 border-t border-slate-800 flex items-center gap-3 shrink-0">
+          <div className="px-5 py-4 border-t border-[var(--border-tertiary)] flex items-center gap-3 shrink-0">
             <button
               onClick={onClose}
-              className="flex-1 py-2 rounded-lg border border-slate-700 text-slate-400 text-sm font-medium hover:bg-slate-800 hover:text-slate-200 transition-colors"
+              className="flex-1 py-2 rounded-lg border border-[var(--border-tertiary)] text-[var(--text-tertiary)] text-sm font-semibold hover:bg-[var(--bg-secondary\_hover)] transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 py-2 rounded-lg bg-salmon-600 hover:bg-salmon-500 disabled:opacity-50 text-white text-sm font-bold transition-colors"
+              className="flex-1 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: "var(--bg-brand-solid)" }}
             >
               {saving ? "Saving…" : "Save Allocation"}
             </button>

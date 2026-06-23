@@ -38,15 +38,15 @@ function UnallocatedCard({ data }: { data: UnallocatedSpend }) {
   const miscCount = data.unallocated_misc.count;
 
   return (
-    <div className="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40 p-5 space-y-3">
+    <div className="rounded-lg border-2 border-dashed border-[var(--border-tertiary)] bg-[var(--bg-secondary\_subtle)] p-5 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
-          <h3 className="font-bold text-slate-500 dark:text-slate-400 text-sm leading-tight">
+          <AlertCircle className="w-4 h-4 text-[var(--text-quaternary)] shrink-0" />
+          <h3 className="font-semibold text-[var(--text-tertiary)] text-sm leading-tight">
             Unallocated · Not Attributable to Any Single Project
           </h3>
         </div>
-        <p className="font-bold text-slate-500 dark:text-slate-400 text-sm shrink-0">
+        <p className="font-semibold text-[var(--text-tertiary)] text-sm shrink-0">
           {formatCurrency(data.grand_total)}
         </p>
       </div>
@@ -54,18 +54,18 @@ function UnallocatedCard({ data }: { data: UnallocatedSpend }) {
       {data.shared_infrastructure.total > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)]">
               Shared Infrastructure
             </span>
-            <span className="text-[10px] font-semibold text-slate-500">
+            <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">
               {formatCurrency(data.shared_infrastructure.total)}
             </span>
           </div>
           <ul className="space-y-0.5">
             {data.shared_infrastructure.vendors.map((v) => (
-              <li key={v.name} className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pl-2">
+              <li key={v.name} className="flex items-center justify-between gap-2 text-xs text-[var(--text-tertiary)] pl-2">
                 <span className="truncate">{v.name}</span>
-                <span className="shrink-0 text-slate-400">{formatCurrency(v.value)}</span>
+                <span className="shrink-0 text-[var(--text-quaternary)]">{formatCurrency(v.value)}</span>
               </li>
             ))}
           </ul>
@@ -75,18 +75,18 @@ function UnallocatedCard({ data }: { data: UnallocatedSpend }) {
       {data.shared_tooling.total > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)]">
               Shared Tooling
             </span>
-            <span className="text-[10px] font-semibold text-slate-500">
+            <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">
               {formatCurrency(data.shared_tooling.total)}
             </span>
           </div>
           <ul className="space-y-0.5">
             {data.shared_tooling.vendors.map((v) => (
-              <li key={v.name} className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pl-2">
+              <li key={v.name} className="flex items-center justify-between gap-2 text-xs text-[var(--text-tertiary)] pl-2">
                 <span className="truncate">{v.name}</span>
-                <span className="shrink-0 text-slate-400">{formatCurrency(v.value)}</span>
+                <span className="shrink-0 text-[var(--text-quaternary)]">{formatCurrency(v.value)}</span>
               </li>
             ))}
           </ul>
@@ -96,25 +96,25 @@ function UnallocatedCard({ data }: { data: UnallocatedSpend }) {
       {data.unallocated_misc.total > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)]">
               Unallocated Invoices
             </span>
-            <span className="text-[10px] font-semibold text-slate-500">
+            <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">
               {formatCurrency(data.unallocated_misc.total)}
             </span>
           </div>
           {miscCount > 0 && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 pl-2">
+            <p className="text-xs text-[var(--text-quaternary)] pl-2">
               {miscCount} invoice{miscCount !== 1 ? "s" : ""} need allocation
             </p>
           )}
         </div>
       )}
 
-      <p className="text-[10px] text-slate-400 dark:text-slate-500 italic border-t border-slate-200 dark:border-slate-700 pt-2 leading-snug">
+      <p className="text-[10px] text-[var(--text-quaternary)] italic border-t border-[var(--border-tertiary)] pt-2 leading-snug">
         {miscCount > 0 && (
           <>
-            <Link href="/records?costType=unallocated" className="hover:text-salmon-400 transition-colors">
+            <Link href="/records?costType=unallocated" className="hover:text-[var(--text-brand-primary)] transition-colors">
               {miscCount} invoice{miscCount !== 1 ? "s" : ""} in &lsquo;Unallocated Invoices&rsquo; still need allocation. Triage them in Financial Records →.
             </Link>{" "}
           </>
@@ -173,12 +173,12 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
     if (grandTotal <= 0) return null;
     return (
       <span>
-        <span className="text-slate-700 dark:text-slate-300 font-medium">{formatCurrency(attributedTotal)}</span>
-        <span className="text-slate-400"> attributed · </span>
-        <span className="text-slate-500 dark:text-slate-400 font-medium">{formatCurrency(unallocated.grand_total)}</span>
-        <span className="text-slate-400"> unallocated · </span>
-        <span className="text-slate-600 dark:text-slate-300 font-semibold">{formatCurrency(grandTotal)}</span>
-        <span className="text-slate-400"> total</span>
+        <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(attributedTotal)}</span>
+        <span className="text-[var(--text-quaternary)]"> attributed · </span>
+        <span className="text-[var(--text-tertiary)] font-medium">{formatCurrency(unallocated.grand_total)}</span>
+        <span className="text-[var(--text-quaternary)]"> unallocated · </span>
+        <span className="text-[var(--text-secondary)] font-semibold">{formatCurrency(grandTotal)}</span>
+        <span className="text-[var(--text-quaternary)]"> total</span>
       </span>
     );
   }
@@ -189,8 +189,8 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Projects</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            <h1 className="text-xl font-semibold text-[var(--text-primary)]">Projects</h1>
+            <p className="text-sm text-[var(--text-tertiary)] mt-0.5">
               {projects.length} projects · {headerSpend()}
             </p>
           </div>
@@ -199,20 +199,22 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
         {/* Controls */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[180px] max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-quaternary)] pointer-events-none" />
             <input
               type="text"
               placeholder="Search projects…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-salmon-400"
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] placeholder-[var(--text-quaternary)] focus:outline-none focus:ring-1"
+              style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
             />
           </div>
 
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="ml-auto px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-salmon-400 cursor-pointer"
+            className="ml-auto px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] text-[var(--text-tertiary)] focus:outline-none focus:ring-1 cursor-pointer"
+            style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -222,11 +224,11 @@ export function ProjectsClient({ initialProjects, initialMaxSpend, initialUnallo
 
         {/* Grid */}
         {projects.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-16">
+          <p className="text-sm text-[var(--text-quaternary)] text-center py-16">
             No projects found. Check Supabase RLS on agents_portfolio table.
           </p>
         ) : displayed.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-16">No projects match the search.</p>
+          <p className="text-sm text-[var(--text-quaternary)] text-center py-16">No projects match the search.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {displayed.map((p, i) => {

@@ -43,16 +43,16 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
   }
 
   return (
-    <div ref={containerRef} className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col">
-      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">
+    <div ref={containerRef} className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-6 flex flex-col">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1">
         Spend by Vendor{" "}
-        <span className="text-slate-400 dark:text-slate-500 font-normal">(last 12 months)</span>
+        <span className="text-[var(--text-quaternary)] font-normal">(last 12 months)</span>
       </h3>
-      <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{sorted.length} vendors</p>
+      <p className="text-xs text-[var(--text-quaternary)] mb-4">{sorted.length} vendors</p>
 
       <div
         className="overflow-y-auto max-h-72 space-y-2.5 pr-2"
-        style={{ scrollbarWidth: "thin", scrollbarColor: "#FF725C #f1f5f9" }}
+        style={{ scrollbarWidth: "thin", scrollbarColor: "var(--bg-brand-solid) var(--bg-secondary)" }}
       >
         {sorted.map(({ vendor, total }, i) => {
           const pct = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;
@@ -64,13 +64,11 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
               onMouseEnter={(e) => handleMouseEnter(e, vendor)}
               onMouseLeave={() => setTooltip(null)}
             >
-              {/* Vendor name */}
-              <span className="w-28 shrink-0 text-xs text-gray-700 truncate text-right">
+              <span className="w-28 shrink-0 text-xs text-[var(--text-tertiary)] truncate text-right">
                 {vendor}
               </span>
 
-              {/* Bar */}
-              <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ backgroundColor: "#f3f4f6" }}>
+              <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-tertiary)" }}>
                 <div
                   className="h-full rounded-full"
                   style={{
@@ -81,12 +79,11 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
                 />
               </div>
 
-              {/* Amount + % stacked */}
               <div className="w-28 shrink-0 text-right">
-                <p className="text-xs font-bold text-gray-900 leading-tight tabular-nums">
+                <p className="text-xs font-semibold text-[var(--text-primary)] leading-tight tabular-nums">
                   {total > 0 ? formatCurrency(total) : "—"}
                 </p>
-                <p className="text-[10px] text-gray-500 leading-tight">
+                <p className="text-[10px] text-[var(--text-quaternary)] leading-tight">
                   {total > 0 ? `${pct}%` : "no spend"}
                 </p>
               </div>
@@ -95,24 +92,23 @@ export function SpendByVendorChart({ data, vendorProjects }: Props) {
         })}
 
         {sorted.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-8">No data</p>
+          <p className="text-sm text-[var(--text-quaternary)] text-center py-8">No data</p>
         )}
       </div>
 
-      {/* Tooltip rendered outside scroll container, fixed to viewport */}
       {tooltip && (
         <div
-          className="fixed z-50 bg-slate-900 text-white rounded-xl shadow-xl px-3 py-2.5 min-w-44 pointer-events-none"
-          style={{ left: tooltip.x, top: tooltip.y }}
+          className="fixed z-50 rounded-xl shadow-xl px-3 py-2.5 min-w-44 pointer-events-none"
+          style={{ left: tooltip.x, top: tooltip.y, backgroundColor: "var(--bg-primary-solid)", color: "white" }}
         >
-          <p className="text-xs font-bold mb-1.5">{tooltip.vendor}</p>
+          <p className="text-xs font-semibold mb-1.5">{tooltip.vendor}</p>
           {tooltip.projects.length > 0 && (
             <>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Used in</p>
+              <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Used in</p>
               <ul className="space-y-0.5">
                 {tooltip.projects.map((p) => (
-                  <li key={p} className="text-xs text-slate-200 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-salmon-400 shrink-0" />
+                  <li key={p} className="text-xs flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.85)" }}>
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "var(--bg-brand-solid)" }} />
                     {p}
                   </li>
                 ))}

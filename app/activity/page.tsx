@@ -33,12 +33,12 @@ export default async function ActivityPage() {
   return (
     <div className="p-4 md:p-6 space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Activity</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Activity</h1>
+        <p className="text-sm text-[var(--text-tertiary)] mt-0.5">
           OpenRouter per-key spend, budget guardrails, and API invocation logs
         </p>
       </div>
-      <Suspense fallback={<p className="text-sm text-slate-400">Loading activity...</p>}>
+      <Suspense fallback={<p className="text-sm text-[var(--text-quaternary)]">Loading activity...</p>}>
         <ActivityClient
           initialActivity={activity}
           initialGuardrails={guardrails}

@@ -39,7 +39,7 @@ export function ActivityClient({ initialActivity, initialLogs }: Props) {
   return (
     <div className="space-y-5">
       {/* Tab switcher */}
-      <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 w-full sm:w-fit overflow-x-auto">
+      <div className="flex gap-1 p-1 rounded-lg bg-[var(--bg-secondary)] w-full sm:w-fit overflow-x-auto">
         {TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -47,8 +47,8 @@ export function ActivityClient({ initialActivity, initialLogs }: Props) {
             className={cn(
               "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
               tab === id
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
             )}
           >
             <Icon className="w-3.5 h-3.5" />

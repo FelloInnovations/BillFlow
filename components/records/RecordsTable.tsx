@@ -60,10 +60,10 @@ function Checkbox({
       onChange={onChange}
       onClick={onClick}
       className={cn(
-        "w-4 h-4 rounded border bg-slate-800 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0 focus:ring-offset-transparent cursor-pointer accent-cyan-400",
+        "w-4 h-4 rounded border bg-[var(--bg-secondary)] focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0 focus:ring-offset-transparent cursor-pointer accent-cyan-400",
         disabled
           ? "opacity-25 cursor-not-allowed"
-          : "border-slate-500 hover:border-slate-400"
+          : "border-[var(--border-secondary)] hover:border-[var(--border-secondary)]"
       )}
     />
   );
@@ -74,10 +74,10 @@ function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
   return (
     <div
       className={cn(
-        "fixed top-5 right-5 z-[60] flex items-center gap-2 px-4 py-3 rounded-xl border shadow-xl text-sm font-medium",
+        "fixed top-5 right-5 z-[60] flex items-center gap-2 px-4 py-3 rounded-lg border shadow-xl text-sm font-medium",
         type === "success"
-          ? "bg-emerald-950 border-emerald-700 text-emerald-300"
-          : "bg-red-950 border-red-700 text-red-300"
+          ? "bg-[var(--bg-success-primary)] border-[var(--border-success\_subtle)] text-[var(--text-success-primary)]"
+          : "bg-[var(--bg-error-primary)] border-[var(--border-error\_subtle)] text-[var(--text-error-primary)]"
       )}
     >
       {type === "success" ? (
@@ -104,7 +104,7 @@ function AllocationBadge({
     return (
       <button
         onClick={onAllocate}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-salmon-50 dark:bg-navy-950 text-salmon-700 dark:text-salmon-300 ring-1 ring-salmon-200 dark:ring-navy-800 hover:ring-salmon-400 transition-shadow max-w-[140px] truncate"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)] ring-1 ring-[var(--border-brand)] hover:ring-[var(--border-brand-solid)] transition-shadow max-w-[140px] truncate"
         title={project_id}
       >
         {project_id}
@@ -116,7 +116,7 @@ function AllocationBadge({
     return (
       <button
         onClick={onAllocate}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-slate-400 transition-shadow"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--bg-secondary)] text-[var(--text-tertiary)] ring-1 ring-[var(--border-tertiary)] hover:ring-[var(--border-secondary)] transition-shadow"
       >
         Shared Infra
       </button>
@@ -127,7 +127,7 @@ function AllocationBadge({
     return (
       <button
         onClick={onAllocate}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-slate-400 transition-shadow"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--bg-secondary)] text-[var(--text-tertiary)] ring-1 ring-[var(--border-tertiary)] hover:ring-[var(--border-secondary)] transition-shadow"
       >
         Shared Tooling
       </button>
@@ -138,7 +138,7 @@ function AllocationBadge({
   return (
     <button
       onClick={onAllocate}
-      className="text-xs text-slate-400 hover:text-salmon-500 dark:hover:text-salmon-400 transition-colors"
+      className="text-xs text-[var(--text-quaternary)] hover:text-[var(--text-brand-primary)] transition-colors"
     >
       Allocate →
     </button>
@@ -192,19 +192,19 @@ function BulkAllocationDialog({
       <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="pointer-events-auto w-full max-w-[420px] flex flex-col rounded-2xl bg-[#0e1219] border border-slate-700 shadow-2xl overflow-hidden"
+          className="pointer-events-auto w-full max-w-[420px] flex flex-col rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-tertiary)]">
             <div>
-              <h2 className="text-sm font-semibold text-slate-100">Bulk Allocate</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Bulk Allocate</h2>
+              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
                 Applying to {count} invoice{count !== 1 ? "s" : ""}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary\_hover)] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -215,10 +215,10 @@ function BulkAllocationDialog({
               <label
                 key={opt.value}
                 className={cn(
-                  "flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
+                  "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
                   costType === opt.value
-                    ? "border-salmon-500 bg-salmon-950/40"
-                    : "border-slate-700 hover:border-slate-600"
+                    ? "border-[var(--border-brand-solid)] bg-[var(--bg-brand-primary)]"
+                    : "border-[var(--border-tertiary)] hover:border-[var(--border-secondary)]"
                 )}
               >
                 <input
@@ -227,34 +227,34 @@ function BulkAllocationDialog({
                   value={opt.value}
                   checked={costType === opt.value}
                   onChange={() => { setCostType(opt.value); setError(null); }}
-                  className="mt-0.5 accent-salmon-400"
+                  className="mt-0.5 accent-[var(--bg-brand-solid)]"
                 />
                 <div>
-                  <p className="text-sm font-medium text-slate-200">{opt.label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{opt.label}</p>
+                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{opt.description}</p>
                 </div>
               </label>
             ))}
 
             {costType === "project_specific" && (
               <div className="mt-1">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Project *</p>
+                <p className="text-xs font-semibold text-[var(--text-quaternary)] uppercase tracking-wide mb-1.5">Project *</p>
                 <div className="relative">
                   <input
                     type="text"
                     value={projectSearch}
                     onChange={(e) => { setProjectSearch(e.target.value); setProjectId(""); setError(null); }}
                     placeholder="Search projects…"
-                    className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors"
+                    className="w-full rounded-lg bg-[var(--bg-secondary\_subtle)] border border-[var(--border-tertiary)] text-[var(--text-primary)] text-sm px-3 py-2 placeholder-[var(--text-quaternary)] focus:outline-none focus:ring-1 focus:ring-[var(--border-brand-solid)] transition-colors"
                   />
                   {projectSearch && !projectId && filteredProjects.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden max-h-36 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] overflow-hidden max-h-36 overflow-y-auto">
                       {filteredProjects.map((p) => (
                         <button
                           key={p}
                           type="button"
                           onClick={() => { setProjectId(p); setProjectSearch(p); }}
-                          className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                          className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-primary\_hover)] transition-colors"
                         >
                           {p}
                         </button>
@@ -262,22 +262,22 @@ function BulkAllocationDialog({
                     </div>
                   )}
                 </div>
-                {projectId && <p className="mt-1 text-xs text-salmon-400">Selected: {projectId}</p>}
+                {projectId && <p className="mt-1 text-xs text-[var(--text-brand-primary)]">Selected: {projectId}</p>}
               </div>
             )}
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-[var(--text-error-primary)]">{error}</p>}
           </div>
 
-          <div className="px-5 py-4 border-t border-slate-800 flex items-center gap-3">
+          <div className="px-5 py-4 border-t border-[var(--border-tertiary)] flex items-center gap-3">
             <button
               onClick={onClose}
-              className="flex-1 py-2 rounded-lg border border-slate-700 text-slate-400 text-sm font-medium hover:bg-slate-800 hover:text-slate-200 transition-colors"
+              className="flex-1 py-2 rounded-lg border border-[var(--border-tertiary)] text-[var(--text-tertiary)] text-sm font-medium hover:bg-[var(--bg-primary\_hover)] hover:text-[var(--text-primary)] transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirm}
-              className="flex-1 py-2 rounded-lg bg-salmon-600 hover:bg-salmon-500 text-white text-sm font-bold transition-colors"
+              className="flex-1 py-2 rounded-lg bg-[var(--bg-brand-solid)] hover:bg-[var(--bg-brand-solid\_hover)] text-white text-sm font-semibold transition-colors"
             >
               Allocate {count}
             </button>
@@ -570,11 +570,12 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             <button
               onClick={() => setVendorOpen((o) => !o)}
               className={cn(
-                "flex items-center gap-2 text-sm border rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors",
+                "flex items-center gap-2 text-sm border rounded-md px-3 py-1.5 bg-[var(--bg-primary)] focus:outline-none transition-colors",
                 selectedVendors.length > 0
-                  ? "border-salmon-400 dark:border-navy-500 text-salmon-700 dark:text-salmon-300"
-                  : "border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                  ? "border-[var(--border-brand-solid)] text-[var(--text-brand-primary)]"
+                  : "border-[var(--border-tertiary)] text-[var(--text-primary)]"
               )}
+              style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
             >
               <span>{vendorLabel}</span>
               {selectedVendors.length > 0 ? (
@@ -587,7 +588,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               )}
             </button>
             {vendorOpen && (
-              <div className="absolute top-full left-0 mt-1 z-50 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+              <div className="absolute top-full left-0 mt-1 z-50 w-56 bg-[var(--bg-primary)] border border-[var(--border-tertiary)] rounded-lg shadow-xl overflow-hidden">
                 <div className="max-h-60 overflow-y-auto py-1">
                   {vendors.map((v) => (
                     <button
@@ -596,16 +597,16 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                       className={cn(
                         "w-full text-left flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
                         selectedVendors.includes(v)
-                          ? "bg-salmon-50 dark:bg-navy-950 text-salmon-700 dark:text-salmon-300"
-                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                          ? "bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)]"
+                          : "text-[var(--text-secondary)] hover:bg-[var(--bg-primary\_hover)]"
                       )}
                     >
                       <span
                         className={cn(
                           "w-4 h-4 rounded border flex items-center justify-center shrink-0",
                           selectedVendors.includes(v)
-                            ? "bg-salmon-600 border-salmon-600 text-white"
-                            : "border-slate-300 dark:border-slate-600"
+                            ? "bg-[var(--bg-brand-solid)] border-[var(--border-brand-solid)] text-white"
+                            : "border-[var(--border-secondary)]"
                         )}
                       >
                         {selectedVendors.includes(v) && (
@@ -631,7 +632,8 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           <select
             value={filters.status}
             onChange={(e) => applyFilter("status", e.target.value)}
-            className="text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
+            className="text-sm border border-[var(--border-tertiary)] rounded-md px-3 py-1.5 bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none"
+            style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s || "All Statuses"}</option>
@@ -642,11 +644,12 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             value={filters.costType}
             onChange={(e) => applyFilter("costType", e.target.value)}
             className={cn(
-              "text-sm border rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-salmon-500 transition-colors",
+              "text-sm border rounded-md px-3 py-1.5 bg-[var(--bg-primary)] focus:outline-none transition-colors",
               filters.costType
-                ? "border-salmon-400 dark:border-navy-500 text-salmon-700 dark:text-salmon-300"
-                : "border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                ? "border-[var(--border-brand-solid)] text-[var(--text-brand-primary)]"
+                : "border-[var(--border-tertiary)] text-[var(--text-primary)]"
             )}
+            style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
           >
             {COST_TYPE_FILTER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -657,32 +660,34 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             type="date"
             value={filters.dateFrom}
             onChange={(e) => applyFilter("dateFrom", e.target.value)}
-            className="hidden sm:block text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
+            className="hidden sm:block text-sm border border-[var(--border-tertiary)] rounded-md px-3 py-1.5 bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none"
+            style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
           />
           <input
             type="date"
             value={filters.dateTo}
             onChange={(e) => applyFilter("dateTo", e.target.value)}
-            className="hidden sm:block text-sm border border-slate-200 dark:border-slate-700 rounded-md px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-salmon-500"
+            className="hidden sm:block text-sm border border-[var(--border-tertiary)] rounded-md px-3 py-1.5 bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none"
+            style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
           />
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="hidden md:block text-xs font-medium text-slate-500 dark:text-slate-400">
+          <span className="hidden md:block text-xs font-medium text-[var(--text-tertiary)]">
             Updated{" "}
             {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <button
             onClick={handleRefresh}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-salmon-50 dark:bg-navy-950 border border-salmon-200 dark:border-navy-800 text-salmon-700 dark:text-salmon-300 hover:bg-salmon-100 dark:hover:bg-navy-900 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-[var(--bg-brand-primary)] border border-[var(--border-brand)] text-[var(--text-brand-primary)] hover:bg-[var(--bg-brand-primary)] disabled:opacity-40 transition-colors"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-salmon-50 border border-salmon-200 text-salmon-600 hover:bg-salmon-100 hover:border-salmon-300 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-[var(--bg-brand-primary)] border border-[var(--border-brand)] text-[var(--text-brand-primary)] hover:border-[var(--border-brand-solid)] transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Invoice
@@ -693,14 +698,14 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
       {/* ── Table ── */}
       <div
         className={cn(
-          "rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden",
+          "rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm overflow-hidden",
           loading && "opacity-60"
         )}
       >
         <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[640px]">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50">
+            <tr className="border-b border-[var(--border-tertiary)] bg-[var(--bg-secondary\_subtle)]">
               <th className="pl-4 pr-2 py-3.5 w-10">
                 <Checkbox
                   checked={allChecked}
@@ -712,14 +717,14 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               {["Vendor", "Invoice #", "Date", "Due Date", "Amount", "Status", "Allocation"].map((h) => (
                 <th
                   key={h}
-                  className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                  className="text-left px-5 py-3.5 text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wide"
                 >
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <tbody className="divide-y divide-[var(--border-tertiary)]">
             {data.data.map((row) => {
               const isPaid = row.payment_status === "paid";
               const isChecked = checkedIds.has(row.id);
@@ -730,8 +735,8 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                   className={cn(
                     "group cursor-pointer transition-colors",
                     isChecked
-                      ? "bg-salmon-50/40 dark:bg-navy-950/20 hover:bg-salmon-50/70 dark:hover:bg-navy-950/30"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      ? "bg-[var(--bg-brand-primary)] hover:bg-[var(--bg-primary\_hover)]"
+                      : "hover:bg-[var(--bg-primary\_hover)]"
                   )}
                   onClick={() => {
                     if (!isPaid) toggleRow(row.id);
@@ -752,19 +757,19 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                     />
                   </td>
 
-                  <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200">
+                  <td className="px-5 py-3.5 font-semibold text-[var(--text-secondary)]">
                     {row.vendor_name ?? "—"}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-400 dark:text-slate-500 font-mono text-xs">
+                  <td className="px-5 py-3.5 text-[var(--text-quaternary)] font-mono text-xs">
                     {row.invoice_number ?? "—"}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
+                  <td className="px-5 py-3.5 text-[var(--text-tertiary)]">
                     {formatDate(row.invoice_date)}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
+                  <td className="px-5 py-3.5 text-[var(--text-tertiary)]">
                     {formatDate(row.due_date)}
                   </td>
-                  <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-white">
+                  <td className="px-5 py-3.5 font-semibold text-[var(--text-primary)]">
                     {formatCurrency(row.total_amount, row.currency)}
                   </td>
 
@@ -774,20 +779,20 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                       className={cn(
                         "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold",
                         isPaid
-                          ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-800"
+                          ? "bg-[var(--bg-success-primary)] text-[var(--text-success-primary)] border border-[var(--border-success\_subtle)]"
                           : row.payment_status === "overdue"
-                          ? "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 ring-1 ring-red-200 dark:ring-red-800"
-                          : "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800"
+                          ? "bg-[var(--bg-error-primary)] text-[var(--text-error-primary)]"
+                          : "bg-[var(--bg-warning-primary)] text-[var(--text-warning-primary)]"
                       )}
                     >
                       <span
                         className={cn(
                           "w-1.5 h-1.5 rounded-full",
                           isPaid
-                            ? "bg-emerald-500"
+                            ? "bg-[var(--text-success-primary)]"
                             : row.payment_status === "overdue"
-                            ? "bg-red-500"
-                            : "bg-amber-500"
+                            ? "bg-[var(--text-error-primary)]"
+                            : "bg-[var(--text-warning-primary)]"
                         )}
                       />
                       {row.payment_status}
@@ -798,7 +803,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
                           e.stopPropagation();
                           markSinglePaid(row.id);
                         }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-opacity whitespace-nowrap"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto text-[11px] font-semibold text-[var(--text-success-primary)] hover:text-[var(--text-success-primary)] transition-opacity whitespace-nowrap"
                       >
                         Mark paid
                       </button>
@@ -826,7 +831,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               <tr>
                 <td
                   colSpan={8}
-                  className="px-4 py-10 text-center text-slate-400 dark:text-slate-500"
+                  className="px-4 py-10 text-center text-[var(--text-quaternary)]"
                 >
                   No records found
                 </td>
@@ -838,7 +843,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
       </div>
 
       {/* ── Pagination ── */}
-      <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+      <div className="flex items-center justify-between text-sm text-[var(--text-tertiary)]">
         <span>
           {data.total} records · Page {data.page} of {data.totalPages}
         </span>
@@ -846,14 +851,14 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
           <button
             disabled={data.page <= 1}
             onClick={() => goPage(data.page - 1)}
-            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+            className="p-1.5 rounded hover:bg-[var(--bg-primary\_hover)] disabled:opacity-40"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             disabled={data.page >= data.totalPages}
             onClick={() => goPage(data.page + 1)}
-            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+            className="p-1.5 rounded hover:bg-[var(--bg-primary\_hover)] disabled:opacity-40"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -869,7 +874,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             : "translate-y-4 opacity-0 pointer-events-none"
         )}
       >
-        <div className="flex flex-wrap items-center gap-2 md:gap-3 px-5 py-3 rounded-2xl border border-slate-700 bg-[#111827] shadow-2xl text-sm">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 px-5 py-3 rounded-lg border border-slate-700 bg-[var(--bg-primary-solid)] shadow-2xl text-sm">
           {confirming ? (
             <>
               <span className="text-slate-300">
@@ -879,7 +884,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               <button
                 onClick={markBulkPaid}
                 disabled={markingPaid}
-                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
               >
                 {markingPaid ? "Marking…" : "Confirm"}
               </button>
@@ -897,14 +902,14 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               </span>
               <button
                 onClick={() => setConfirming(true)}
-                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
               >
                 Mark as Paid
               </button>
               <button
                 onClick={() => setShowBulkAllocate(true)}
                 disabled={bulkAllocating}
-                className="px-3.5 py-1.5 rounded-lg bg-salmon-600 hover:bg-salmon-500 disabled:opacity-50 text-white text-xs font-bold transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-[var(--bg-brand-solid)] hover:bg-[var(--bg-brand-solid\_hover)] disabled:opacity-50 text-white text-xs font-semibold transition-colors"
               >
                 {bulkAllocating ? "Allocating…" : "Allocate"}
               </button>

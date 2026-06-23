@@ -12,20 +12,17 @@ import type { FunnelStage } from "./FunnelFlow";
 import type { TrendChartData } from "./TrendChartsGrid";
 import { cn } from "@/lib/utils";
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
   return (
-    <div className={`fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 text-sm font-semibold shadow-lg ${
-      type === "success"
-        ? "bg-emerald-500 text-white"
-        : "bg-red-500 text-white"
-    }`}>
+    <div
+      className="fixed bottom-6 right-6 z-50 rounded-lg px-4 py-3 text-sm font-semibold shadow-lg text-white"
+      style={{ backgroundColor: type === "success" ? "var(--bg-success-solid)" : "var(--bg-error-solid)" }}
+    >
       {msg}
     </div>
   );
 }
 
-// ── BackfillModal ─────────────────────────────────────────────────────────────
 function BackfillModal({
   type,
   onClose,
@@ -79,60 +76,63 @@ function BackfillModal({
     }
   }
 
+  const inputCls = "w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--ring-brand-primary)]";
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-80">
-        <h3 className="font-bold text-slate-900 dark:text-white mb-4">{title}</h3>
+      <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-xl p-6 w-80">
+        <h3 className="font-semibold text-[var(--text-primary)] mb-4">{title}</h3>
         {backfillRunning ? (
-          <div className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-3 py-2">
-            <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5">
+          <div className="mb-3 rounded-lg bg-[var(--bg-warning-primary)] border border-[var(--border-warning)] px-3 py-2">
+            <p className="text-[11px] text-[var(--text-warning-primary)] mb-1.5">
               A backfill is currently running. Wait for it to complete, or release the lock if it crashed.
             </p>
             <button
               onClick={onReleaseLock}
-              className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 underline underline-offset-2"
+              className="text-[11px] font-semibold text-[var(--text-warning-primary)] underline underline-offset-2"
             >
               Release Lock
             </button>
           </div>
         ) : (
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">
+          <p className="text-[11px] text-[var(--text-tertiary)] mb-3">
             Set &lsquo;From&rsquo; to your earliest expected data date
           </p>
         )}
         <div className="space-y-3 mb-4">
           <div>
-            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">From</label>
+            <label className="text-xs font-medium text-[var(--text-tertiary)] block mb-1">From</label>
             <input
               type="date"
               value={from}
               min="2025-05-01"
               onChange={(e) => setFrom(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+              className={inputCls}
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">To</label>
+            <label className="text-xs font-medium text-[var(--text-tertiary)] block mb-1">To</label>
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+              className={inputCls}
             />
           </div>
         </div>
-        {err && <p className="text-xs text-red-500 mb-3">{err}</p>}
+        {err && <p className="text-xs text-[var(--text-error-primary)] mb-3">{err}</p>}
         <div className="flex gap-2">
           <button
             onClick={run}
             disabled={loading || !from || !to || backfillRunning}
-            className="flex-1 rounded-lg bg-salmon-600 hover:bg-salmon-700 disabled:opacity-50 text-white text-sm font-semibold py-2 transition-colors"
+            className="flex-1 rounded-lg disabled:opacity-50 text-white text-sm font-semibold py-2 transition-colors"
+            style={{ backgroundColor: "var(--bg-brand-solid)" }}
           >
             {loading ? "Running…" : "Run Backfill"}
           </button>
           <button
             onClick={onClose}
-            className="px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="px-4 rounded-lg border border-[var(--border-tertiary)] text-sm text-[var(--text-tertiary)] hover:bg-[var(--bg-secondary)] transition-colors"
           >
             Cancel
           </button>
@@ -142,7 +142,6 @@ function BackfillModal({
   );
 }
 
-// ── Scope helpers ─────────────────────────────────────────────────────────────
 type Scope = "all_time" | "this_month";
 
 const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
@@ -150,7 +149,6 @@ const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
   { value: "this_month", label: "This Month" },
 ];
 
-// Keys whose all-time value is a SUM across months (additive period metrics)
 const SUM_KEYS = new Set([
   "agents_enriched_period",
   "agents_pushed_hubspot",
@@ -158,7 +156,6 @@ const SUM_KEYS = new Set([
   "teams_pushed_hubspot",
 ]);
 
-// MTD snapshot metrics: all-time = sum of per-month totals
 const SNAPSHOT_KEYS = new Set([
   "demos_booked_mtd",
   "demos_held_mtd",
@@ -170,7 +167,6 @@ const SNAPSHOT_KEYS = new Set([
   "team_arr_closed_mtd",
 ]);
 
-// Keys whose all-time value = latest snapshot (running total, not cumulative sum)
 const LATEST_TOTAL_KEYS = new Set([
   "agents_enriched_total",
   "agents_pushed_hubspot_total",
@@ -200,7 +196,6 @@ function computeAllTime(
   return result;
 }
 
-// Helper to build trend chart data from monthly breakdown
 function mkTrend(
   monthly: MonthlyOutcomeBreakdown[],
   label: string,
@@ -218,7 +213,6 @@ function mkTrend(
   };
 }
 
-// ── Props ─────────────────────────────────────────────────────────────────────
 export interface EnrichmentOutcomesClientProps {
   initialConfig:           OutcomeMetricConfig[];
   initialMtd:              OutcomeMtdSummary;
@@ -226,7 +220,6 @@ export interface EnrichmentOutcomesClientProps {
   initialLastSynced:       string | null;
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export function EnrichmentOutcomesClient({
   initialConfig,
   initialMtd,
@@ -238,32 +231,26 @@ export function EnrichmentOutcomesClient({
   const [monthly, setMonthly] = useState(initialMonthlyBreakdown);
   const [lastSynced, setLastSynced] = useState(initialLastSynced);
 
-  // Tabs
   const [activeTab, setActiveTab] = useState<"contact" | "team">("contact");
 
-  // Independent scope selectors per tab
   const [contactScope, setContactScope] = useState<Scope>("all_time");
   const [teamScope, setTeamScope]       = useState<Scope>("all_time");
 
-  // Backfill state (shared lock)
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillOpen, setBackfillOpen]       = useState(false);
   const [backfillType, setBackfillType]       = useState<"contact" | "team">("contact");
 
-  // Sync states
   const [syncingContact, setSyncingContact] = useState(false);
   const [syncingTeam, setSyncingTeam]       = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Split config by tab
   const contactConfig = config.filter((c) => !c.metric_key.startsWith("team"));
   const teamConfig    = config.filter((c) => c.metric_key.startsWith("team"));
 
   const contactConfigKeys = contactConfig.map((c) => c.metric_key);
   const teamConfigKeys    = teamConfig.map((c) => c.metric_key);
 
-  // Fetch lock status on mount
   useEffect(() => {
     fetch("/api/outcomes/backfill-status")
       .then((r) => r.json())
@@ -271,7 +258,6 @@ export function EnrichmentOutcomesClient({
       .catch(() => {});
   }, []);
 
-  // Poll lock status every 30s while the modal is open
   useEffect(() => {
     if (!backfillOpen) return;
     const id = setInterval(() => {
@@ -308,7 +294,6 @@ export function EnrichmentOutcomesClient({
     } catch { /* ignore */ }
   }, []);
 
-  // While a backfill is running, poll every 60s; refresh data when it finishes
   useEffect(() => {
     if (!backfillRunning) return;
     const id = setInterval(async () => {
@@ -359,15 +344,12 @@ export function EnrichmentOutcomesClient({
     }
   }
 
-  // ── Contact tab pipeline metric keys ──────────────────────────────────────
   const contactPipelineFilter = (c: OutcomeMetricConfig) =>
     !["agents_enriched_total", "agents_enriched_period", "agents_pushed_hubspot_total"].includes(c.metric_key);
 
-  // ── Team tab pipeline metric keys ─────────────────────────────────────────
   const teamPipelineFilter = (c: OutcomeMetricConfig) =>
     !["teams_enriched_total", "teams_enriched_period", "teams_pushed_hubspot_total"].includes(c.metric_key);
 
-  // All-time aggregation
   const allTimeValues = useMemo(
     () => computeAllTime(monthly, [...contactConfigKeys, ...teamConfigKeys]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -377,7 +359,6 @@ export function EnrichmentOutcomesClient({
   const contactDisplay: OutcomeMtdSummary = contactScope === "all_time" ? allTimeValues : mtd;
   const teamDisplay: OutcomeMtdSummary    = teamScope    === "all_time" ? allTimeValues : mtd;
 
-  // Contact funnel stages
   const contactFunnelStages = useMemo((): FunnelStage[] => {
     const pushed = (contactDisplay["agents_pushed_hubspot"] as number) ?? 0;
     const booked = (contactDisplay["demos_booked_mtd"]      as number) ?? 0;
@@ -393,7 +374,6 @@ export function EnrichmentOutcomesClient({
     ];
   }, [contactDisplay]);
 
-  // Team funnel stages
   const teamFunnelStages = useMemo((): FunnelStage[] => {
     const pushed = (teamDisplay["teams_pushed_hubspot"]   as number) ?? 0;
     const booked = (teamDisplay["team_demos_booked_mtd"]  as number) ?? 0;
@@ -409,7 +389,6 @@ export function EnrichmentOutcomesClient({
     ];
   }, [teamDisplay]);
 
-  // Contact trend charts — 4 charts in 2×2 grid (Pushed removed, it's in the funnel)
   const contactTrendCharts = useMemo((): TrendChartData[] => [
     mkTrend(monthly, "Demos Booked",  "demos_booked_mtd"),
     mkTrend(monthly, "Demos Held",    "demos_held_mtd"),
@@ -417,7 +396,6 @@ export function EnrichmentOutcomesClient({
     mkTrend(monthly, "ARR Closed",    "arr_closed_mtd", true),
   ], [monthly]);
 
-  // Team trend charts — 4 charts in 2×2 grid
   const teamTrendCharts = useMemo((): TrendChartData[] => [
     mkTrend(monthly, "Demos Booked",  "team_demos_booked_mtd"),
     mkTrend(monthly, "Demos Held",    "team_demos_held_mtd"),
@@ -425,7 +403,6 @@ export function EnrichmentOutcomesClient({
     mkTrend(monthly, "ARR Closed",    "team_arr_closed_mtd", true),
   ], [monthly]);
 
-  // Monthly table columns
   const contactColumns: MonthlyColumn[] = [
     { key: "agents_pushed_hubspot", label: "Pushed" },
     { key: "demos_booked_mtd",      label: "Booked" },
@@ -448,13 +425,11 @@ export function EnrichmentOutcomesClient({
     [monthly],
   );
 
-  // Suppress unused variable warnings for pipeline filters (kept for potential future use)
   void contactPipelineFilter;
   void teamPipelineFilter;
 
-  // Tabs slot
   const tabsSlot = (
-    <div className="flex border-b border-gray-200 mb-6">
+    <div className="flex border-b border-[var(--border-tertiary)] mb-6">
       {(["contact", "team"] as const).map((tab) => (
         <button
           key={tab}
@@ -462,8 +437,8 @@ export function EnrichmentOutcomesClient({
           className={cn(
             "px-4 py-2 text-sm font-semibold transition-colors",
             activeTab === tab
-              ? "text-[#FF725C] border-b-2 border-[#FF725C] -mb-px"
-              : "text-gray-500 hover:text-gray-700",
+              ? "text-[var(--text-brand-primary)] border-b-2 border-[var(--border-brand-solid)] -mb-px"
+              : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
           )}
         >
           {tab === "contact" ? "Contact Level" : "Team Level"}

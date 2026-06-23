@@ -16,8 +16,6 @@ function sourcePct(count: number, total: number): string {
   return `${((count / total) * 100).toFixed(1)}%`;
 }
 
-// ── Scope ─────────────────────────────────────────────────────────────────────
-
 type Scope = "all_time" | "this_month" | "last_6_months";
 
 const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
@@ -56,22 +54,22 @@ function computeScoped(breakdown: MonthlyOutcomeBreakdown[], scope: Scope): Outc
   return result;
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
   return (
     <div className={cn(
-      "fixed top-5 right-5 z-[60] flex items-center gap-2 px-4 py-3 rounded-xl border shadow-xl text-sm font-medium",
+      "fixed top-5 right-5 z-[60] flex items-center gap-2 px-4 py-3 rounded-lg border shadow-xl text-sm font-medium text-white",
       type === "success"
-        ? "bg-emerald-950 border-emerald-700 text-emerald-300"
-        : "bg-red-950 border-red-700 text-red-300",
-    )}>
+        ? "border-[var(--border-success)]"
+        : "border-[var(--border-error)]",
+    )}
+    style={{ backgroundColor: type === "success" ? "var(--bg-success-solid)" : "var(--bg-error-solid)" }}
+    >
       {type === "success" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <X className="w-4 h-4 shrink-0" />}
       {msg}
     </div>
   );
 }
 
-// ── Backfill Modal ────────────────────────────────────────────────────────────
 function BackfillModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().split("T")[0];
   const [from, setFrom]       = useState("2024-12-01");
@@ -97,51 +95,54 @@ function BackfillModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
     } finally { setRunning(false); }
   }
 
+  const inputCls = "w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring-brand-primary)] focus:border-[var(--border-brand-solid)]";
+
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-            <h2 className="text-base font-bold text-white">Backfill Historical Data</h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+        <div className="pointer-events-auto w-full max-w-sm rounded-xl bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-2xl">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-tertiary)]">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Backfill Historical Data</h2>
+            <button onClick={onClose} className="text-[var(--text-quaternary)] hover:text-[var(--text-primary)] transition-colors"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-4 space-y-4">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-[var(--text-tertiary)]">
               Fetches all AI-referral contacts from HubSpot in one pass and populates daily traffic + monthly MTD rows for the selected range.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">From</label>
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-salmon-500" />
+                <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-1.5">From</label>
+                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">To</label>
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-salmon-500" />
+                <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-1.5">To</label>
+                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
               </div>
             </div>
             {result && (
               <div className={cn(
-                "rounded-xl border p-3 text-xs space-y-1",
-                result.errors.length ? "bg-red-950 border-red-800 text-red-300" : "bg-emerald-950 border-emerald-800 text-emerald-300",
+                "rounded-lg border p-3 text-xs space-y-1",
+                result.errors.length
+                  ? "bg-[var(--bg-error-primary)] border-[var(--border-error)] text-[var(--text-error-primary)]"
+                  : "bg-[var(--bg-success-primary)] border-[var(--border-success)] text-[var(--text-success-primary)]",
               )}>
-                {result.errors.length ? <p className="font-bold">{result.errors[0]}</p> : (
+                {result.errors.length ? <p className="font-semibold">{result.errors[0]}</p> : (
                   <>
-                    <p><span className="font-bold">{result.contacts_found}</span> contacts found</p>
-                    <p><span className="font-bold">{result.dates_with_traffic}</span> dates with traffic</p>
-                    <p><span className="font-bold">{result.months_processed}</span> months processed</p>
-                    <p><span className="font-bold">{result.rows_upserted}</span> rows upserted</p>
+                    <p><span className="font-semibold">{result.contacts_found}</span> contacts found</p>
+                    <p><span className="font-semibold">{result.dates_with_traffic}</span> dates with traffic</p>
+                    <p><span className="font-semibold">{result.months_processed}</span> months processed</p>
+                    <p><span className="font-semibold">{result.rows_upserted}</span> rows upserted</p>
                   </>
                 )}
               </div>
             )}
           </div>
-          <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">Close</button>
+          <div className="px-6 py-4 border-t border-[var(--border-tertiary)] flex justify-end gap-3">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Close</button>
             <button onClick={handleRun} disabled={running || !from || !to}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-50 transition-colors">
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: "var(--bg-brand-solid)" }}>
               <RefreshCw className={cn("w-3.5 h-3.5", running && "animate-spin")} />
               {running ? "Running…" : result ? "Run Again" : "Run Backfill"}
             </button>
@@ -152,7 +153,6 @@ function BackfillModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
   );
 }
 
-// ── Log Metrics Modal ─────────────────────────────────────────────────────────
 function LogModal({ projectId, config, onClose, onSaved }: {
   projectId: string; config: OutcomeMetricConfig[]; onClose: () => void; onSaved: () => void;
 }) {
@@ -176,35 +176,37 @@ function LogModal({ projectId, config, onClose, onSaved }: {
     } finally { setSaving(false); }
   }
 
+  const inputCls = "w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm px-3 py-2 placeholder-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--ring-brand-primary)] focus:border-[var(--border-brand-solid)]";
+
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 sticky top-0 bg-slate-900">
-            <h2 className="text-base font-bold text-white">Log Metrics</h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+        <div className="pointer-events-auto w-full max-w-md rounded-xl bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-tertiary)] sticky top-0 bg-[var(--bg-primary)]">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Log Metrics</h2>
+            <button onClick={onClose} className="text-[var(--text-quaternary)] hover:text-[var(--text-primary)] transition-colors"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-4 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Date</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-salmon-500 focus:border-salmon-500" />
+              <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-1.5">Date</label>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
             </div>
             {config.map((c) => (
               <div key={c.metric_key}>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">{c.label}</label>
+                <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-1.5">{c.label}</label>
                 <input type="number" min="0" step="any" placeholder="leave blank to skip"
                   value={values[c.metric_key] ?? ""}
                   onChange={(e) => setValues((v) => ({ ...v, [c.metric_key]: e.target.value }))}
-                  className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 focus:border-salmon-500" />
+                  className={inputCls} />
               </div>
             ))}
           </div>
-          <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">Cancel</button>
+          <div className="px-6 py-4 border-t border-[var(--border-tertiary)] flex justify-end gap-3">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Cancel</button>
             <button onClick={handleSubmit} disabled={saving}
-              className="px-4 py-2 text-sm font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-50 transition-colors">
+              className="px-4 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: "var(--bg-brand-solid)" }}>
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
@@ -214,30 +216,28 @@ function LogModal({ projectId, config, onClose, onSaved }: {
   );
 }
 
-// ── Source row ────────────────────────────────────────────────────────────────
 function SourceRow({ label, count, total }: { label: string; count: number; total: number; color: string }) {
   const rawPct = total > 0 ? (count / total) * 100 : 0;
   const pctLabel = sourcePct(count, total);
   return (
     <div className="py-2 last:pb-0">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-gray-700">{label}</span>
+        <span className="text-xs font-medium text-[var(--text-primary)]">{label}</span>
         <div className="flex items-center gap-2 tabular-nums">
-          <span className="text-xs text-gray-500">{pctLabel}</span>
-          <span className="text-xs font-bold text-gray-900 w-12 text-right">{count > 0 ? count.toLocaleString() : "—"}</span>
+          <span className="text-xs text-[var(--text-tertiary)]">{pctLabel}</span>
+          <span className="text-xs font-semibold text-[var(--text-primary)] w-12 text-right">{count > 0 ? count.toLocaleString() : "—"}</span>
         </div>
       </div>
-      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full bg-[#FF725C] transition-all duration-500"
-          style={{ width: `${rawPct}%` }}
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${rawPct}%`, backgroundColor: "var(--bg-brand-solid)" }}
         />
       </div>
     </div>
   );
 }
 
-// ── More (⋯) dropdown menu ────────────────────────────────────────────────────
 function MoreMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -254,13 +254,13 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-center h-[30px] w-[30px] rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+        className="flex items-center justify-center h-[30px] w-[30px] rounded-lg border border-[var(--border-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] transition-colors"
         aria-label="More options"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-20 py-1 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1.5 w-44 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-xl z-20 py-1 overflow-hidden">
           {children}
         </div>
       )}
@@ -272,14 +272,13 @@ function MoreMenuItem({ onClick, children }: { onClick: () => void; children: Re
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+      className="w-full text-left px-4 py-2 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
     >
       {children}
     </button>
   );
 }
 
-// ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   projectId: string;
   initialConfig: OutcomeMetricConfig[];
@@ -359,14 +358,12 @@ export function OutcomesClient({
     } finally { setSyncing(false); }
   }
 
-  // ── Derived values ────────────────────────────────────────────────────────
   const chatgptS    = (scoped.llm_chatgpt_daily    as number) ?? 0;
   const perplexityS = (scoped.llm_perplexity_daily as number) ?? 0;
   const claudeS     = (scoped.llm_claude_daily     as number) ?? 0;
   const otherS      = (scoped.llm_other_daily      as number) ?? 0;
   const totalLlmS   = chatgptS + perplexityS + claudeS + otherS;
 
-  // ── Funnel stages ─────────────────────────────────────────────────────────
   const funnelStages = useMemo((): FunnelStage[] => {
     const llmVal    = (scoped.llm_traffic_daily as number) ?? 0;
     const bookedVal = (scoped.demos_booked_mtd  as number) ?? 0;
@@ -382,7 +379,6 @@ export function OutcomesClient({
     ];
   }, [scoped]);
 
-  // ── Trend charts ──────────────────────────────────────────────────────────
   const trendCharts = useMemo((): TrendChartData[] => {
     function mkTrend(label: string, key: string, monetary = false): TrendChartData {
       const data = [...monthlyBreakdown]
@@ -403,7 +399,6 @@ export function OutcomesClient({
     ];
   }, [monthlyBreakdown]);
 
-  // ── Monthly table ─────────────────────────────────────────────────────────
   const monthlyColumns: MonthlyColumn[] = [
     { key: "llm_traffic_daily",    label: "LLM Traffic" },
     { key: "llm_chatgpt_daily",    label: "ChatGPT" },
@@ -423,12 +418,11 @@ export function OutcomesClient({
     [monthlyBreakdown],
   );
 
-  // ── Project-specific section (LLM breakdown — full width) ────────────────
   const projectSpecificSection = (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-6">
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">AI Traffic Sources</p>
-      <p className="text-xs text-gray-400 mb-4">{scopeLabel}</p>
-      <div className="divide-y divide-gray-100">
+    <div className="rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] shadow-sm p-5 mb-6">
+      <p className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">AI Traffic Sources</p>
+      <p className="text-xs text-[var(--text-quaternary)] mb-4">{scopeLabel}</p>
+      <div className="divide-y divide-[var(--border-tertiary)]">
         <SourceRow label="ChatGPT"    count={chatgptS}    total={totalLlmS} color={SOURCE_COLORS.ChatGPT} />
         <SourceRow label="Perplexity" count={perplexityS} total={totalLlmS} color={SOURCE_COLORS.Perplexity} />
         <SourceRow label="Claude"     count={claudeS}     total={totalLlmS} color={SOURCE_COLORS.Claude} />
@@ -437,7 +431,6 @@ export function OutcomesClient({
     </div>
   );
 
-  // ── Extra actions (More menu only) ───────────────────────────────────────
   const extraActions = (
     <MoreMenu>
       <MoreMenuItem onClick={() => setLogOpen(true)}>Log Metrics</MoreMenuItem>
@@ -445,7 +438,6 @@ export function OutcomesClient({
     </MoreMenu>
   );
 
-  // series kept for fetchData compatibility
   void series;
 
   return (

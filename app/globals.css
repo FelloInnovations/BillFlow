@@ -1,62 +1,112 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+@import url('https://cdn.icomoon.io/231278/FelloIcons/style.css?ubpci2');
+
+:root {
+  --text-primary: #353E5A;
+  --text-primary_on-brand: #ffffff;
+  --text-secondary: #495883;
+  --text-secondary_hover: #353E5A;
+  --text-tertiary: #6B748E;
+  --text-quaternary: #9298A9;
+  --text-white: #ffffff;
+  --text-disabled: #8EA1AF;
+  --text-placeholder: #BDC8D3;
+  --text-brand-primary: #FF725C;
+  --text-brand-secondary: #098486;
+  --text-success-primary: #31A172;
+  --text-warning-primary: #F08400;
+  --text-error-primary: #F02C00;
+  --text-info-primary: #3D93F5;
+  --text-magic-primary: #8D6AE7;
+
+  --border-primary: #BDC8D3;
+  --border-primary-solid: #353E5A;
+  --border-secondary: #CCD6DC;
+  --border-tertiary: #E8ECF1;
+  --border-quaternary: #F1F4F7;
+  --border-brand: #FFAA9D;
+  --border-brand-solid: #FF725C;
+  --border-brand_subtle: #FDF1EF;
+  --border-error: #FF7452;
+  --border-error-solid: #F02C00;
+  --border-error_subtle: #FFEBE6;
+  --border-warning-solid: #F08400;
+  --border-success-solid: #31A172;
+  --border-success_subtle: #E3FCEF;
+
+  --fg-primary: #353E5A;
+  --fg-secondary: #495883;
+  --fg-tertiary: #6B748E;
+  --fg-quaternary: #9298A9;
+  --fg-white: #ffffff;
+  --fg-disabled: #8EA1AF;
+  --fg-brand-primary: #FF725C;
+  --fg-brand-secondary: #098486;
+  --fg-error-primary: #F02C00;
+  --fg-warning-primary: #F08400;
+  --fg-success-primary: #31A172;
+  --fg-info-primary: #3D93F5;
+  --fg-magic-primary: #8D6AE7;
+
+  --bg-primary: #ffffff;
+  --bg-primary_hover: #F1F4F7;
+  --bg-primary-solid: #353E5A;
+  --bg-primary-solid_hover: #222A3F;
+  --bg-secondary: #F1F4F7;
+  --bg-secondary_hover: #E8ECF1;
+  --bg-secondary_subtle: #F7F9FA;
+  --bg-secondary-solid: #495883;
+  --bg-tertiary: #E8ECF1;
+  --bg-quaternary: #CCD6DC;
+  --bg-active: #F1F4F7;
+  --bg-disabled: #E8ECF1;
+  --bg_overlay: #4958838f;
+  --bg-brand-primary: #FDF1EF;
+  --bg-brand-primary_alt: #FDE7E3;
+  --bg-brand-solid: #FF725C;
+  --bg-brand-solid_hover: #FF8E7D;
+  --bg-brand-secondary: #E7FDFD;
+  --bg-brand-secondary-solid: #098486;
+  --bg-error-primary: #FFEBE6;
+  --bg-error-solid: #F02C00;
+  --bg-error-solid_hover: #FF431B;
+  --bg-warning-primary: #FFFAE6;
+  --bg-warning-solid: #F08400;
+  --bg-success-primary: #E3FCEF;
+  --bg-success-solid: #31A172;
+  --bg-info-primary: #F0F7FF;
+  --bg-magic-primary: #F4F3FF;
+  --bg-magic-solid: #8D6AE7;
+
+  --shadow-xs: 0 1px 2px 0 rgba(73, 88, 131, 0.08);
+  --shadow-sm: 0 1px 2px 0 rgba(73, 88, 131, 0.04), 0 1px 3px 0 rgba(73, 88, 131, 0.16);
+  --shadow-md: 0 2px 4px -2px rgba(73, 88, 131, 0.04), 0 4px 8px -2px rgba(73, 88, 131, 0.16);
+  --shadow-lg: 0 4px 6px -2px rgba(73, 88, 131, 0.04), 0 12px 16px -4px rgba(73, 88, 131, 0.16);
+  --shadow-xl: 0 8px 8px -4px rgba(73, 88, 131, 0.04), 0 20px 24px -4px rgba(73, 88, 131, 0.16);
+  --shadow-2xl: 0 24px 48px -12px rgba(73, 88, 131, 0.16);
+
+  --ring-brand-primary: 0 0 0 4px rgba(255, 114, 92, 0.24);
+  --ring-gray-primary: 0 0 0 4px rgba(73, 88, 131, 0.08);
+  --ring-error-primary: 0 0 0 4px rgba(240, 44, 0, 0.24);
+
+  --gradient-ai-primary: linear-gradient(98.42deg, #14BACB 3.79%, #3898F0 24.69%, #8D6AE6 50.77%, #EC67A0 74.81%, #F59593 98.71%);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 254 251 249;
-    --foreground: 17 24 39;
-    --card: 255 255 255;
-    --card-foreground: 17 24 39;
-    --primary: 255 114 92;
-    --primary-foreground: 255 255 255;
-    --secondary: 248 244 242;
-    --secondary-foreground: 127 127 127;
-    --muted: 245 245 245;
-    --muted-foreground: 127 127 127;
-    --accent: 255 242 238;
-    --accent-foreground: 255 114 92;
-    --destructive: 239 68 68;
-    --destructive-foreground: 255 255 255;
-    --border: 232 232 232;
-    --input: 232 232 232;
-    --ring: 255 114 92;
-    --radius: 0.625rem;
-  }
-
-  .dark {
-    --background: 6 30 52;
-    --foreground: 241 245 249;
-    --card: 9 53 85;
-    --card-foreground: 241 245 249;
-    --primary: 255 114 92;
-    --primary-foreground: 255 255 255;
-    --secondary: 17 54 92;
-    --secondary-foreground: 148 163 184;
-    --muted: 17 54 92;
-    --muted-foreground: 148 163 184;
-    --accent: 17 54 92;
-    --accent-foreground: 148 163 184;
-    --destructive: 239 68 68;
-    --destructive-foreground: 255 255 255;
-    --border: 20 56 92;
-    --input: 20 56 92;
-    --ring: 255 114 92;
-  }
-}
-
-@layer base {
-  * { @apply border-border; }
+  * { @apply border-[var(--border-tertiary)]; }
   html {
-    background-color: #FEFBF9;
-  }
-  html.dark {
-    background-color: #061E34;
+    background-color: #353E5A;
+    min-height: 100%;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--text-primary);
+    background-color: var(--bg-secondary_subtle);
     min-height: 100vh;
-    font-variation-settings: 'wdth' 100;
-    font-feature-settings: 'ss01' 1;
   }
 }

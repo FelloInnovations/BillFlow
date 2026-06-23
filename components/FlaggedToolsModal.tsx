@@ -16,40 +16,35 @@ export function FlaggedToolsModal({ billedInactive, neverUsed, onClose }: Props)
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative z-10 w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+      <div className="relative z-10 w-full max-w-2xl max-h-[80vh] flex flex-col rounded-xl bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-tertiary)] shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Flagged Tools</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Flagged Tools</h2>
+            <p className="text-xs text-[var(--text-quaternary)] mt-0.5">
               {billedInactive.length + neverUsed.length} issue{billedInactive.length + neverUsed.length !== 1 ? "s" : ""} detected
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-quaternary)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-6" style={{ scrollbarWidth: "thin" }}>
-          {/* Section 1 — Paying but not in active use */}
           {billedInactive.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/30">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <div className="p-1.5 rounded-lg bg-[var(--bg-warning-primary)]">
+                  <AlertTriangle className="w-3.5 h-3.5 text-[var(--text-warning-primary)]" />
                 </div>
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   Paying but not in active use
                 </h3>
-                <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+                <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--bg-warning-primary)] text-[var(--text-warning-primary)]">
                   {billedInactive.length}
                 </span>
               </div>
@@ -57,29 +52,29 @@ export function FlaggedToolsModal({ billedInactive, neverUsed, onClose }: Props)
                 {billedInactive.map((v) => (
                   <div
                     key={v.vendor_name}
-                    className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-900/10 px-4 py-3"
+                    className="rounded-lg border border-[var(--border-warning)] bg-[var(--bg-warning-primary)] px-4 py-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">
                           {v.vendor_name}
                         </p>
-                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                        <p className="text-xs text-[var(--text-warning-primary)] mt-0.5">
                           Not used in any currently active project
                         </p>
                       </div>
                       <div className="text-right shrink-0">
                         {v.latest_total_amount != null && (
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">
+                          <p className="text-sm font-semibold text-[var(--text-primary)]">
                             {formatCurrency(v.latest_total_amount)}
                           </p>
                         )}
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-[var(--text-quaternary)]">
                           {v.payment_status ?? "—"}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                    <div className="flex items-center gap-4 mt-2 text-xs text-[var(--text-quaternary)]">
                       {v.latest_invoice_date && (
                         <span>Last invoice: {formatDate(v.latest_invoice_date)}</span>
                       )}
@@ -91,17 +86,16 @@ export function FlaggedToolsModal({ billedInactive, neverUsed, onClose }: Props)
             </section>
           )}
 
-          {/* Section 2 — Never used in any project */}
           {neverUsed.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/30">
-                  <Ban className="w-3.5 h-3.5 text-red-500" />
+                <div className="p-1.5 rounded-lg bg-[var(--bg-error-primary)]">
+                  <Ban className="w-3.5 h-3.5 text-[var(--text-error-primary)]" />
                 </div>
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   Never used in any project
                 </h3>
-                <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">
+                <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--bg-error-primary)] text-[var(--text-error-primary)]">
                   {neverUsed.length}
                 </span>
               </div>
@@ -109,18 +103,18 @@ export function FlaggedToolsModal({ billedInactive, neverUsed, onClose }: Props)
                 {neverUsed.map((v) => (
                   <div
                     key={v.vendor_name}
-                    className="rounded-xl border border-red-200 dark:border-red-800/50 bg-red-50/50 dark:bg-red-900/10 px-4 py-3"
+                    className="rounded-lg border border-[var(--border-error)] bg-[var(--bg-error-primary)] px-4 py-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">
                           {v.vendor_name}
                         </p>
-                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                        <p className="text-xs text-[var(--text-error-primary)] mt-0.5">
                           This tool has never appeared in any project past or present
                         </p>
                       </div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white shrink-0">
+                      <p className="text-sm font-semibold text-[var(--text-primary)] shrink-0">
                         {formatCurrency(v.total_spend)}
                       </p>
                     </div>
@@ -131,7 +125,7 @@ export function FlaggedToolsModal({ billedInactive, neverUsed, onClose }: Props)
           )}
 
           {billedInactive.length === 0 && neverUsed.length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-8">No flagged tools found.</p>
+            <p className="text-sm text-[var(--text-quaternary)] text-center py-8">No flagged tools found.</p>
           )}
         </div>
       </div>

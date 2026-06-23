@@ -45,16 +45,16 @@ function TrendBadge({ trend }: { trend: "up" | "down" | "stable" | null }) {
   if (!trend) return (
     <span
       title="Trend available after 2 months of data"
-      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-help"
+      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--bg-secondary)] text-[var(--text-quaternary)] cursor-help"
     >
       New
     </span>
   );
   if (trend === "up")
-    return <span className="text-emerald-500 dark:text-emerald-400 font-bold text-base">↑</span>;
+    return <span className="text-[var(--text-success-primary)] font-semibold text-base">↑</span>;
   if (trend === "down")
-    return <span className="text-rose-500 dark:text-rose-400 font-bold text-base">↓</span>;
-  return <span className="text-slate-400 dark:text-slate-500 font-bold text-base">→</span>;
+    return <span className="text-[var(--text-error-primary)] font-semibold text-base">↓</span>;
+  return <span className="text-[var(--text-quaternary)] font-semibold text-base">→</span>;
 }
 
 interface KeyDetail {
@@ -250,7 +250,7 @@ export function SpendTab({
   }
 
   function SortIcon({ col }: { col: SortCol }) {
-    if (sortBy !== col) return <ChevronDown className="w-3 h-3 text-slate-300 dark:text-slate-600" />;
+    if (sortBy !== col) return <ChevronDown className="w-3 h-3 text-[var(--text-quaternary)]" />;
     return sortDir === "asc"
       ? <ChevronUp className="w-3 h-3 text-salmon-500" />
       : <ChevronDown className="w-3 h-3 text-salmon-500" />;
@@ -293,7 +293,7 @@ export function SpendTab({
     const periodTotal = periodStats.get(k.key_name)?.total ?? 0;
     if (periodTotal > 0) return "bg-emerald-500";
     if (k.total > 0) return "bg-amber-400";
-    return "bg-slate-300 dark:bg-slate-600";
+    return "bg-slate-300";
   }
 
   function shortModel(m: string) {
@@ -314,29 +314,29 @@ export function SpendTab({
       <React.Fragment key={k.key_name}>
         <tr
           onClick={() => setExpandedRow(isExpanded ? null : k.key_name)}
-          className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+          className="hover:bg-[var(--bg-secondary\_subtle)] transition-colors cursor-pointer"
         >
           {/* Project */}
           <td className="px-5 py-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={cn("w-2 h-2 rounded-full shrink-0", statusDot(k))} />
               {(k.project_names?.length ?? 0) > 1 ? (
-                <span className="font-medium text-slate-800 dark:text-slate-200 text-sm">
+                <span className="font-medium text-[var(--text-primary)] text-sm">
                   {k.project_names.join(" · ")}
                 </span>
               ) : (
-                <span className="font-medium text-slate-800 dark:text-slate-200 text-sm">{k.project_name}</span>
+                <span className="font-medium text-[var(--text-primary)] text-sm">{k.project_name}</span>
               )}
               {k.project_status && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 uppercase">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--text-quaternary)] uppercase">
                   {k.project_status}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 ml-4">
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{k.key_name}</p>
+              <p className="text-[11px] text-[var(--text-quaternary)] font-mono">{k.key_name}</p>
               {k.account_name === "Account 2" && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--bg-secondary)] text-[var(--text-quaternary)]">
                   Account 2
                 </span>
               )}
@@ -345,16 +345,16 @@ export function SpendTab({
           {/* Models */}
           <td className="px-5 py-3">
             {modelList.length === 0 ? (
-              <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+              <span className="text-[var(--text-quaternary)] text-xs">—</span>
             ) : (
               <div className="flex flex-wrap gap-1">
                 {shownModels.map(m => (
-                  <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-salmon-50 dark:bg-navy-950/40 text-salmon-600 dark:text-salmon-400 font-mono whitespace-nowrap">
+                  <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)] font-mono whitespace-nowrap">
                     {m}
                   </span>
                 ))}
                 {extraModels > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--text-quaternary)]">
                     +{extraModels} more
                   </span>
                 )}
@@ -362,30 +362,30 @@ export function SpendTab({
             )}
           </td>
           {/* Latest Month */}
-          <td className="px-5 py-3 font-semibold text-salmon-600 dark:text-salmon-400 text-sm whitespace-nowrap">
+          <td className="px-5 py-3 font-semibold text-[var(--text-brand-primary)] text-sm whitespace-nowrap">
             {formatCurrency(ps.latestMonthSpend)}
           </td>
           {/* Today — usage_today from openrouter_usage_snapshots, written by n8n hourly */}
           <td className="px-5 py-3 text-sm whitespace-nowrap">
             {k.today_spend != null && k.today_spend > 0
-              ? <span className="font-semibold text-[#FF725C]">{`$${k.today_spend.toFixed(2)}`}</span>
-              : <span className="text-slate-400 dark:text-slate-500">—</span>
+              ? <span className="font-semibold text-[var(--text-brand-primary)]">{`$${k.today_spend.toFixed(2)}`}</span>
+              : <span className="text-[var(--text-quaternary)]">—</span>
             }
           </td>
           {/* % of Total (period) */}
-          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-[var(--text-primary)] whitespace-nowrap">
             {pct.toFixed(1)}%
           </td>
           {/* Avg/Month (period, active months only) */}
-          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-[var(--text-primary)] whitespace-nowrap">
             {formatCurrency(ps.avg)}
           </td>
           {/* Avg/Week */}
-          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-[var(--text-primary)] whitespace-nowrap">
             {formatCurrency(ps.weekly)}
           </td>
           {/* Avg/Day */}
-          <td className="px-5 py-3 text-sm text-foreground whitespace-nowrap">
+          <td className="px-5 py-3 text-sm text-[var(--text-primary)] whitespace-nowrap">
             {formatCurrency(ps.daily)}
           </td>
           {/* Trend */}
@@ -393,28 +393,28 @@ export function SpendTab({
             <TrendBadge trend={k.trend} />
           </td>
           {/* Total (period) */}
-          <td className="px-5 py-3 font-semibold text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap">
+          <td className="px-5 py-3 font-semibold text-[var(--text-primary)] text-sm whitespace-nowrap">
             {formatCurrency(ps.total)}
           </td>
         </tr>
 
         {/* Expandable detail panel */}
         {isExpanded && (
-          <tr key={`${k.key_name}-detail`} className="bg-slate-50 dark:bg-slate-800/30">
+          <tr key={`${k.key_name}-detail`} className="bg-[var(--bg-secondary\_subtle)]">
             <td colSpan={10} className="px-5 py-4">
               {detailLoading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
+                <div className="flex items-center gap-2 text-sm text-[var(--text-quaternary)] py-4">
                   <Loader2 className="w-4 h-4 animate-spin" /> Loading detail…
                 </div>
               ) : detail ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Daily spend chart */}
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+                    <p className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-3">
                       Daily Spend — Last 30 Days
                     </p>
                     {detail.daily.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No log data for this period.</p>
+                      <p className="text-xs text-[var(--text-quaternary)] italic">No log data for this period.</p>
                     ) : (
                       <ResponsiveContainer width="100%" height={120}>
                         <AreaChart data={detail.daily} margin={{ top: 2, right: 4, left: 0, bottom: 0 }}>
@@ -446,33 +446,33 @@ export function SpendTab({
 
                   {/* Model breakdown table */}
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+                    <p className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-3">
                       Model Breakdown — Last 30 Days
                     </p>
                     {detail.models.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No model data.</p>
+                      <p className="text-xs text-[var(--text-quaternary)] italic">No model data.</p>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="border-b border-slate-100 dark:border-slate-700">
-                              <th className="text-left pb-1.5 text-slate-400 font-semibold">Model</th>
-                              <th className="text-right pb-1.5 text-slate-400 font-semibold">Req</th>
-                              <th className="text-right pb-1.5 text-slate-400 font-semibold">Prompt</th>
-                              <th className="text-right pb-1.5 text-slate-400 font-semibold">Compl.</th>
-                              <th className="text-right pb-1.5 text-slate-400 font-semibold">Cost</th>
-                              <th className="text-right pb-1.5 text-slate-400 font-semibold">Avg/req</th>
+                            <tr className="border-b border-[var(--border-tertiary)]">
+                              <th className="text-left pb-1.5 text-[var(--text-quaternary)] font-semibold">Model</th>
+                              <th className="text-right pb-1.5 text-[var(--text-quaternary)] font-semibold">Req</th>
+                              <th className="text-right pb-1.5 text-[var(--text-quaternary)] font-semibold">Prompt</th>
+                              <th className="text-right pb-1.5 text-[var(--text-quaternary)] font-semibold">Compl.</th>
+                              <th className="text-right pb-1.5 text-[var(--text-quaternary)] font-semibold">Cost</th>
+                              <th className="text-right pb-1.5 text-[var(--text-quaternary)] font-semibold">Avg/req</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-50 dark:divide-slate-700/60">
+                          <tbody className="divide-y divide-[var(--border-tertiary)]">
                             {detail.models.map(m => (
-                              <tr key={m.model} className="hover:bg-slate-100/50 dark:hover:bg-slate-700/20">
-                                <td className="py-1.5 font-mono text-slate-600 dark:text-slate-300 max-w-[160px] truncate">{m.model}</td>
-                                <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{m.requests.toLocaleString()}</td>
-                                <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{m.prompt_tokens.toLocaleString()}</td>
-                                <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{m.completion_tokens.toLocaleString()}</td>
-                                <td className="py-1.5 text-right font-semibold text-salmon-600 dark:text-salmon-400">{formatCurrency(m.total_cost)}</td>
-                                <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">{formatCurrency(m.avg_cost)}</td>
+                              <tr key={m.model} className="hover:bg-[var(--bg-secondary\_subtle)]">
+                                <td className="py-1.5 font-mono text-[var(--text-secondary)] max-w-[160px] truncate">{m.model}</td>
+                                <td className="py-1.5 text-right text-[var(--text-tertiary)]">{m.requests.toLocaleString()}</td>
+                                <td className="py-1.5 text-right text-[var(--text-tertiary)]">{m.prompt_tokens.toLocaleString()}</td>
+                                <td className="py-1.5 text-right text-[var(--text-tertiary)]">{m.completion_tokens.toLocaleString()}</td>
+                                <td className="py-1.5 text-right font-semibold text-[var(--text-brand-primary)]">{formatCurrency(m.total_cost)}</td>
+                                <td className="py-1.5 text-right text-[var(--text-tertiary)]">{formatCurrency(m.avg_cost)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -489,49 +489,49 @@ export function SpendTab({
     );
   }
 
-  const thCls = "px-5 py-3 text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 select-none whitespace-nowrap";
+  const thCls = "px-5 py-3 text-left text-xs font-semibold text-[var(--text-quaternary)] uppercase tracking-wider cursor-pointer hover:text-[var(--text-secondary)] select-none whitespace-nowrap";
 
   return (
     <div className="space-y-5">
 
       {/* Total spend banner */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
+      <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">
+          <p className="text-xs font-semibold text-[var(--text-quaternary)] uppercase tracking-wide mb-0.5">
             Total this period
           </p>
-          <p className="text-3xl font-bold text-slate-900 dark:text-white">
+          <p className="text-3xl font-semibold text-[var(--text-primary)]">
             {formatCurrency(periodTotal)}
           </p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{periodLabel}</p>
+          <p className="text-xs text-[var(--text-quaternary)] mt-1">{periodLabel}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
           {pctChange !== null ? (
             <span className={cn(
-              "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold",
+              "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-semibold",
               pctChange > 0
-                ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
-                : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                ? "bg-[var(--bg-warning-primary)] text-[var(--text-warning-primary)]"
+                : "bg-[var(--bg-success-primary)] text-[var(--text-success-primary)]"
             )}>
               {pctChange > 0 ? "↑" : "↓"} {Math.abs(pctChange).toFixed(1)}%
             </span>
           ) : (
-            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold bg-slate-100 dark:bg-slate-800 text-slate-400">—</span>
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-[var(--bg-secondary)] text-[var(--text-quaternary)]">—</span>
           )}
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">vs prev month</p>
+          <p className="text-[11px] text-[var(--text-quaternary)]">vs prev month</p>
         </div>
       </div>
 
       {/* Controls row */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Period */}
-        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+        <div className="flex gap-1 bg-[var(--bg-secondary)] rounded-lg p-1">
           {([1, 3, 6, 12] as const).map(n => (
             <button key={n} onClick={() => setMonthRange(n)}
               className={cn("px-3 py-1 rounded-md text-xs font-semibold transition-all",
                 monthRange === n
-                  ? "bg-white dark:bg-slate-900 text-salmon-600 dark:text-salmon-400 shadow-sm"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-[var(--bg-primary)] text-[var(--text-brand-primary)] shadow-sm"
+                  : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
               )}>
               {n}M
             </button>
@@ -539,25 +539,25 @@ export function SpendTab({
         </div>
 
         {/* Chart view */}
-        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+        <div className="flex gap-1 bg-[var(--bg-secondary)] rounded-lg p-1">
           {(["key", "day"] as const).map(v => (
             <button key={v} onClick={() => setChartView(v)}
               className={cn("px-3 py-1 rounded-md text-xs font-semibold transition-all",
                 chartView === v
-                  ? "bg-white dark:bg-slate-900 text-salmon-600 dark:text-salmon-400 shadow-sm"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-[var(--bg-primary)] text-[var(--text-brand-primary)] shadow-sm"
+                  : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
               )}>
               {v === "key" ? "By Key" : "By Day"}
             </button>
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer select-none">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="accent-salmon-600 rounded" />
           Show inactive
         </label>
 
-        <p className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">
+        <p className="ml-auto text-[11px] text-[var(--text-quaternary)]">
           {lastSynced
             ? `Synced ${formatRelativeTime(lastSynced)} · hourly via n8n`
             : 'Awaiting first n8n sync'}
@@ -565,14 +565,14 @@ export function SpendTab({
       </div>
 
       {/* Chart card */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-5">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
             {chartView === "key" ? "Monthly Spend by Key" : "Daily Spend"}
           </h3>
           {chartView === "key" && visibleMonths.length > 0 && (
-            <span className="text-xs text-slate-400 dark:text-slate-500">
-              Visible total: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(chartPeriodTotal)}</span>
+            <span className="text-xs text-[var(--text-quaternary)]">
+              Visible total: <span className="font-semibold text-[var(--text-secondary)]">{formatCurrency(chartPeriodTotal)}</span>
             </span>
           )}
         </div>
@@ -581,7 +581,7 @@ export function SpendTab({
           const byDay = activity.byDay ?? [];
           if (byDay.length === 0) return (
             <div className="flex items-center justify-center h-40">
-              <p className="text-sm text-slate-400 dark:text-slate-500">No daily data available.</p>
+              <p className="text-sm text-[var(--text-quaternary)]">No daily data available.</p>
             </div>
           );
           return (
@@ -607,11 +607,11 @@ export function SpendTab({
                       if (!active || !payload?.length) return null;
                       const entry = payload[0].payload as { date: string; total: number; isLive?: boolean };
                       return (
-                        <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-md">
-                          <p className="font-semibold text-slate-700 mb-1">{formatDay(label as string)}</p>
-                          <p className="text-slate-600">{formatCurrency(payload[0].value as number)}</p>
+                        <div className="rounded-xl border border-[var(--border-tertiary)] bg-[var(--bg-primary)] p-3 text-xs shadow-md">
+                          <p className="font-semibold text-[var(--text-primary)] mb-1">{formatDay(label as string)}</p>
+                          <p className="text-[var(--text-secondary)]">{formatCurrency(payload[0].value as number)}</p>
                           {entry.isLive && (
-                            <p className="text-salmon-500 mt-1.5 border-t border-slate-100 pt-1.5">
+                            <p className="text-[var(--text-brand-primary)] mt-1.5 border-t border-[var(--border-tertiary)] pt-1.5">
                               Updated hourly — partial day total
                             </p>
                           )}
@@ -660,19 +660,19 @@ export function SpendTab({
                 );
                 if (daysBehind <= 3) return null;
                 return (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2">
+                  <p className="text-[11px] text-[var(--text-warning-primary)] mt-2">
                     ⚠ Log data is {daysBehind} days behind — last entry {activity.latest_date}. OpenRouter activity API lag is typically 1–2 days; if this exceeds 3 days the sync may need attention.
                   </p>
                 );
               })()}
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+              <p className="text-[11px] text-[var(--text-quaternary)] mt-1">
                 Last 30 days · today&apos;s bar reflects the latest hourly snapshot
               </p>
             </>
           );
         })() : visibleMonths.length === 0 ? (
           <div className="flex items-center justify-center h-40">
-            <p className="text-sm text-slate-400 dark:text-slate-500">No usage data yet.</p>
+            <p className="text-sm text-[var(--text-quaternary)]">No usage data yet.</p>
           </div>
         ) : (
           <>
@@ -703,9 +703,9 @@ export function SpendTab({
               }, 0);
               if (partialTotal <= 0) return null;
               return (
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 px-1">
+                <p className="text-xs text-[var(--text-quaternary)] mt-2 px-1">
                   {`${formatMonth(currentMonth)} (partial, live): `}
-                  <span className="font-medium text-slate-600 dark:text-slate-300">
+                  <span className="font-medium text-[var(--text-secondary)]">
                     {formatCurrency(partialTotal)}
                   </span>
                   {" — from hourly n8n snapshot"}
@@ -721,8 +721,8 @@ export function SpendTab({
                     className={cn(
                       "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
                       hidden
-                        ? "border-slate-200 dark:border-slate-700 text-slate-400 opacity-50"
-                        : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900"
+                        ? "border-[var(--border-tertiary)] text-[var(--text-quaternary)] opacity-50"
+                        : "border-[var(--border-tertiary)] text-[var(--text-primary)] bg-[var(--bg-primary)]"
                     )}>
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hidden ? "#94a3b8" : color }} />
                     {k.project_name}
@@ -735,19 +735,19 @@ export function SpendTab({
       </div>
 
       {/* Summary table */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Summary</h3>
-          <span className="text-xs text-slate-400 dark:text-slate-500">{periodLabel} · period-filtered</span>
+      <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border-tertiary)] flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Summary</h3>
+          <span className="text-xs text-[var(--text-quaternary)]">{periodLabel} · period-filtered</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
+              <tr className="border-b border-[var(--border-tertiary)]">
                 <th className={thCls} onClick={() => toggleSort("project")}>
                   <span className="flex items-center gap-1">Project <SortIcon col="project" /></span>
                 </th>
-                <th className={cn(thCls, "cursor-default hover:text-slate-400")}>Models</th>
+                <th className={cn(thCls, "cursor-default hover:text-[var(--text-quaternary)]")}>Models</th>
                 <th className={thCls} onClick={() => toggleSort("thisMonth")}>
                   <span className="flex items-center gap-1">
                     {latestActiveMonth ? formatMonth(latestActiveMonth) : "Latest Month"}
@@ -772,17 +772,17 @@ export function SpendTab({
                 <th className={thCls} onClick={() => toggleSort("avgDay")}>
                   <span className="flex items-center gap-1">Avg/Day <SortIcon col="avgDay" /></span>
                 </th>
-                <th className={cn(thCls, "cursor-default hover:text-slate-400")}>Trend</th>
+                <th className={cn(thCls, "cursor-default hover:text-[var(--text-quaternary)]")}>Trend</th>
                 <th className={thCls} onClick={() => toggleSort("total")}>
                   <span className="flex items-center gap-1">Total <SortIcon col="total" /></span>
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/60">
+            <tbody className="divide-y divide-[var(--border-tertiary)]">
               {tableActiveKeys.map(k => renderRow(k))}
               {tableActiveKeys.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-5 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={10} className="px-5 py-8 text-center text-sm text-[var(--text-quaternary)]">
                     No activity in selected period.
                   </td>
                 </tr>
@@ -793,17 +793,17 @@ export function SpendTab({
 
         {/* No activity in period — collapsed section */}
         {tableInactiveKeys.length > 0 && (
-          <div className="border-t border-slate-100 dark:border-slate-800">
+          <div className="border-t border-[var(--border-tertiary)]">
             <button
               onClick={() => setInactiveExpanded(e => !e)}
-              className="w-full flex items-center gap-2 px-5 py-3 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-5 py-3 text-xs font-semibold text-[var(--text-quaternary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-secondary\_subtle)] transition-colors text-left"
             >
               {inactiveExpanded ? <ChevronUp className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
               <span>No activity in selected period ({tableInactiveKeys.length} projects)</span>
             </button>
             {inactiveExpanded && (
               <table className="w-full text-sm">
-                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/60">
+                <tbody className="divide-y divide-[var(--border-tertiary)]">
                   {tableInactiveKeys.map(k => renderRow(k))}
                 </tbody>
               </table>
@@ -813,8 +813,8 @@ export function SpendTab({
 
         {/* Latest-month note */}
         {latestActiveMonth && (
-          <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800">
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
+          <div className="px-5 py-3 border-t border-[var(--border-tertiary)]">
+            <p className="text-[11px] text-[var(--text-quaternary)] italic">
               {currentMonth > latestActiveMonth
                 ? `${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} data will appear after today's sync completes. Latest complete month: ${formatMonth(latestActiveMonth)}.`
                 : `Showing ${formatMonth(latestActiveMonth)} as the latest complete month.`}

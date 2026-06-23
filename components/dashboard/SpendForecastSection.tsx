@@ -24,33 +24,29 @@ export function SpendForecastSection() {
     `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return (
-    <div className="flex items-center gap-4 px-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
-      {/* Label */}
-      <span className="text-xs font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
+    <div className="flex items-center gap-4 px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-tertiary)]">
+      <span className="text-xs font-medium text-[var(--text-quaternary)] whitespace-nowrap shrink-0">
         Forecast · {data.nextMonthName}
       </span>
 
-      {/* Divider */}
-      <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 shrink-0" />
+      <span className="w-px h-4 bg-[var(--border-tertiary)] shrink-0" />
 
-      {/* Projected total */}
-      <span className="text-[18px] font-bold tabular-nums shrink-0" style={{ color: "#FF725C" }}>
+      <span className="text-[18px] font-semibold tabular-nums shrink-0 text-[var(--text-brand-primary)]">
         {formatCurrency(data.totalForecast)}
       </span>
 
-      {/* Vendor pills */}
       {top3.length > 0 && (
         <>
-          <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 shrink-0" />
+          <span className="w-px h-4 bg-[var(--border-tertiary)] shrink-0" />
           <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
             {top3.map((f, i) => (
               <span key={f.vendor}>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-medium text-slate-600 dark:text-slate-300">{f.vendor}</span>
+                <span className="text-xs text-[var(--text-tertiary)]">
+                  <span className="font-medium text-[var(--text-secondary)]">{f.vendor}</span>
                   {" "}{fmt(f.forecastedAmount)}
                 </span>
                 {i < top3.length - 1 && (
-                  <span className="text-slate-300 dark:text-slate-600 mx-1">·</span>
+                  <span className="text-[var(--text-quaternary)] mx-1">·</span>
                 )}
               </span>
             ))}
@@ -58,13 +54,11 @@ export function SpendForecastSection() {
         </>
       )}
 
-      {/* Spacer */}
       <span className="flex-1" />
 
-      {/* Link */}
       <Link
         href="/forecasting"
-        className="flex items-center gap-1 text-xs font-semibold text-salmon-500 dark:text-salmon-400 hover:text-salmon-600 dark:hover:text-salmon-300 transition-colors whitespace-nowrap shrink-0"
+        className="flex items-center gap-1 text-xs font-semibold text-[var(--text-brand-primary)] hover:opacity-80 transition-opacity whitespace-nowrap shrink-0"
       >
         View full forecast
         <ArrowRight className="w-3 h-3" />

@@ -36,7 +36,6 @@ export function DashboardClient({ initial }: Props) {
           if (!map[key].includes(project.name)) map[key].push(project.name);
         }
       }
-      // Merge manually attributed project links
       for (const ov of attrJson?.overrides ?? []) {
         const key = (ov.vendor_name as string).toLowerCase();
         if (!map[key]) map[key] = [];
@@ -67,24 +66,26 @@ export function DashboardClient({ initial }: Props) {
       {/* Header row */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">AI infrastructure spend overview</p>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Dashboard</h1>
+          <p className="text-sm text-[var(--text-tertiary)] mt-1">AI infrastructure spend overview</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="hidden sm:block text-xs font-medium text-slate-400 dark:text-slate-500">
+          <span className="hidden sm:block text-xs font-medium text-[var(--text-quaternary)]">
             {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <button
             onClick={refresh}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-salmon-600 hover:bg-salmon-700 text-white disabled:opacity-40 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-40 transition-colors duration-200 shadow-sm"
+            style={{ backgroundColor: "var(--bg-brand-solid)" }}
+            onMouseEnter={(e) => { if (!loading) (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-brand-solid_hover)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-brand-solid)"; }}
           >
             <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
           </button>
         </div>
       </div>
-
 
       {/* Row 1 — Orion AI */}
       <div className="max-w-2xl mx-auto">
@@ -114,7 +115,7 @@ export function DashboardClient({ initial }: Props) {
         </Link>
       </div>
 
-      {/* Row 3 — Charts: Vendor chart + Trend+Forecast unified card */}
+      {/* Row 3 — Charts */}
       <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-5 transition-opacity", loading && "opacity-60")}>
         <SpendByVendorChart data={metrics.spendByVendor} vendorProjects={vendorProjects} />
         <TrendAndForecastCard data={metrics.monthlyTrend} />
@@ -129,15 +130,15 @@ export function DashboardClient({ initial }: Props) {
 
       {/* Upcoming due */}
       {metrics.upcomingDue.length > 0 && (
-        <div className={cn("rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-opacity", loading && "opacity-60")}>
-          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-            <CalendarClock className="w-4 h-4 text-violet-400" />
-            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Upcoming Due Invoices</h3>
-            <span className="ml-auto text-xs bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-300 font-semibold px-2.5 py-0.5 rounded-full">
+        <div className={cn("rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm overflow-hidden transition-opacity", loading && "opacity-60")}>
+          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border-tertiary)]">
+            <CalendarClock className="w-4 h-4 text-[var(--fg-brand-primary)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Upcoming Due Invoices</h3>
+            <span className="ml-auto text-xs bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)] font-semibold px-2.5 py-0.5 rounded-full">
               {metrics.upcomingDue.length} due soon
             </span>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="divide-y divide-[var(--border-tertiary)]">
             {metrics.upcomingDue.map((inv: FinancialRecord) => {
               const today = new Date().toISOString().split("T")[0];
               const isOverdue = inv.due_date ? inv.due_date < today : false;
@@ -147,28 +148,28 @@ export function DashboardClient({ initial }: Props) {
               return (
                 <div key={inv.id} className={cn(
                   "flex items-center justify-between px-4 md:px-6 py-3.5",
-                  isOverdue && "bg-violet-50/60 dark:bg-violet-950/20"
+                  isOverdue && "bg-[var(--bg-error-primary)]"
                 )}>
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                      isOverdue ? "bg-salmon-100 dark:bg-navy-900/40" : "bg-violet-50 dark:bg-violet-950/50"
+                      isOverdue ? "bg-[var(--bg-brand-primary)]" : "bg-[var(--bg-secondary)]"
                     )}>
                       <span className={cn(
-                        "text-xs font-bold",
-                        isOverdue ? "text-salmon-600 dark:text-salmon-300" : "text-violet-500 dark:text-violet-300"
+                        "text-xs font-semibold",
+                        isOverdue ? "text-[var(--text-brand-primary)]" : "text-[var(--text-tertiary)]"
                       )}>
                         {(inv.vendor_name ?? "?")[0].toUpperCase()}
                       </span>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{inv.vendor_name ?? "Unknown"}</p>
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{inv.vendor_name ?? "Unknown"}</p>
                         {isOverdue && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-salmon-100 dark:bg-navy-900/40 text-salmon-600 dark:text-salmon-300">OVERDUE</span>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--bg-error-primary)] text-[var(--text-error-primary)]">OVERDUE</span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                      <p className="text-xs text-[var(--text-quaternary)]">
                         Invoice #{inv.invoice_number ?? "—"} · {isOverdue
                           ? `${Math.abs(daysUntil ?? 0)}d overdue`
                           : daysUntil === 0 ? "Due today"
@@ -176,7 +177,7 @@ export function DashboardClient({ initial }: Props) {
                       </p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">
                     {formatCurrency(inv.total_amount, inv.currency)}
                   </span>
                 </div>

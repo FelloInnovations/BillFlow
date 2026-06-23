@@ -24,7 +24,6 @@ interface Props {
   metrics: DashboardMetrics;
 }
 
-
 export function DashboardChat(_props: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -41,7 +40,6 @@ export function DashboardChat(_props: Props) {
     setInput("");
     setStreaming(true);
     setMessages([...next, { role: "assistant", content: "" }]);
-    // Scroll the chat container to bottom once — never again during streaming
     setTimeout(() => {
       const el = scrollRef.current;
       if (el) el.scrollTop = el.scrollHeight;
@@ -79,37 +77,35 @@ export function DashboardChat(_props: Props) {
 
   return (
     <div className="w-full">
-      {/* Persistent header — always visible */}
       <div className="mb-4 text-center">
         {!hasMessages ? (
           <>
-            <p className="text-2xl font-semibold text-slate-700 dark:text-slate-200 tracking-tight">
-              What's on your mind today?
+            <p className="text-2xl font-semibold text-[var(--text-primary)] tracking-tight">
+              What&apos;s on your mind today?
             </p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center justify-center gap-1">
-              <Sparkles className="w-3 h-3 text-salmon-400" />
+            <p className="text-xs text-[var(--text-quaternary)] mt-1 flex items-center justify-center gap-1">
+              <Sparkles className="w-3 h-3 text-[var(--fg-brand-primary)]" />
               Orion · Spend Intelligence
             </p>
           </>
         ) : (
-          <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
-            <Sparkles className="w-3 h-3 text-salmon-400" />
+          <p className="text-xs text-[var(--text-quaternary)] flex items-center justify-center gap-1">
+            <Sparkles className="w-3 h-3 text-[var(--fg-brand-primary)]" />
             Orion · Spend Intelligence
           </p>
         )}
       </div>
 
-      {/* Message thread */}
       {hasMessages && (
         <div
           ref={scrollRef}
           className="mb-4 space-y-3 max-h-96 overflow-y-auto px-1"
-          style={{ scrollbarWidth: "thin", scrollbarColor: "#FF725C transparent" }}
+          style={{ scrollbarWidth: "thin", scrollbarColor: "var(--bg-brand-solid) transparent" }}
         >
           {messages.map((m, i) => (
             <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
               {m.role === "assistant" && (
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-salmon-400 to-salmon-700 flex items-center justify-center shrink-0 mr-2 mt-0.5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mr-2 mt-0.5" style={{ background: "linear-gradient(135deg, var(--bg-brand-solid), var(--bg-brand-solid_hover))" }}>
                   <Sparkles className="w-3 h-3 text-white" />
                 </div>
               )}
@@ -117,20 +113,25 @@ export function DashboardChat(_props: Props) {
                 className={cn(
                   "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
                   m.role === "user"
-                    ? "bg-salmon-600 text-white rounded-br-sm"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm"
+                    ? "text-white rounded-br-sm"
+                    : "rounded-bl-sm"
                 )}
+                style={
+                  m.role === "user"
+                    ? { backgroundColor: "var(--bg-brand-solid)" }
+                    : { backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)" }
+                }
               >
                 {m.content ? (
                   m.role === "assistant" ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-headings:text-sm prose-strong:text-salmon-700 dark:prose-strong:text-salmon-300 prose-td:px-2 prose-td:py-1 prose-th:px-2 prose-th:py-1 prose-table:text-xs">
+                    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-headings:text-sm prose-td:px-2 prose-td:py-1 prose-th:px-2 prose-th:py-1 prose-table:text-xs" style={{ "--tw-prose-body": "var(--text-primary)", "--tw-prose-bold": "var(--text-brand-primary)" } as React.CSSProperties}>
                       <ReactMarkdown>{m.content}</ReactMarkdown>
                     </div>
                   ) : (
                     m.content
                   )
                 ) : (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--text-quaternary)]" />
                 )}
               </div>
             </div>
@@ -138,20 +139,18 @@ export function DashboardChat(_props: Props) {
         </div>
       )}
 
-      {/* Search bar */}
       <div
         className={cn(
           "flex items-center gap-3 rounded-full border px-5 py-3 transition-all duration-200",
           focused
-            ? "bg-white dark:bg-slate-800 border-salmon-400 shadow-lg shadow-salmon-500/10"
-            : "bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 shadow-sm"
+            ? "bg-[var(--bg-primary)] border-[var(--border-brand-solid)] shadow-lg"
+            : "bg-[var(--bg-secondary)] border-[var(--border-tertiary)] shadow-sm"
         )}
       >
-        {/* Clear button if has messages */}
         {hasMessages && (
           <button
             onClick={() => setMessages([])}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors shrink-0"
+            className="text-[var(--text-quaternary)] hover:text-[var(--text-tertiary)] transition-colors shrink-0"
             title="Clear conversation"
           >
             <X className="w-4 h-4" />
@@ -168,29 +167,29 @@ export function DashboardChat(_props: Props) {
           onBlur={() => setFocused(false)}
           placeholder={hasMessages ? "Ask a follow-up…" : "Ask anything about your spend…"}
           disabled={streaming}
-          className="flex-1 bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none disabled:opacity-50"
+          className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-placeholder)] outline-none disabled:opacity-50"
         />
 
         <button
           onClick={() => send(input)}
           disabled={!input.trim() || streaming}
-          className="w-9 h-9 rounded-full bg-slate-900 dark:bg-white flex items-center justify-center disabled:opacity-30 hover:opacity-80 transition-all shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-30 hover:opacity-80 transition-all shrink-0"
+          style={{ backgroundColor: "var(--bg-primary-solid)" }}
         >
           {streaming
-            ? <Loader2 className="w-4 h-4 animate-spin text-white dark:text-slate-900" />
-            : <Send className="w-3.5 h-3.5 text-white dark:text-slate-900" />
+            ? <Loader2 className="w-4 h-4 animate-spin text-white" />
+            : <Send className="w-3.5 h-3.5 text-white" />
           }
         </button>
       </div>
 
-      {/* Starter chips — only when no conversation */}
       {!hasMessages && (
         <div className="flex flex-wrap gap-2 mt-3 justify-center">
           {STARTERS.map((s) => (
             <button
               key={s}
               onClick={() => send(s)}
-              className="text-xs px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-600 hover:border-[#FF725C] hover:text-[#FF725C] hover:bg-[#FF725C]/5 transition-all duration-150 font-medium whitespace-nowrap"
+              className="text-xs px-3 py-1.5 rounded-full bg-[var(--bg-primary)] border border-[var(--border-tertiary)] text-[var(--text-tertiary)] hover:border-[var(--border-brand-solid)] hover:text-[var(--text-brand-primary)] hover:bg-[var(--bg-brand-primary)] transition-all duration-150 font-medium whitespace-nowrap"
             >
               {s}
             </button>

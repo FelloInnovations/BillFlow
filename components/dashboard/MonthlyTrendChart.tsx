@@ -12,9 +12,9 @@ interface Props {
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg px-3.5 py-2.5">
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
-      <p className="text-sm font-bold text-slate-900 dark:text-white">
+    <div className="bg-[var(--bg-primary)] border border-[var(--border-tertiary)] rounded-lg shadow-lg px-3.5 py-2.5">
+      <p className="text-xs text-[var(--text-tertiary)] mb-1">{label}</p>
+      <p className="text-sm font-semibold text-[var(--text-primary)]">
         {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(payload[0].value)}
       </p>
     </div>
@@ -23,8 +23,8 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export function MonthlyTrendChart({ data }: Props) {
   return (
-    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-5">Monthly Spend Trend <span className="text-slate-400 dark:text-slate-500 font-normal">(invoices + API usage)</span></h3>
+    <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-6">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-5">Monthly Spend Trend <span className="text-[var(--text-quaternary)] font-normal">(invoices + API usage)</span></h3>
       <ResponsiveContainer width="100%" height={240}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <defs>

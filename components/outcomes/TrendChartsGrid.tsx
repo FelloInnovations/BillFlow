@@ -56,18 +56,19 @@ function MomBadge({ filteredData }: { filteredData: { month: string; value: numb
   const prevVal = filteredData[filteredData.length - 2]?.value ?? 0;
 
   if (filteredData.length < 2) return null;
-  if (lastVal === 0) return <span className="text-xs text-gray-400 font-medium">—</span>;
+  if (lastVal === 0) return <span className="text-xs text-[var(--text-quaternary)] font-medium">—</span>;
   if (prevVal === 0) return null;
 
   const momPct = ((lastVal - prevVal) / prevVal) * 100;
 
-  // Show "—" for extreme changes (≥99%) — they're misleading as a percentage
-  if (Math.abs(momPct) >= 99) return <span className="text-xs text-gray-400 font-medium">—</span>;
+  if (Math.abs(momPct) >= 99) return <span className="text-xs text-[var(--text-quaternary)] font-medium">—</span>;
 
   return (
     <span className={cn(
       "text-xs font-medium px-1.5 py-0.5 rounded-full",
-      momPct >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600",
+      momPct >= 0
+        ? "bg-[var(--bg-success-primary)] text-[var(--text-success-primary)]"
+        : "bg-[var(--bg-error-primary)] text-[var(--text-error-primary)]",
     )}>
       {momPct >= 0 ? "↑" : "↓"} {Math.abs(momPct).toFixed(0)}%
     </span>
@@ -84,53 +85,53 @@ function TrendChartCard({ chart, scope }: { chart: TrendChartData; scope: string
   const chartData = filteredData.map((d) => ({ month: formatMonthLabel(d.month), value: d.value }));
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col">
+    <div className="rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] shadow-sm p-4 flex flex-col">
       <div className="flex items-start justify-between mb-1">
-        <span className="text-xs font-semibold uppercase tracking-widest text-gray-500 block">
+        <span className="text-xs font-semibold uppercase tracking-widest text-[var(--text-tertiary)] block">
           {chart.label}
         </span>
         <MomBadge filteredData={filteredData} />
       </div>
-      <div className="text-xl font-bold text-gray-900 mb-2">{displayScopeTotal}</div>
+      <div className="text-xl font-semibold text-[var(--text-primary)] mb-2">{displayScopeTotal}</div>
       <div className="flex-1 min-h-[90px] mt-1">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 8 }}>
-          <defs>
-            <linearGradient id={`fill-${chart.metricKey}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#FF725C" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#FF725C" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Area
-            type="monotone"
-            dataKey="value"
-            stroke="#FF725C"
-            strokeWidth={2}
-            fill={`url(#fill-${chart.metricKey})`}
-            dot={false}
-            activeDot={{ r: 3, fill: "#FF725C" }}
-            isAnimationActive={false}
-          />
-          <XAxis dataKey="month" hide />
-          <YAxis hide />
-          <Tooltip
-            content={({ active, payload, label }: { active?: boolean; payload?: { value?: number }[]; label?: string }) => {
-              if (!active || !payload?.length) return null;
-              const val = payload[0].value ?? 0;
-              return (
-                <div className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs shadow-md">
-                  <div className="text-gray-500 mb-0.5">{label}</div>
-                  <div className="font-semibold text-gray-900">
-                    {chart.isMonetary
-                      ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val)
-                      : val.toLocaleString()}
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 8 }}>
+            <defs>
+              <linearGradient id={`fill-${chart.metricKey}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--bg-brand-solid)" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="var(--bg-brand-solid)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="var(--bg-brand-solid)"
+              strokeWidth={2}
+              fill={`url(#fill-${chart.metricKey})`}
+              dot={false}
+              activeDot={{ r: 3, fill: "var(--bg-brand-solid)" }}
+              isAnimationActive={false}
+            />
+            <XAxis dataKey="month" hide />
+            <YAxis hide />
+            <Tooltip
+              content={({ active, payload, label }: { active?: boolean; payload?: { value?: number }[]; label?: string }) => {
+                if (!active || !payload?.length) return null;
+                const val = payload[0].value ?? 0;
+                return (
+                  <div className="rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs shadow-md">
+                    <div className="text-[var(--text-tertiary)] mb-0.5">{label}</div>
+                    <div className="font-semibold text-[var(--text-primary)]">
+                      {chart.isMonetary
+                        ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val)
+                        : val.toLocaleString()}
+                    </div>
                   </div>
-                </div>
-              );
-            }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+                );
+              }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

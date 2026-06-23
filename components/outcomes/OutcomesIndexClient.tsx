@@ -26,17 +26,17 @@ function timeAgo(ts: string): string {
 
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
-  let cls = "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
+  let cls = "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]";
   if (s.includes("shut") || s.includes("cancelled") || s.includes("dead"))
-    cls = "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400";
+    cls = "bg-[var(--bg-error-primary)] text-[var(--text-error-primary)]";
   else if (s.includes("live") || s.includes("active") || s.includes("production"))
-    cls = "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400";
+    cls = "bg-[var(--bg-success-primary)] text-[var(--text-success-primary)]";
   else if (s.includes("progress") || s.includes("dev") || s.includes("build"))
-    cls = "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400";
+    cls = "bg-[var(--bg-warning-primary)] text-[var(--text-warning-primary)]";
   else if (s.includes("pause") || s.includes("hold") || s.includes("stop"))
-    cls = "bg-orange-100 text-orange-500 dark:bg-orange-900/40 dark:text-orange-400";
+    cls = "bg-[var(--bg-warning-primary)] text-[var(--text-warning-primary)]";
   else if (s.includes("plan") || s.includes("backlog") || s.includes("queue"))
-    cls = "bg-blue-100 text-blue-500 dark:bg-blue-900/40 dark:text-blue-400";
+    cls = "bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)]";
   return (
     <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}>
       {status}
@@ -44,7 +44,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// Enrichment project card — shows MAD ID pipeline funnel
 function EnrichmentProjectCard({
   project,
   scopeLabel,
@@ -87,15 +86,15 @@ function EnrichmentProjectCard({
         {steps.map(({ label, value, currency }, i) => (
           <div key={label} className="flex items-center gap-1">
             <div className="text-center min-w-[3.5rem]">
-              <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+              <div className="text-base font-semibold text-[var(--text-primary)] leading-tight">
                 {currency ? formatCurrency(value) : value.toLocaleString()}
               </div>
-              <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">
+              <div className="text-[9px] uppercase tracking-wider text-[var(--text-quaternary)] mt-0.5">
                 {label}
               </div>
             </div>
             {i < steps.length - 1 && (
-              <span className="text-slate-300 dark:text-slate-600 text-[11px] font-bold">→</span>
+              <span className="text-[var(--text-quaternary)] text-[11px] font-semibold">→</span>
             )}
           </div>
         ))}
@@ -104,20 +103,20 @@ function EnrichmentProjectCard({
   }
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
+    <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-6">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2.5">
-          <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+          <h2 className="font-semibold text-[var(--text-primary)] text-base leading-tight">
             Enrichment
           </h2>
           {project.projectStatus && <StatusBadge status={project.projectStatus} />}
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FF725C]/10 text-[#FF725C]">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)]">
             MAD ID Pipeline
           </span>
         </div>
         <Link
           href="/projects/enrichment/outcomes"
-          className="text-sm font-semibold text-salmon-500 dark:text-salmon-400 hover:text-salmon-700 dark:hover:text-salmon-300 transition-colors shrink-0"
+          className="text-sm font-semibold text-[var(--text-brand-primary)] hover:opacity-80 transition-opacity shrink-0"
         >
           View Details →
         </Link>
@@ -125,14 +124,14 @@ function EnrichmentProjectCard({
 
       <div className="space-y-5">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-3">
             Contact Funnel &middot; {scopeLabel}
           </p>
           <FunnelRow steps={contactFunnel} />
         </div>
 
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-3">
             Team Funnel &middot; {scopeLabel}
           </p>
           <FunnelRow steps={teamFunnel} />
@@ -140,8 +139,8 @@ function EnrichmentProjectCard({
       </div>
 
       {project.lastSynced && (
-        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+        <div className="mt-5 pt-4 border-t border-[var(--border-tertiary)]">
+          <p className="text-[11px] text-[var(--text-quaternary)]">
             Last synced {timeAgo(project.lastSynced)}
           </p>
         </div>
@@ -151,9 +150,9 @@ function EnrichmentProjectCard({
 }
 
 export function OutcomesIndexClient() {
-  const [scope, setScope]                   = useState<Scope>("all_time");
-  const [projects, setProjects] = useState<ProjectOutcomeSummary[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [scope, setScope]         = useState<Scope>("all_time");
+  const [projects, setProjects]   = useState<ProjectOutcomeSummary[]>([]);
+  const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
     setLoading(true);
@@ -172,21 +171,19 @@ export function OutcomesIndexClient() {
   const standardProjects  = projects.filter((p) => p.projectId !== "enrichment");
 
   return (
-    <main className="flex-1 min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
-      {/* Header */}
+    <main className="flex-1 min-h-screen bg-[var(--bg-primary)] p-8">
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Outcomes</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Outcomes</h1>
+          <p className="text-sm text-[var(--text-tertiary)] mt-1">
             Business KPI portfolio across all AI projects &middot; {scopeLabel}
           </p>
         </div>
 
-        {/* Scope selector */}
         <select
           value={scope}
           onChange={(e) => setScope(e.target.value as Scope)}
-          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-salmon-500 cursor-pointer"
+          className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] text-xs font-semibold px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--ring-brand-primary)] focus:border-[var(--border-brand-solid)] cursor-pointer"
         >
           {SCOPE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -196,13 +193,13 @@ export function OutcomesIndexClient() {
 
       <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : "transition-opacity"}>
         {projects.length === 0 && !loading ? (
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-16 text-center">
-            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">
+          <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-16 text-center">
+            <p className="text-[var(--text-tertiary)] text-sm font-medium">
               No outcome data for this period.
             </p>
-            <p className="text-slate-300 dark:text-slate-600 text-xs mt-2">
+            <p className="text-[var(--text-quaternary)] text-xs mt-2">
               Check that{" "}
-              <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">
+              <code className="font-mono bg-[var(--bg-secondary)] px-1 py-0.5 rounded">
                 project_outcome_config
               </code>{" "}
               has active rows.
@@ -210,9 +207,7 @@ export function OutcomesIndexClient() {
           </div>
         ) : (
           <>
-            {/* Per-project cards */}
             <div className="space-y-4">
-              {/* Standard projects (Arthur-style with AI traffic funnel) */}
               {standardProjects.map((project) => {
                 const { mtd, projectId } = project;
                 const traffic     = (mtd.llm_traffic_daily as number) ?? 0;
@@ -236,11 +231,11 @@ export function OutcomesIndexClient() {
                 return (
                   <div
                     key={projectId}
-                    className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6"
+                    className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-6"
                   >
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-2.5">
-                        <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+                        <h2 className="font-semibold text-[var(--text-primary)] text-base leading-tight">
                           {displayName}
                         </h2>
                         {project.projectStatus && (
@@ -249,29 +244,29 @@ export function OutcomesIndexClient() {
                       </div>
                       <Link
                         href={`/projects/${projectId}/outcomes`}
-                        className="text-sm font-semibold text-salmon-500 dark:text-salmon-400 hover:text-salmon-700 dark:hover:text-salmon-300 transition-colors shrink-0"
+                        className="text-sm font-semibold text-[var(--text-brand-primary)] hover:opacity-80 transition-opacity shrink-0"
                       >
                         View Details →
                       </Link>
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-3">
                         Funnel &middot; {scopeLabel}
                       </p>
                       <div className="flex items-center gap-1 flex-wrap">
                         {funnelSteps.map(({ label, value, currency }, i) => (
                           <div key={label} className="flex items-center gap-1">
                             <div className="text-center min-w-[3.5rem]">
-                              <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                              <div className="text-base font-semibold text-[var(--text-primary)] leading-tight">
                                 {currency ? formatCurrency(value) : value.toLocaleString()}
                               </div>
-                              <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">
+                              <div className="text-[9px] uppercase tracking-wider text-[var(--text-quaternary)] mt-0.5">
                                 {label}
                               </div>
                             </div>
                             {i < funnelSteps.length - 1 && (
-                              <span className="text-slate-300 dark:text-slate-600 text-[11px] font-bold">→</span>
+                              <span className="text-[var(--text-quaternary)] text-[11px] font-semibold">→</span>
                             )}
                           </div>
                         ))}
@@ -279,8 +274,8 @@ export function OutcomesIndexClient() {
                     </div>
 
                     {project.lastSynced && (
-                      <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                      <div className="mt-5 pt-4 border-t border-[var(--border-tertiary)]">
+                        <p className="text-[11px] text-[var(--text-quaternary)]">
                           Last synced {timeAgo(project.lastSynced)}
                         </p>
                       </div>
@@ -289,7 +284,6 @@ export function OutcomesIndexClient() {
                 );
               })}
 
-              {/* Enrichment project card */}
               {enrichmentProject && (
                 <EnrichmentProjectCard project={enrichmentProject} scopeLabel={scopeLabel} />
               )}

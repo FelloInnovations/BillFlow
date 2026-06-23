@@ -12,20 +12,20 @@ interface KPICardProps {
 
 const ACCENT = {
   salmon: {
-    icon: "bg-salmon-50 text-[#FF725C]",
-    border: "border-l-[#FF725C]",
+    icon: "bg-[var(--bg-brand-primary)] text-[var(--fg-brand-primary)]",
+    border: "border-l-[var(--border-brand-solid)]",
   },
   amber: {
-    icon: "bg-amber-50 text-amber-500",
-    border: "border-l-amber-400",
+    icon: "bg-[var(--bg-warning-primary)] text-[var(--fg-warning-primary)]",
+    border: "border-l-[var(--border-warning-solid)]",
   },
   rose: {
-    icon: "bg-red-50 text-red-500",
-    border: "border-l-red-400",
+    icon: "bg-[var(--bg-error-primary)] text-[var(--fg-error-primary)]",
+    border: "border-l-[var(--border-error-solid)]",
   },
   emerald: {
-    icon: "bg-emerald-50 text-emerald-500",
-    border: "border-l-emerald-400",
+    icon: "bg-[var(--bg-success-primary)] text-[var(--fg-success-primary)]",
+    border: "border-l-[var(--border-success-solid)]",
   },
 };
 
@@ -37,17 +37,17 @@ export function KPICard({ title, value, sub, icon: Icon, isCurrency, accent }: K
 
   return (
     <div className={cn(
-      "rounded-xl bg-white border border-gray-200 border-l-4 p-5 shadow-sm hover:shadow-md transition-shadow",
+      "rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] border-l-4 p-5 shadow-sm hover:shadow-md transition-shadow",
       a.border
     )}>
       <div className="flex items-start justify-between mb-4">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</p>
+        <p className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wide">{title}</p>
         <div className={cn("p-2 rounded-xl", a.icon)}>
           <Icon className="w-4 h-4" />
         </div>
       </div>
-      <p className="text-3xl font-bold tracking-tight text-gray-900">{display}</p>
-      {sub && <p className="text-xs mt-1.5 text-gray-400">{sub}</p>}
+      <p className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">{display}</p>
+      {sub && <p className="text-xs mt-1.5 text-[var(--text-quaternary)]">{sub}</p>}
     </div>
   );
 }

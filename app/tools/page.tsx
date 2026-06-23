@@ -78,7 +78,7 @@ export default function ToolsPage() {
   if (loading) {
     return (
       <div className="p-4 md:p-6">
-        <p className="text-sm text-slate-400">Loading tools...</p>
+        <p className="text-sm text-[var(--text-quaternary)]">Loading tools...</p>
       </div>
     );
   }
@@ -87,8 +87,8 @@ export default function ToolsPage() {
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Tools</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Tools</h1>
+        <p className="text-sm text-[var(--text-tertiary)] mt-0.5">
           {tools.length} vendors · {formatCurrency(totalSpend)} total spend
         </p>
       </div>
@@ -96,7 +96,7 @@ export default function ToolsPage() {
       {/* LLM Providers */}
       {llms.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+          <h2 className="text-xs font-semibold text-[var(--text-quaternary)] uppercase tracking-wide">
             LLM Providers
           </h2>
           <div className="space-y-2">
@@ -111,10 +111,10 @@ export default function ToolsPage() {
       {services.length > 0 && (
         <section className="space-y-2">
           <div>
-            <h2 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+            <h2 className="text-xs font-semibold text-[var(--text-quaternary)] uppercase tracking-wide">
               Shared Infrastructure
             </h2>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Org-wide · not attributed to projects</p>
+            <p className="text-[11px] text-[var(--text-quaternary)] mt-0.5">Org-wide · not attributed to projects</p>
           </div>
           <div className="space-y-2">
             {services.map((tool) => (
@@ -128,18 +128,18 @@ export default function ToolsPage() {
       {unusedUnlinked.length > 0 && (
         <section className="space-y-3">
           <div>
-            <h2 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+            <h2 className="text-xs font-semibold text-[var(--text-quaternary)] uppercase tracking-wide">
               Unused / Unlinked Tools
             </h2>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+            <p className="text-[11px] text-[var(--text-quaternary)] mt-0.5">
               Tools with spend but no active project association and no invoices in the last 90 days
             </p>
           </div>
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm divide-y divide-[var(--border-tertiary)]">
             {unusedUnlinked.map((tool) => (
               <div key={tool.name} className="flex items-center justify-between px-5 py-3.5">
-                <span className="text-sm text-slate-500 dark:text-slate-400">{tool.displayLabel}</span>
-                <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{formatCurrency(tool.totalSpend)}</span>
+                <span className="text-sm text-[var(--text-tertiary)]">{tool.displayLabel}</span>
+                <span className="text-sm font-semibold text-[var(--text-secondary)]">{formatCurrency(tool.totalSpend)}</span>
               </div>
             ))}
           </div>

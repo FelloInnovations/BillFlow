@@ -32,9 +32,9 @@ const CustomTooltip = ({
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg px-3.5 py-2.5">
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
-      <p className="text-sm font-bold text-slate-900 dark:text-white">
+    <div className="bg-[var(--bg-primary)] border border-[var(--border-tertiary)] rounded-xl shadow-lg px-3.5 py-2.5">
+      <p className="text-xs text-[var(--text-quaternary)] mb-1">{label}</p>
+      <p className="text-sm font-semibold text-[var(--text-primary)]">
         {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(payload[0].value)}
       </p>
     </div>
@@ -57,29 +57,28 @@ export function TrendAndForecastCard({ data }: Props) {
     `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col">
-      {/* Trend chart */}
-      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-5">
+    <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-sm p-6 flex flex-col">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-5">
         Monthly Spend Trend{" "}
-        <span className="text-slate-400 dark:text-slate-500 font-normal">(invoices + API usage)</span>
+        <span className="text-[var(--text-quaternary)] font-normal">(invoices + API usage)</span>
       </h3>
       <ResponsiveContainer width="100%" height={185}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="areaGradTAF" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ff725c" stopOpacity={0.1} />
-              <stop offset="100%" stopColor="#ff725c" stopOpacity={0} />
+              <stop offset="0%" stopColor="#FF725C" stopOpacity={0.12} />
+              <stop offset="100%" stopColor="#FF725C" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-tertiary)" vertical={false} />
           <XAxis
             dataKey="month"
-            tick={{ fontSize: 10, fill: "#94a3b8" }}
+            tick={{ fontSize: 10, fill: "var(--text-quaternary)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 10, fill: "#94a3b8" }}
+            tick={{ fontSize: 10, fill: "var(--text-quaternary)" }}
             tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
             width={44}
             axisLine={false}
@@ -89,50 +88,45 @@ export function TrendAndForecastCard({ data }: Props) {
           <Area
             type="monotone"
             dataKey="total"
-            stroke="#ff725c"
+            stroke="#FF725C"
             strokeWidth={2}
             fill="url(#areaGradTAF)"
             dot={false}
-            activeDot={{ r: 4, fill: "#ff725c", stroke: "#fff", strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: "#FF725C", stroke: "#fff", strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>
 
-      {/* Divider */}
-      <div className="border-t border-slate-100 dark:border-slate-800 mt-5 mb-4" />
+      <div className="border-t border-[var(--border-tertiary)] mt-5 mb-4" />
 
-      {/* Forecast section */}
       {forecast ? (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 dark:text-slate-500">
+            <span className="text-xs text-[var(--text-quaternary)]">
               Forecast · {forecast.nextMonthName}
             </span>
             <Link
               href="/forecasting"
-              className="flex items-center gap-1 text-xs font-semibold text-[#FF725C] hover:text-[#e55a45] transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold text-[var(--text-brand-primary)] hover:opacity-80 transition-opacity"
             >
               View full forecast
               <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <span
-              className="text-[20px] font-semibold tabular-nums leading-none"
-              style={{ color: "#FF725C" }}
-            >
+            <span className="text-[20px] font-semibold tabular-nums leading-none text-[var(--text-brand-primary)]">
               {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
                 forecast.totalForecast
               )}
             </span>
             {top3.length > 0 && (
-              <span className="text-xs text-slate-400 dark:text-slate-500">
+              <span className="text-xs text-[var(--text-quaternary)]">
                 {top3.map((f, i) => (
                   <span key={f.vendor}>
-                    <span className="text-slate-500 dark:text-slate-400">{f.vendor}</span>{" "}
+                    <span className="text-[var(--text-tertiary)]">{f.vendor}</span>{" "}
                     {fmt(f.forecastedAmount)}
                     {i < top3.length - 1 && (
-                      <span className="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+                      <span className="mx-1.5 text-[var(--border-secondary)]">·</span>
                     )}
                   </span>
                 ))}
@@ -142,7 +136,7 @@ export function TrendAndForecastCard({ data }: Props) {
         </div>
       ) : (
         <div className="h-10 flex items-center">
-          <span className="text-xs text-slate-400 dark:text-slate-500">Loading forecast…</span>
+          <span className="text-xs text-[var(--text-quaternary)]">Loading forecast…</span>
         </div>
       )}
     </div>

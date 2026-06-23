@@ -38,10 +38,9 @@ const INITIAL_FORM = {
 type Form = typeof INITIAL_FORM;
 type Errors = Partial<Record<keyof Form, string>>;
 
-// ── Styled input primitives ───────────────────────────────────────────────────
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+    <label className="block text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wide mb-1.5">
       {children}
     </label>
   );
@@ -49,25 +48,22 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
-  return <p className="mt-1 text-xs text-red-400">{msg}</p>;
+  return <p className="mt-1 text-xs text-[var(--text-error-primary)]">{msg}</p>;
 }
 
-const inputCls = "w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3 py-2 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-salmon-500 focus:border-salmon-500 transition-colors";
+const inputCls = "w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm px-3 py-2 placeholder-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:border-[var(--border-brand-solid)] transition-colors";
 
-// ── Main component ────────────────────────────────────────────────────────────
 export function AddInvoiceModal({ onClose, onSaved }: Props) {
   const [form, setForm]               = useState<Form>(INITIAL_FORM);
   const [errors, setErrors]           = useState<Errors>({});
-  const [totalIsAuto, setTotalIsAuto] = useState(true);  // auto-calc until user overrides
+  const [totalIsAuto, setTotalIsAuto] = useState(true);
   const [saving, setSaving]           = useState(false);
   const [discardPrompt, setDiscardPrompt] = useState(false);
   const [projects, setProjects]       = useState<string[]>([]);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
-  // Focus vendor name on mount
   useEffect(() => { firstInputRef.current?.focus(); }, []);
 
-  // Load project names for dropdown
   useEffect(() => {
     fetch("/api/projects/names")
       .then((r) => r.json())
@@ -75,7 +71,6 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
       .catch(() => {});
   }, []);
 
-  // Auto-calculate total when subtotal or tax changes (unless total was manually set)
   useEffect(() => {
     if (!totalIsAuto) return;
     const sub = parseFloat(form.subtotal) || 0;
@@ -94,13 +89,11 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
     setField("totalAmount", value);
   }
 
-  // Re-enable auto-calc when subtotal/tax is edited after manual total override
   function handleSubtaxChange(key: "subtotal" | "taxAmount", value: string) {
     setTotalIsAuto(true);
     setField(key, value);
   }
 
-  // Has the user typed anything meaningful?
   const isDirty =
     form.vendorName    !== INITIAL_FORM.vendorName    ||
     form.invoiceNumber !== INITIAL_FORM.invoiceNumber ||
@@ -163,36 +156,28 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-        onClick={requestClose}
-      />
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={requestClose} />
 
-      {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="pointer-events-auto w-full max-w-[480px] max-h-[90vh] flex flex-col rounded-2xl bg-[#0e1219] border border-slate-700 shadow-2xl overflow-hidden"
+          className="pointer-events-auto w-full max-w-[480px] max-h-[90vh] flex flex-col rounded-xl bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 shrink-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-tertiary)] shrink-0">
             <div>
-              <h2 className="text-sm font-semibold text-slate-100">Add Invoice</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Manual entry — not linked to email</p>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Add Invoice</h2>
+              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">Manual entry — not linked to email</p>
             </div>
             <button
               onClick={requestClose}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--bg-secondary)] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Form body */}
           <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4" style={{ scrollbarWidth: "thin" }}>
 
-            {/* Vendor Name */}
             <div>
               <Label>Vendor Name *</Label>
               <input
@@ -201,12 +186,12 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                 value={form.vendorName}
                 onChange={(e) => setField("vendorName", e.target.value)}
                 placeholder="e.g. Anthropic"
-                className={cn(inputCls, errors.vendorName && "border-red-500 focus:ring-red-500")}
+                className={cn(inputCls, errors.vendorName && "border-[var(--border-error-solid)]")}
+                style={errors.vendorName ? { "--tw-ring-color": "var(--ring-error-primary)" } as React.CSSProperties : { "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
               />
               <FieldError msg={errors.vendorName} />
             </div>
 
-            {/* Invoice Number */}
             <div>
               <Label>Invoice Number</Label>
               <input
@@ -215,10 +200,10 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                 onChange={(e) => setField("invoiceNumber", e.target.value)}
                 placeholder="e.g. INV-2024-001"
                 className={inputCls}
+                style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
               />
             </div>
 
-            {/* Date row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Invoice Date *</Label>
@@ -226,7 +211,8 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   type="date"
                   value={form.invoiceDate}
                   onChange={(e) => setField("invoiceDate", e.target.value)}
-                  className={cn(inputCls, errors.invoiceDate && "border-red-500 focus:ring-red-500")}
+                  className={cn(inputCls, errors.invoiceDate && "border-[var(--border-error-solid)]")}
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 />
                 <FieldError msg={errors.invoiceDate} />
               </div>
@@ -237,11 +223,11 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   value={form.dueDate}
                   onChange={(e) => setField("dueDate", e.target.value)}
                   className={inputCls}
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 />
               </div>
             </div>
 
-            {/* Amount row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Subtotal *</Label>
@@ -252,7 +238,8 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   value={form.subtotal}
                   onChange={(e) => handleSubtaxChange("subtotal", e.target.value)}
                   placeholder="0.00"
-                  className={cn(inputCls, errors.subtotal && "border-red-500 focus:ring-red-500")}
+                  className={cn(inputCls, errors.subtotal && "border-[var(--border-error-solid)]")}
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 />
                 <FieldError msg={errors.subtotal} />
               </div>
@@ -266,16 +253,16 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   onChange={(e) => handleSubtaxChange("taxAmount", e.target.value)}
                   placeholder="0.00"
                   className={inputCls}
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 />
               </div>
             </div>
 
-            {/* Total Amount */}
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <Label>Total Amount *</Label>
                 {totalIsAuto && form.totalAmount !== "" && (
-                  <span className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-salmon-50 text-salmon-600 border border-salmon-200 -mt-1">
+                  <span className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)] border border-[var(--border-brand)] -mt-1">
                     <Sparkles className="w-2.5 h-2.5" />
                     auto
                   </span>
@@ -288,12 +275,12 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                 value={form.totalAmount}
                 onChange={(e) => handleTotalChange(e.target.value)}
                 placeholder="0.00"
-                className={cn(inputCls, errors.totalAmount && "border-red-500 focus:ring-red-500")}
+                className={cn(inputCls, errors.totalAmount && "border-[var(--border-error-solid)]")}
+                style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
               />
               <FieldError msg={errors.totalAmount} />
             </div>
 
-            {/* Currency + Status row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Currency</Label>
@@ -301,6 +288,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   value={form.currency}
                   onChange={(e) => setField("currency", e.target.value)}
                   className={inputCls}
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 >
                   {["USD", "INR", "GBP", "EUR"].map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -313,6 +301,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   value={form.paymentStatus}
                   onChange={(e) => setField("paymentStatus", e.target.value)}
                   className={inputCls}
+                  style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                 >
                   <option value="pending">pending</option>
                   <option value="paid">paid</option>
@@ -320,7 +309,6 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
               </div>
             </div>
 
-            {/* Description */}
             <div>
               <Label>Description</Label>
               <textarea
@@ -329,10 +317,10 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                 placeholder="Optional notes…"
                 rows={2}
                 className={cn(inputCls, "resize-none")}
+                style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
               />
             </div>
 
-            {/* Cost Type */}
             <div>
               <Label>Cost Type *</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -342,8 +330,8 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                     className={cn(
                       "flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors text-sm",
                       form.costType === opt.value
-                        ? "border-salmon-500 bg-salmon-950/40 text-salmon-300"
-                        : "border-slate-700 text-slate-400 hover:border-slate-600"
+                        ? "border-[var(--border-brand-solid)] bg-[var(--bg-brand-primary)] text-[var(--text-brand-primary)]"
+                        : "border-[var(--border-tertiary)] text-[var(--text-tertiary)] hover:border-[var(--border-secondary)]"
                     )}
                   >
                     <input
@@ -358,7 +346,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                           setField("projectSearch", "");
                         }
                       }}
-                      className="accent-salmon-400"
+                      className="accent-[var(--bg-brand-solid)]"
                     />
                     {opt.label}
                   </label>
@@ -367,7 +355,6 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
               <FieldError msg={errors.costType} />
             </div>
 
-            {/* Project (when project_specific) */}
             {form.costType === "project_specific" && (
               <div>
                 <Label>Project *</Label>
@@ -380,10 +367,11 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                       setField("projectId", "");
                     }}
                     placeholder="Search projects…"
-                    className={cn(inputCls, errors.projectId && "border-red-500 focus:ring-red-500")}
+                    className={cn(inputCls, errors.projectId && "border-[var(--border-error-solid)]")}
+                    style={{ "--tw-ring-color": "var(--ring-brand-primary)" } as React.CSSProperties}
                   />
                   {form.projectSearch && !form.projectId && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden max-h-36 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 z-10 rounded-lg border border-[var(--border-tertiary)] bg-[var(--bg-primary)] shadow-md overflow-hidden max-h-36 overflow-y-auto">
                       {projects
                         .filter((p) => p.toLowerCase().includes(form.projectSearch.toLowerCase()))
                         .map((p) => (
@@ -394,7 +382,7 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                               setField("projectId", p);
                               setField("projectSearch", p);
                             }}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                            className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
                           >
                             {p}
                           </button>
@@ -403,25 +391,25 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
                   )}
                 </div>
                 {form.projectId && (
-                  <p className="mt-1 text-xs text-salmon-400">Selected: {form.projectId}</p>
+                  <p className="mt-1 text-xs text-[var(--text-brand-primary)]">Selected: {form.projectId}</p>
                 )}
                 <FieldError msg={errors.projectId} />
               </div>
             )}
           </div>
 
-          {/* Footer */}
-          <div className="px-5 py-4 border-t border-slate-800 flex items-center gap-3 shrink-0">
+          <div className="px-5 py-4 border-t border-[var(--border-tertiary)] flex items-center gap-3 shrink-0">
             <button
               onClick={requestClose}
-              className="flex-1 py-2 rounded-lg border border-slate-700 text-slate-400 text-sm font-medium hover:bg-slate-800 hover:text-slate-200 transition-colors"
+              className="flex-1 py-2 rounded-lg border border-[var(--border-tertiary)] text-[var(--text-tertiary)] text-sm font-semibold hover:bg-[var(--bg-secondary\_hover)] transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 py-2 rounded-lg bg-salmon-600 hover:bg-salmon-500 disabled:opacity-50 text-white text-sm font-bold transition-colors"
+              className="flex-1 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: "var(--bg-brand-solid)" }}
             >
               {saving ? "Saving…" : "Save Invoice"}
             </button>
@@ -429,23 +417,23 @@ export function AddInvoiceModal({ onClose, onSaved }: Props) {
         </div>
       </div>
 
-      {/* Discard confirmation */}
       {discardPrompt && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setDiscardPrompt(false)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-[#0e1219] border border-slate-700 shadow-2xl p-6 text-center space-y-4">
-            <p className="text-sm font-semibold text-slate-200">Discard unsaved changes?</p>
-            <p className="text-xs text-slate-400">Your form data will be lost.</p>
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDiscardPrompt(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-xl bg-[var(--bg-primary)] border border-[var(--border-tertiary)] shadow-xl p-6 text-center space-y-4">
+            <p className="text-sm font-semibold text-[var(--text-primary)]">Discard unsaved changes?</p>
+            <p className="text-xs text-[var(--text-tertiary)]">Your form data will be lost.</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDiscardPrompt(false)}
-                className="flex-1 py-2 rounded-lg border border-slate-700 text-slate-400 text-sm font-medium hover:bg-slate-800 transition-colors"
+                className="flex-1 py-2 rounded-lg border border-[var(--border-tertiary)] text-[var(--text-tertiary)] text-sm font-semibold hover:bg-[var(--bg-secondary)] transition-colors"
               >
                 Keep editing
               </button>
               <button
                 onClick={onClose}
-                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-colors"
+                className="flex-1 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
+                style={{ backgroundColor: "var(--bg-error-solid)" }}
               >
                 Discard
               </button>
