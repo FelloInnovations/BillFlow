@@ -108,6 +108,7 @@ export interface Tool {
   monthlyTrend: { month: string; total: number }[];
   hidden?: boolean;
   notes?: string;
+  spendSource?: "invoices" | "api_usage" | "wallet_topup";
 }
 
 export interface FlaggedBilledVendor {

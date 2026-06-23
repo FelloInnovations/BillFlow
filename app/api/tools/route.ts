@@ -215,6 +215,7 @@ export async function GET() {
       hasManualOverride: false,
       totalSpend: total,
       monthlyTrend: sortedTrend(canonicalMonthly.get(canonical) ?? new Map()),
+      spendSource: canonical === "OpenRouter" ? "wallet_topup" : "invoices",
     });
   }
 
@@ -233,6 +234,7 @@ export async function GET() {
       hasManualOverride: false,
       totalSpend: orKeyTotals.get(toolKey) ?? 0,
       monthlyTrend: sortedTrend(orKeyMonthly.get(toolKey) ?? new Map()),
+      spendSource: "api_usage",
     });
   }
 

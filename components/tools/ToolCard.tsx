@@ -247,7 +247,7 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 <span className="font-semibold text-slate-500">{isLLM ? "LLM" : "Service"}</span>
-                {isPerKey ? " · API usage" : " · invoices"}
+                {isPerKey ? " · API usage" : tool.name === "OpenRouter" ? " · wallet top-ups" : " · invoices"}
                 {isLLM && " · "}
                 {isLLM && (tool.projects.length > 0
                   ? `${tool.projects.length} project${tool.projects.length > 1 ? "s" : ""}`
@@ -257,7 +257,14 @@ export function ToolCard({ tool, flagTypes, onDelete, onEdit, allProjectNames = 
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(tool.totalSpend)}</p>
+            <div className="flex flex-col items-end">
+              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(tool.totalSpend)}</p>
+              {!isPerKey && tool.name === "OpenRouter" && (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5 text-right leading-snug">
+                  Credit deposited into OR wallet.<br />See per-key rows below for actual usage.
+                </p>
+              )}
+            </div>
             <button
               onClick={(e) => {
                 e.stopPropagation();

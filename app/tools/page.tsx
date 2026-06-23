@@ -69,7 +69,11 @@ export default function ToolsPage() {
 
   const llms     = tools.filter((t) => t.type === "llm"     && !unusedSet.has(t.name));
   const services = tools.filter((t) => t.type === "service" && !unusedSet.has(t.name));
-  const totalSpend = tools.reduce((s, t) => s + t.totalSpend, 0);
+  // Exclude the OpenRouter invoice (wallet top-up) row — actual OR spend is
+  // captured per API key in the OpenRouter:keyName rows, so counting both doubles it.
+  const totalSpend = tools
+    .filter((t) => t.name !== "OpenRouter")
+    .reduce((s, t) => s + t.totalSpend, 0);
 
   if (loading) {
     return (
