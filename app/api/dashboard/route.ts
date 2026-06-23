@@ -38,14 +38,16 @@ export async function GET() {
       .eq("payment_status", "paid")
       .gte("invoice_date", firstOfLastComplete)
       .lt("invoice_date", firstOfAnchorMonth)
-      .not("vendor_name", "ilike", "%makemytrip%"),
+      .not("vendor_name", "ilike", "%makemytrip%")
+      .not("vendor_name", "ilike", "%openrouter%"),
 
     // All unpaid records
     supabase
       .from("financial_records")
       .select("total_amount, due_date")
       .neq("payment_status", "paid")
-      .not("vendor_name", "ilike", "%makemytrip%"),
+      .not("vendor_name", "ilike", "%makemytrip%")
+      .not("vendor_name", "ilike", "%openrouter%"),
 
     // Last 12 months — vendor breakdown
     supabase
@@ -53,14 +55,16 @@ export async function GET() {
       .select("vendor_name, total_amount")
       .gte("invoice_date", twelveMonthsAgo)
       .not("vendor_name", "is", null)
-      .not("vendor_name", "ilike", "%makemytrip%"),
+      .not("vendor_name", "ilike", "%makemytrip%")
+      .not("vendor_name", "ilike", "%openrouter%"),
 
     // Last 12 months — monthly trend (vendor_name needed for hidden-tool filtering)
     supabase
       .from("financial_records")
       .select("vendor_name, invoice_date, total_amount, payment_status, due_date")
       .gte("invoice_date", twelveMonthsAgo)
-      .not("vendor_name", "ilike", "%makemytrip%"),
+      .not("vendor_name", "ilike", "%makemytrip%")
+      .not("vendor_name", "ilike", "%openrouter%"),
 
     // Upcoming due (real clock — actual future dates)
     supabase
@@ -70,6 +74,7 @@ export async function GET() {
       .lte("due_date", nextWeek)
       .neq("payment_status", "paid")
       .not("vendor_name", "ilike", "%makemytrip%")
+      .not("vendor_name", "ilike", "%openrouter%")
       .order("due_date")
       .limit(5),
 
@@ -80,7 +85,8 @@ export async function GET() {
       .from("financial_records")
       .select("vendor_name, total_amount")
       .not("vendor_name", "is", null)
-      .not("vendor_name", "ilike", "%makemytrip%"),
+      .not("vendor_name", "ilike", "%makemytrip%")
+      .not("vendor_name", "ilike", "%openrouter%"),
 
     // OpenRouter per-key monthly snapshots (last 12 months)
     supabase
