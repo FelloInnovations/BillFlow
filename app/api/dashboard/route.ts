@@ -120,9 +120,8 @@ export async function GET() {
   const todayLiveSpend = (todaySnapshotRes.data ?? []).reduce(
     (sum, row) => sum + Number(row.usage_today ?? 0), 0
   );
-  if (todayLiveSpend > 0) {
-    orByMonth[currentMonth] = (orByMonth[currentMonth] ?? 0) + todayLiveSpend;
-  }
+  // Do NOT add todayLiveSpend to orByMonth — usage_total already includes today's spend.
+  // Adding it causes double-counting in the monthly trend and vendor chart.
 
   // Previous calendar month key (real clock — not invoice anchor — so May snapshot appears)
   const now = new Date();
