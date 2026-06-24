@@ -18,20 +18,15 @@ export function OutcomeMetricsTab({ projectId, period }: { projectId: string; pe
     fetch(`/api/outcomes/${projectId}`)
       .then(r => r.json())
       .then((d: ApiResponse) => {
+        console.log("[OutcomeMetricsTab] response:", d);
         const breakdown = d.monthlyBreakdown ?? [];
-        // monthlyBreakdown is sorted newest-first; traffic is a daily sum key — add across all months
+        // traffic is a daily additive key — sum across all months
         const traffic = breakdown.reduce((s, b) => s + (b.metrics.llm_traffic_daily ?? 0), 0);
-        // cumulative MTD keys — take the most recent month that has any deal data
-        const latest = breakdown.find(b =>
-          (b.metrics.demos_booked_mtd ?? 0) +
-          (b.metrics.demos_held_mtd ?? 0) +
-          (b.metrics.closed_won_mtd ?? 0) +
-          (b.metrics.arr_closed_mtd ?? 0) > 0
-        );
-        const booked = latest?.metrics.demos_booked_mtd ?? 0;
-        const held   = latest?.metrics.demos_held_mtd   ?? 0;
-        const won    = latest?.metrics.closed_won_mtd   ?? 0;
-        const arr    = latest?.metrics.arr_closed_mtd   ?? 0;
+        // cumulative MTD keys: each month's entry holds that month's final total — sum for all-time
+        const booked = breakdown.reduce((s, b) => s + (b.metrics.demos_booked_mtd ?? 0), 0);
+        const held   = breakdown.reduce((s, b) => s + (b.metrics.demos_held_mtd   ?? 0), 0);
+        const won    = breakdown.reduce((s, b) => s + (b.metrics.closed_won_mtd   ?? 0), 0);
+        const arr    = breakdown.reduce((s, b) => s + (b.metrics.arr_closed_mtd   ?? 0), 0);
         if (traffic + booked + held + won + arr > 0) {
           setContactFunnel({ traffic, booked, held, won, arr });
         }

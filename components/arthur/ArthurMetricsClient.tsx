@@ -520,7 +520,7 @@ export function ArthurMetricsClient() {
           )}
 
           {tab === "outcome" && (
-            <OutcomeMetricsTab projectId="arthur_for_fello" period={period} />
+            <OutcomeMetricsTab projectId="arthur" period={period} />
           )}
         </>
       )}
