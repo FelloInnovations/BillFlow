@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   // ── 2. articles ────────────────────────────────────────────────
   let articlesQuery = supabase
     .from("articles")
-    .select("id, cluster, status, content_path, published_at, stage, created_at");
+    .select("id, cluster, status, published_at, stage, created_at");
   if (from) articlesQuery = articlesQuery.gte("created_at", from);
   const { data: articles } = await articlesQuery;
 
@@ -51,40 +51,6 @@ export async function GET(req: NextRequest) {
   const safeArticles = articles ?? [];
   const safePipeline = pipeline ?? [];
   const safeResearch = research ?? [];
-
-  // ── Cluster & content_path breakdown (articles table only) ────
-  const felixArticles          = safeArticles.filter(a => a.cluster?.toLowerCase() === "felix");
-  const agenticArticles        = safeArticles.filter(a => a.cluster?.toLowerCase() === "agentic-real-estate");
-  const blogsArticles          = safeArticles.filter(a => a.content_path === "blogs");
-  const agenticPathArticles    = safeArticles.filter(a => a.content_path === "agentic-real-estate");
-
-  const felixPublished         = felixArticles.filter(a => a.status === "published").length;
-  const agenticPublished       = agenticArticles.filter(a => a.status === "published").length;
-  const blogsPublished         = blogsArticles.filter(a => a.status === "published").length;
-  const agenticPathPublished   = agenticPathArticles.filter(a => a.status === "published").length;
-
-  const clusterPathMatrix = {
-    felix: {
-      blogs: {
-        count:     felixArticles.filter(a => a.content_path === "blogs").length,
-        published: felixArticles.filter(a => a.content_path === "blogs" && a.status === "published").length,
-      },
-      "agentic-real-estate": {
-        count:     felixArticles.filter(a => a.content_path === "agentic-real-estate").length,
-        published: felixArticles.filter(a => a.content_path === "agentic-real-estate" && a.status === "published").length,
-      },
-    },
-    "agentic-real-estate": {
-      blogs: {
-        count:     agenticArticles.filter(a => a.content_path === "blogs").length,
-        published: agenticArticles.filter(a => a.content_path === "blogs" && a.status === "published").length,
-      },
-      "agentic-real-estate": {
-        count:     agenticArticles.filter(a => a.content_path === "agentic-real-estate").length,
-        published: agenticArticles.filter(a => a.content_path === "agentic-real-estate" && a.status === "published").length,
-      },
-    },
-  };
 
   // ── KPI Strip ──────────────────────────────────────────────────
   const totalIdeas     = safeIdeas.reduce((s, r) => s + Number(r.idea_count ?? 0), 0);
@@ -224,17 +190,6 @@ export async function GET(req: NextRequest) {
       avgIterations,
       ideasByCluster,
       totalResearchSessions,
-    },
-    articles: {
-      byCluster: {
-        felix:              { total: felixArticles.length,       published: felixPublished       },
-        agenticRealEstate:  { total: agenticArticles.length,     published: agenticPublished     },
-      },
-      byContentPath: {
-        blogs:              { total: blogsArticles.length,       published: blogsPublished       },
-        agenticRealEstate:  { total: agenticPathArticles.length, published: agenticPathPublished },
-      },
-      clusterPathMatrix,
     },
     cost: {
       totalCost: Math.round(totalCost * 100) / 100,
