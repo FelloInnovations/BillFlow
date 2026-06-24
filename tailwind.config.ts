@@ -1,80 +1,77 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: ["class"],
   content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
   ],
   theme: {
-    screens: {
-      xs: "480px",
-      sm: "768px",
-      md: "1024px",
-      lg: "1440px",
-    },
+    container: { center: true, padding: "2rem", screens: { "2xl": "1400px" } },
     extend: {
-      fontFamily: {
-        sans: ["Inter", "sans-serif"],
-      },
       colors: {
+        border: "rgb(var(--border))",
+        input: "rgb(var(--input))",
+        ring: "rgb(var(--ring))",
+        background: "rgb(var(--background))",
+        foreground: "rgb(var(--foreground))",
         primary: {
-          25: "#FFF9F8", 50: "#FDF1EF", 100: "#FDE7E3", 200: "#FFC7BE",
-          300: "#FFAA9D", 400: "#FF8E7D", 500: "#FF725C", 600: "#E66753",
-          700: "#CC5B4A", 800: "#B35040", 900: "#994437",
+          DEFAULT: "rgb(var(--primary))",
+          foreground: "rgb(var(--primary-foreground))",
         },
         secondary: {
-          25: "#F9FFFF", 50: "#E7FDFD", 100: "#CAFBFB", 200: "#83F5F7",
-          300: "#46E6E8", 400: "#0ED4D7", 500: "#0DC1C4", 600: "#0BA5A7",
-          700: "#098486", 800: "#076C6E", 900: "#055051",
+          DEFAULT: "rgb(var(--secondary))",
+          foreground: "rgb(var(--secondary-foreground))",
         },
-        "primary-text": {
-          25: "#F8F8FA", 50: "#F0F2F5", 100: "#E2E4EB", 200: "#D3D7E1",
-          300: "#C5C9D7", 400: "#9298A9", 500: "#6B748E", 600: "#495883",
-          700: "#353E5A", 800: "#222A3F", 900: "#111729",
+        muted: {
+          DEFAULT: "rgb(var(--muted))",
+          foreground: "rgb(var(--muted-foreground))",
         },
-        "secondary-text": {
-          25: "#F7F9FA", 50: "#F1F4F7", 100: "#E8ECF1", 200: "#CCD6DC",
-          300: "#BDC8D3", 400: "#A9B9C8", 500: "#8EA1AF", 600: "#677B89",
-          700: "#3C5A6F", 800: "#093555", 900: "#052033",
+        accent: {
+          DEFAULT: "rgb(var(--accent))",
+          foreground: "rgb(var(--accent-foreground))",
         },
-        success: {
-          50: "#E3FCEF", 100: "#ABF5D1", 300: "#57D9A3",
-          500: "#36B37E", 600: "#31A172", 700: "#2B8D64",
+        destructive: {
+          DEFAULT: "rgb(var(--destructive))",
+          foreground: "rgb(var(--destructive-foreground))",
         },
-        warning: {
-          50: "#FFFAE6", 100: "#FFF0B3", 300: "#FFC400",
-          500: "#FF991F", 600: "#F08400",
+        card: {
+          DEFAULT: "rgb(var(--card))",
+          foreground: "rgb(var(--card-foreground))",
         },
-        error: {
-          50: "#FFEBE6", 100: "#FFBDAD", 300: "#FF7452",
-          500: "#FF431B", 600: "#F02C00",
+        // Fello Design System
+        salmon: {
+          50:  "#fff2f0",
+          100: "#ffe4e0",
+          200: "#ffc8c0",
+          300: "#ffa89f",
+          400: "#ff8778",
+          500: "#ff725c",
+          600: "#e85440",
+          700: "#c43a28",
+          800: "#9e2e1e",
+          900: "#7e2518",
+          950: "#44100a",
         },
-        blue: {
-          50: "#F0F7FF", 100: "#E7F1FE", 300: "#B6D6FB",
-          500: "#6EAEF7", 600: "#3D93F5",
-        },
-        purple: {
-          50: "#F4F3FF", 100: "#F2EDFC", 300: "#D3C6F6",
-          500: "#AB91ED", 600: "#8D6AE7",
+        navy: {
+          50:  "#f0f6fc",
+          100: "#d9eaf6",
+          200: "#aecfe9",
+          300: "#7bb0d9",
+          400: "#4b90c8",
+          500: "#2c73b0",
+          600: "#1d5b92",
+          700: "#164876",
+          800: "#11365c",
+          900: "#093555",
+          950: "#061e34",
         },
       },
       borderRadius: {
-        none: "0px",
-        DEFAULT: "4px",
-        md: "6px",
-        lg: "8px",
-        xl: "12px",
-        "2xl": "20px",
-        full: "9999px",
-      },
-      boxShadow: {
-        xs: "0 1px 2px 0 rgba(73,88,131,0.08)",
-        sm: "0 1px 2px 0 rgba(73,88,131,0.04), 0 1px 3px 0 rgba(73,88,131,0.16)",
-        md: "0 2px 4px -2px rgba(73,88,131,0.04), 0 4px 8px -2px rgba(73,88,131,0.16)",
-        lg: "0 4px 6px -2px rgba(73,88,131,0.04), 0 12px 16px -4px rgba(73,88,131,0.16)",
-        xl: "0 8px 8px -4px rgba(73,88,131,0.04), 0 20px 24px -4px rgba(73,88,131,0.16)",
-        "2xl": "0 24px 48px -12px rgba(73,88,131,0.16)",
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
       },
     },
   },
