@@ -103,12 +103,12 @@ export function OutcomeMetricsTab({ projectId, period }: { projectId: string; pe
                   padding: "20px 16px",
                   border: `1px solid ${i === stages.length - 1 ? "var(--border-success_subtle)" : "var(--border-tertiary)"}`,
                 }}>
-                  <p style={{ fontSize: 26, fontWeight: 600, color: i === stages.length - 1 ? "var(--text-success-primary)" : "var(--text-primary)", margin: 0 }}>
+                  <p style={{ fontSize: 28, fontWeight: 600, color: i === stages.length - 1 ? "var(--text-success-primary)" : "var(--text-primary)", margin: 0 }}>
                     {stage.isCurrency
                       ? `$${Number(stage.value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
                       : Number(stage.value).toLocaleString()}
                   </p>
-                  <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
+                  <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
                     {stage.label}
                   </p>
                 </div>

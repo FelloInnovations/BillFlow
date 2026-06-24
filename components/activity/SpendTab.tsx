@@ -293,7 +293,7 @@ export function SpendTab({
     const periodTotal = periodStats.get(k.key_name)?.total ?? 0;
     if (periodTotal > 0) return "bg-emerald-500";
     if (k.total > 0) return "bg-amber-400";
-    return "bg-slate-300";
+    return "bg-[var(--text-disabled)]";
   }
 
   function shortModel(m: string) {
@@ -500,7 +500,7 @@ export function SpendTab({
           <p className="text-xs font-semibold text-[var(--text-quaternary)] uppercase tracking-wide mb-0.5">
             Total this period
           </p>
-          <p className="text-3xl font-semibold text-[var(--text-primary)]">
+          <p className="text-2xl font-semibold text-[var(--text-primary)]">
             {formatCurrency(periodTotal)}
           </p>
           <p className="text-xs text-[var(--text-quaternary)] mt-1">{periodLabel}</p>

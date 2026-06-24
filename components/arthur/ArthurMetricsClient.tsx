@@ -142,10 +142,10 @@ export function ArthurMetricsClient() {
                   {/* Research Sessions */}
                   <div style={{ flex: 1, minWidth: 100, textAlign: "center" }}>
                     <div style={{ background: "var(--bg-secondary_subtle)", borderRadius: 8, padding: "16px 12px", border: "1px solid var(--border-tertiary)" }}>
-                      <p style={{ fontSize: 24, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+                      <p style={{ fontSize: 28, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
                         {data.funnel.totalResearchSessions}
                       </p>
-                      <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
                         Research Sessions
                       </p>
                     </div>
@@ -160,10 +160,10 @@ export function ArthurMetricsClient() {
                   {/* Ideas */}
                   <div style={{ flex: 1, minWidth: 100, textAlign: "center" }}>
                     <div style={{ background: "var(--bg-secondary_subtle)", borderRadius: 8, padding: "16px 12px", border: "1px solid var(--border-tertiary)" }}>
-                      <p style={{ fontSize: 24, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+                      <p style={{ fontSize: 28, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
                         {data.funnel.totalIdeas.toLocaleString()}
                       </p>
-                      <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
                         Ideas
                       </p>
                     </div>
@@ -178,10 +178,10 @@ export function ArthurMetricsClient() {
                   {/* Articles Created */}
                   <div style={{ flex: 1, minWidth: 100, textAlign: "center" }}>
                     <div style={{ background: "var(--bg-secondary_subtle)", borderRadius: 8, padding: "16px 12px", border: "1px solid var(--border-tertiary)" }}>
-                      <p style={{ fontSize: 24, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+                      <p style={{ fontSize: 28, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
                         {data.funnel.totalArticles.toLocaleString()}
                       </p>
-                      <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0" }}>
                         Articles Created
                       </p>
                     </div>
@@ -196,10 +196,10 @@ export function ArthurMetricsClient() {
                   {/* Published */}
                   <div style={{ flex: 1, minWidth: 100, textAlign: "center" }}>
                     <div style={{ background: "var(--bg-brand-primary)", borderRadius: 8, padding: "16px 12px", border: "1px solid var(--border-brand)" }}>
-                      <p style={{ fontSize: 24, fontWeight: 600, color: "var(--text-brand-primary)", margin: 0 }}>
+                      <p style={{ fontSize: 28, fontWeight: 600, color: "var(--text-brand-primary)", margin: 0 }}>
                         {data.funnel.totalPublished.toLocaleString()}
                       </p>
-                      <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-brand-primary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0", opacity: 0.8 }}>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-brand-primary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "4px 0 0", opacity: 0.8 }}>
                         Published
                       </p>
                     </div>
@@ -228,7 +228,7 @@ export function ArthurMetricsClient() {
                 <div style={sectionCard}>
                   <p style={sectionLabel}>QUALITY SCORE OVER TIME</p>
                   {data.quality.avgQualityScore > 0 && (
-                    <p style={{ fontSize: 24, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 16px" }}>
+                    <p style={{ fontSize: 28, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 16px" }}>
                       {data.quality.avgQualityScore}
                       <span style={{ fontSize: 13, color: "var(--text-tertiary)", fontWeight: 400 }}> /100 avg</span>
                     </p>
@@ -399,7 +399,7 @@ export function ArthurMetricsClient() {
                         {i > 0 && <div style={{ height: 1, background: "var(--border-tertiary)", margin: "14px 0" }} />}
                         <div>
                           <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: "0 0 4px" }}>{label}</p>
-                          <p style={{ fontSize: 24, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{value}</p>
+                          <p style={{ fontSize: 28, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{value}</p>
                         </div>
                       </div>
                     ))}
@@ -430,15 +430,15 @@ export function ArthurMetricsClient() {
                         <div style={{ display: "flex", gap: 24 }}>
                           <div>
                             <p style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{item.total}</p>
-                            <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Total</p>
+                            <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Total</p>
                           </div>
                           <div>
                             <p style={{ fontSize: 22, fontWeight: 600, color: colors[i], margin: 0 }}>{item.published}</p>
-                            <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Published</p>
+                            <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Published</p>
                           </div>
                           <div>
                             <p style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{publishRate}%</p>
-                            <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Pub rate</p>
+                            <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Pub rate</p>
                           </div>
                         </div>
                         <div style={{ marginTop: 12 }}>

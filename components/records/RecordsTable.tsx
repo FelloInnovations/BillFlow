@@ -874,12 +874,12 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
             : "translate-y-4 opacity-0 pointer-events-none"
         )}
       >
-        <div className="flex flex-wrap items-center gap-2 md:gap-3 px-5 py-3 rounded-lg border border-slate-700 bg-[var(--bg-primary-solid)] shadow-2xl text-sm">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 px-5 py-3 rounded-lg border border-[var(--border-primary-solid)] bg-[var(--bg-primary-solid)] shadow-2xl text-sm">
           {confirming ? (
             <>
-              <span className="text-slate-300">
+              <span className="text-[var(--text-disabled)]">
                 Mark {selCount} invoice{selCount > 1 ? "s" : ""} as paid?{" "}
-                <span className="text-slate-500">This cannot be undone.</span>
+                <span className="text-[var(--text-tertiary)]">This cannot be undone.</span>
               </span>
               <button
                 onClick={markBulkPaid}
@@ -890,14 +890,14 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               </button>
               <button
                 onClick={() => setConfirming(false)}
-                className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                className="text-xs text-[var(--text-quaternary)] hover:text-[var(--text-disabled)] transition-colors"
               >
                 Cancel
               </button>
             </>
           ) : (
             <>
-              <span className="text-slate-300 font-medium">
+              <span className="text-[var(--text-disabled)] font-medium">
                 {selCount} invoice{selCount > 1 ? "s" : ""} selected
               </span>
               <button
@@ -915,7 +915,7 @@ export function RecordsTable({ initial, vendors: initialVendors }: Props) {
               </button>
               <button
                 onClick={() => setCheckedIds(new Set())}
-                className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                className="text-xs text-[var(--text-quaternary)] hover:text-[var(--text-disabled)] transition-colors"
               >
                 Clear selection
               </button>

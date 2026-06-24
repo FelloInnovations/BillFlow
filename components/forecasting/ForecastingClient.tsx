@@ -54,7 +54,7 @@ function StatCard({
       )}
     >
       <p className="text-xs font-semibold text-[var(--text-tertiary)] mb-3">{title}</p>
-      <p className="text-3xl font-semibold tracking-tight text-[var(--text-primary)] leading-none">
+      <p className="text-2xl font-semibold tracking-tight text-[var(--text-primary)] leading-none">
         {value}
       </p>
       {sub && <p className="text-xs mt-1.5 text-[var(--text-quaternary)]">{sub}</p>}
@@ -124,7 +124,7 @@ function ForecastBarChart({ forecasts }: { forecasts: VendorForecast[] }) {
         >
           <p className="text-xs font-semibold mb-1">{tooltip.vendor}</p>
           <p className="text-sm font-semibold text-[var(--text-brand-primary)]">{formatCurrency(tooltip.amount)}</p>
-          <p className="text-[10px] text-slate-400 mt-1">Trend: {trendLabel(tooltip.trend)}</p>
+          <p className="text-[10px] text-[var(--text-quaternary)] mt-1">Trend: {trendLabel(tooltip.trend)}</p>
         </div>
       )}
     </div>
@@ -308,7 +308,7 @@ export function ForecastingClient({ initial }: Props) {
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400" /> green = decreasing
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400" /> gray = stable
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-[var(--text-quaternary)]" /> gray = stable
             </span>
           </p>
           <ForecastBarChart forecasts={data.forecasts} />

@@ -83,11 +83,11 @@ export default function TodaySpendCard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
         <div>
           <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wide mb-1">Today so far</p>
-          <p className="text-3xl font-semibold text-[var(--text-primary)]">{formatCurrency(data.today_total)}</p>
+          <p className="text-2xl font-semibold text-[var(--text-primary)]">{formatCurrency(data.today_total)}</p>
         </div>
         <div>
           <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wide mb-1">{monthLabel} so far</p>
-          <p className="text-3xl font-semibold text-[var(--text-primary)]">{formatCurrency(data.month_total)}</p>
+          <p className="text-2xl font-semibold text-[var(--text-primary)]">{formatCurrency(data.month_total)}</p>
         </div>
       </div>
 

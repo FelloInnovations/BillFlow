@@ -26,9 +26,9 @@ export function FunnelFlow({ stages }: { stages: FunnelStage[] }) {
           <React.Fragment key={stage.label}>
             <div className="flex flex-col items-center min-w-[70px] flex-shrink-0">
               {stage.isMonetary ? (
-                <span className="text-[var(--text-brand-primary)] text-2xl md:text-3xl font-semibold tracking-tight">{stage.displayValue}</span>
+                <span className="text-[var(--text-brand-primary)] text-xl md:text-2xl font-semibold tracking-tight">{stage.displayValue}</span>
               ) : (
-                <span className="text-[var(--text-primary)] text-2xl md:text-3xl font-semibold tracking-tight">{stage.displayValue}</span>
+                <span className="text-[var(--text-primary)] text-xl md:text-2xl font-semibold tracking-tight">{stage.displayValue}</span>
               )}
               <span className="text-xs font-semibold uppercase tracking-widest text-[var(--text-tertiary)] mt-1">
                 {stage.label}

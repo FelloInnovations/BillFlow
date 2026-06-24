@@ -46,7 +46,7 @@ export function KPICard({ title, value, sub, icon: Icon, isCurrency, accent }: K
           <Icon className="w-4 h-4" />
         </div>
       </div>
-      <p className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">{display}</p>
+      <p className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">{display}</p>
       {sub && <p className="text-xs mt-1.5 text-[var(--text-quaternary)]">{sub}</p>}
     </div>
   );

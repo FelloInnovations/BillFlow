@@ -88,7 +88,7 @@ export function SpendRangeCard() {
           </div>
         </div>
 
-        <p className={`text-2xl font-semibold tracking-tight text-[var(--text-primary)] transition-opacity ${loading ? "opacity-40" : ""}`}>
+        <p className={`text-xl font-semibold tracking-tight text-[var(--text-primary)] transition-opacity ${loading ? "opacity-40" : ""}`}>
           {formatCurrency(data.paid)}
         </p>
         <p className="text-xs mt-1.5 text-[var(--text-quaternary)]">Total spend (invoices + API)</p>
