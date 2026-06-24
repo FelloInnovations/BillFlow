@@ -3,11 +3,6 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL ?? "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
-);
-
 function getFromDate(period: string): string | null {
   if (period === "all") return null;
   const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
@@ -17,6 +12,10 @@ function getFromDate(period: string): string | null {
 }
 
 export async function GET(req: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
   const period = req.nextUrl.searchParams.get("period") ?? "30d";
   const from = getFromDate(period);
 
