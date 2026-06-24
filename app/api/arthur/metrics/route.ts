@@ -13,8 +13,8 @@ function getFromDate(period: string): string | null {
 
 export async function GET(req: NextRequest) {
   const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_URL ?? "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
   );
   const period = req.nextUrl.searchParams.get("period") ?? "30d";
   const from = getFromDate(period);
