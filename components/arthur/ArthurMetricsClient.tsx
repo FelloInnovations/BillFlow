@@ -407,6 +407,87 @@ export function ArthurMetricsClient() {
                 </div>
               </div>
 
+              {/* ── Articles by Cluster ── */}
+              <div style={{ background: "var(--bg-primary)", border: "1px solid var(--border-tertiary)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-xs)" }}>
+                <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 20px" }}>
+                  ARTICLES BY CLUSTER
+                </p>
+
+                {/* Summary row — 3 stat boxes */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+                  {data.articles.byCluster.map((item, i) => {
+                    const colors   = ["#FF725C", "#098486", "#9298A9"];
+                    const bgColors = ["var(--bg-brand-primary)", "var(--bg-brand-secondary)", "var(--bg-secondary)"];
+                    const publishRate = item.total > 0 ? Math.round((item.published / item.total) * 100) : 0;
+                    const grandTotal  = data.articles.byCluster.reduce((s, c) => s + c.total, 0);
+                    const pct         = grandTotal > 0 ? Math.round((item.total / grandTotal) * 100) : 0;
+                    return (
+                      <div key={item.cluster} style={{ background: bgColors[i], borderRadius: 10, padding: "16px 20px", border: "1px solid var(--border-tertiary)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors[i], flexShrink: 0 }} />
+                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{item.cluster}</p>
+                        </div>
+                        <div style={{ display: "flex", gap: 24 }}>
+                          <div>
+                            <p style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{item.total}</p>
+                            <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Total</p>
+                          </div>
+                          <div>
+                            <p style={{ fontSize: 22, fontWeight: 600, color: colors[i], margin: 0 }}>{item.published}</p>
+                            <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Published</p>
+                          </div>
+                          <div>
+                            <p style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{publishRate}%</p>
+                            <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "3px 0 0" }}>Pub rate</p>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ height: 4, background: "var(--bg-secondary)", borderRadius: 4, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${pct}%`, background: colors[i], borderRadius: 4, transition: "width 400ms ease-out" }} />
+                          </div>
+                          <p style={{ fontSize: 10, color: "var(--text-quaternary)", margin: "4px 0 0" }}>{pct}% of all articles</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Stacked composition bar */}
+                {(() => {
+                  const grandTotal = data.articles.byCluster.reduce((s, c) => s + c.total, 0);
+                  const colors = ["#FF725C", "#098486", "#9298A9"];
+                  if (grandTotal === 0) return null;
+                  return (
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>
+                        COMPOSITION · {grandTotal} TOTAL ARTICLES
+                      </p>
+                      <div style={{ height: 12, borderRadius: 6, overflow: "hidden", display: "flex" }}>
+                        {data.articles.byCluster.map((item, i) => {
+                          const pct = Math.round((item.total / grandTotal) * 100);
+                          if (pct === 0) return null;
+                          return (
+                            <div
+                              key={item.cluster}
+                              style={{ width: `${pct}%`, background: colors[i], transition: "width 400ms ease-out" }}
+                              title={`${item.cluster}: ${item.total} (${pct}%)`}
+                            />
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
+                        {data.articles.byCluster.map((item, i) => (
+                          <div key={item.cluster} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 2, background: colors[i], flexShrink: 0 }} />
+                            <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>{item.cluster} ({item.total})</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* ── Cost & Efficiency ── */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                 {[

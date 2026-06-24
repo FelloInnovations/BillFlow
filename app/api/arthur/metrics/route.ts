@@ -52,6 +52,28 @@ export async function GET(req: NextRequest) {
   const safePipeline = pipeline ?? [];
   const safeResearch = research ?? [];
 
+  // ── Articles by cluster — Felix, Agentic Real Estate, Other ───
+  const articleClusterMap: Record<string, { total: number; published: number }> = {};
+  for (const a of safeArticles) {
+    const raw = (a.cluster ?? "").toLowerCase().trim();
+    let label: string;
+    if (raw.includes("felix")) {
+      label = "Felix";
+    } else if (raw.includes("agentic")) {
+      label = "Agentic Real Estate";
+    } else {
+      label = "Other";
+    }
+    if (!articleClusterMap[label]) articleClusterMap[label] = { total: 0, published: 0 };
+    articleClusterMap[label].total += 1;
+    if (a.published_at && a.published_at !== "") articleClusterMap[label].published += 1;
+  }
+  const articlesByCluster = [
+    { cluster: "Felix",               total: articleClusterMap["Felix"]?.total               ?? 0, published: articleClusterMap["Felix"]?.published               ?? 0 },
+    { cluster: "Agentic Real Estate", total: articleClusterMap["Agentic Real Estate"]?.total ?? 0, published: articleClusterMap["Agentic Real Estate"]?.published ?? 0 },
+    { cluster: "Other",               total: articleClusterMap["Other"]?.total               ?? 0, published: articleClusterMap["Other"]?.published               ?? 0 },
+  ];
+
   // ── KPI Strip ──────────────────────────────────────────────────
   const totalIdeas     = safeIdeas.reduce((s, r) => s + Number(r.idea_count ?? 0), 0);
   const totalArticles  = safeArticles.length;
@@ -190,6 +212,9 @@ export async function GET(req: NextRequest) {
       avgIterations,
       ideasByCluster,
       totalResearchSessions,
+    },
+    articles: {
+      byCluster: articlesByCluster,
     },
     cost: {
       totalCost: Math.round(totalCost * 100) / 100,

@@ -322,6 +322,9 @@ export type ArthurMetrics = {
     ideasByCluster: { cluster: string; count: number }[];
     totalResearchSessions: number;
   };
+  articles: {
+    byCluster: { cluster: string; total: number; published: number }[];
+  };
   cost: {
     totalCost: number;
     totalPipelineCost: number;
