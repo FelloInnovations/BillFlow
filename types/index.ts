@@ -322,6 +322,26 @@ export type ArthurMetrics = {
     ideasByCluster: { cluster: string; count: number }[];
     totalResearchSessions: number;
   };
+  articles?: {
+    byCluster: {
+      felix:             { total: number; published: number };
+      agenticRealEstate: { total: number; published: number };
+    };
+    byContentPath: {
+      blogs:             { total: number; published: number };
+      agenticRealEstate: { total: number; published: number };
+    };
+    clusterPathMatrix: {
+      felix: {
+        blogs:                  { count: number; published: number };
+        "agentic-real-estate":  { count: number; published: number };
+      };
+      "agentic-real-estate": {
+        blogs:                  { count: number; published: number };
+        "agentic-real-estate":  { count: number; published: number };
+      };
+    };
+  };
   cost: {
     totalCost: number;
     totalPipelineCost: number;

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
-  Treemap,
 } from "recharts";
 import { ArthurMetrics } from "@/types";
 import { OutcomeMetricsTab } from "./OutcomeMetricsTab";
@@ -43,54 +42,6 @@ const sectionLabel: React.CSSProperties = {
   letterSpacing: "0.08em",
   margin: "0 0 20px",
 };
-
-function TreemapCell(props: {
-  x?: number; y?: number; width?: number; height?: number;
-  name?: string; size?: number; rank?: number;
-  // recharts passes many extra props at runtime
-  [k: string]: unknown;
-}) {
-  const { x = 0, y = 0, width = 0, height = 0, name = "", size = 0, rank = 0 } = props;
-  const opacity = Math.max(0.35, 1 - rank * 0.06);
-  const showLabel = width > 60 && height > 30;
-  const showCount = width > 80 && height > 50;
-  return (
-    <g>
-      <rect
-        x={x} y={y} width={width} height={height}
-        style={{ fill: `rgba(255, 114, 92, ${opacity})`, stroke: "var(--bg-primary)", strokeWidth: 2 }}
-      />
-      {showLabel && (
-        <text
-          x={x + width / 2} y={y + height / 2 - (showCount ? 8 : 0)}
-          textAnchor="middle" dominantBaseline="middle"
-          style={{
-            fontSize: Math.min(12, Math.max(9, width / 10)),
-            fontWeight: 600,
-            fill: opacity > 0.6 ? "#ffffff" : "#353E5A",
-            fontFamily: "Inter, sans-serif",
-          }}
-        >
-          {name.length > 20 ? name.substring(0, 18) + "…" : name}
-        </text>
-      )}
-      {showCount && (
-        <text
-          x={x + width / 2} y={y + height / 2 + 10}
-          textAnchor="middle" dominantBaseline="middle"
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            fill: opacity > 0.6 ? "rgba(255,255,255,0.85)" : "#6B748E",
-            fontFamily: "Inter, sans-serif",
-          }}
-        >
-          {size.toLocaleString()} ideas
-        </text>
-      )}
-    </g>
-  );
-}
 
 function SkeletonCard({ height = 88 }: { height?: number }) {
   return (
@@ -456,29 +407,87 @@ export function ArthurMetricsClient() {
                 </div>
               </div>
 
-              {/* ── IDEAS BY CLUSTER (Treemap) ── */}
-              <div style={{ background: "var(--bg-primary)", border: "1px solid var(--border-tertiary)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-xs)" }}>
-                <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 16px" }}>
-                  IDEAS BY CLUSTER
-                </p>
-                {data.research.ideasByCluster.length === 0 ? (
-                  <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
-                    No cluster data for this period
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <Treemap
-                      data={data.research.ideasByCluster.map((item, i) => ({
-                        name: item.cluster,
-                        size: item.count,
-                        rank: i,
-                      }))}
-                      dataKey="size"
-                      aspectRatio={4 / 3}
-                      content={<TreemapCell />}
-                    />
-                  </ResponsiveContainer>
-                )}
+              {/* ── Articles by Cluster & Content Path ── */}
+              <div style={{ ...sectionCard, marginTop: 16 }}>
+                <div style={sectionLabel}>Articles by Cluster &amp; Content Path</div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
+                  {([
+                    {
+                      key: "felix" as const,
+                      label: "Felix",
+                      color: "#f87171",
+                      clusterData: data.articles?.byCluster.felix,
+                      matrix: data.articles?.clusterPathMatrix.felix,
+                    },
+                    {
+                      key: "agentic-real-estate" as const,
+                      label: "Agentic Real Estate",
+                      color: "#34d399",
+                      clusterData: data.articles?.byCluster.agenticRealEstate,
+                      matrix: data.articles?.clusterPathMatrix["agentic-real-estate"],
+                    },
+                  ] as const).map(({ label, color, clusterData, matrix }) => {
+                    const total     = clusterData?.total     ?? 0;
+                    const published = clusterData?.published ?? 0;
+                    return (
+                      <div key={label} style={{
+                        border: `1px solid ${color}33`,
+                        borderRadius: 10,
+                        padding: 14,
+                        background: `${color}08`,
+                      }}>
+                        {/* Header */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
+                            {label}
+                          </div>
+                          <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-tertiary)" }}>
+                            {total} total · {published} published
+                          </div>
+                        </div>
+
+                        {/* Content path rows */}
+                        {([
+                          { pathKey: "blogs" as const,                 pathLabel: "/blogs",                 pathColor: "#818cf8", cell: matrix?.blogs                  },
+                          { pathKey: "agentic-real-estate" as const,   pathLabel: "/agentic-real-estate",   pathColor: "#fb923c", cell: matrix?.["agentic-real-estate"] },
+                        ] as const).map(({ pathLabel, pathColor, cell }) => {
+                          const count = cell?.count     ?? 0;
+                          const pub   = cell?.published ?? 0;
+                          const pct   = total > 0 ? Math.round((count / total) * 100) : 0;
+                          return (
+                            <div key={pathLabel} style={{ marginBottom: 12 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                                <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "monospace" }}>
+                                  {pathLabel}
+                                </span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>
+                                  {count}
+                                  <span style={{ fontWeight: 400, color: "var(--text-tertiary)", marginLeft: 4 }}>
+                                    ({pct}%)
+                                  </span>
+                                </span>
+                              </div>
+                              <div style={{ height: 6, borderRadius: 3, background: "var(--bg-secondary)", overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${pct}%`, background: pathColor, borderRadius: 3, transition: "width 0.4s ease" }} />
+                              </div>
+                              <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 3 }}>
+                                {pub} published
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {total === 0 && (
+                          <div style={{ fontSize: 12, color: "var(--text-tertiary)", textAlign: "center", padding: "8px 0" }}>
+                            No articles in this cluster yet
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* ── Cost & Efficiency ── */}
