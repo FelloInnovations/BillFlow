@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 
 function getFromDate(period: string): string | null {
   if (period === "all") return null;
-  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+  const days = period === "7d" ? 7 : 30;
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString();
@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
   }
   const ideasByCluster = Object.entries(clusterMap)
     .sort(([, a], [, b]) => b - a)
-    .slice(0, 8)
+    .slice(0, 10)
     .map(([cluster, count]) => ({ cluster, count }));
 
   // ── Cost & Efficiency ──────────────────────────────────────────
@@ -168,7 +168,6 @@ export async function GET(req: NextRequest) {
     },
     research: {
       avgResearchCost,
-      researchSuccessRate,
       avgIterations,
       ideasByCluster,
       totalResearchSessions,

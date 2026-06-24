@@ -53,7 +53,7 @@ function SkeletonCard({ height = 88 }: { height?: number }) {
 }
 
 export function ArthurMetricsClient() {
-  const [period, setPeriod] = useState<"7d" | "30d" | "90d" | "all">("30d");
+  const [period, setPeriod] = useState<"7d" | "30d" | "all">("all");
   const [data, setData] = useState<ArthurMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -66,7 +66,7 @@ export function ArthurMetricsClient() {
       .finally(() => setLoading(false));
   }, [period]);
 
-  const periodButtons = ["7D", "30D", "90D", "All"] as const;
+  const periodButtons = ["7D", "30D", "All"] as const;
 
   return (
     <div className="p-4 md:p-6 space-y-5">
@@ -80,7 +80,7 @@ export function ArthurMetricsClient() {
           {periodButtons.map((p) => (
             <button
               key={p}
-              onClick={() => setPeriod(p.toLowerCase() as "7d" | "30d" | "90d" | "all")}
+              onClick={() => setPeriod(p.toLowerCase() as "7d" | "30d" | "all")}
               style={{
                 padding: "6px 14px",
                 fontSize: 12,
@@ -295,11 +295,10 @@ export function ArthurMetricsClient() {
                     Articles by Stage
                   </p>
                   {(() => {
-                    const { draft, review, published } = data.quality.articlesByStage;
-                    const total = Math.max(draft + review + published, 1);
+                    const { review, published } = data.quality.articlesByStage;
+                    const total = Math.max(review, published, 1);
                     return (
                       [
-                        { label: "Draft",     count: draft     },
                         { label: "Review",    count: review    },
                         { label: "Published", count: published },
                       ].map(({ label, count }) => (
@@ -323,39 +322,56 @@ export function ArthurMetricsClient() {
           {/* ── Section 4: Research Intelligence ── */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {/* Left: Ideas by Cluster */}
-            <div style={sectionCard}>
-              <p style={sectionLabel}>IDEAS BY CLUSTER</p>
+            <div style={{
+              background: "var(--bg-primary)",
+              border: "1px solid var(--border-tertiary)",
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: "var(--shadow-xs)",
+            }}>
+              <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 16px" }}>
+                IDEAS BY CLUSTER
+              </p>
               {data.research.ideasByCluster.length === 0 ? (
                 <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <p className="text-[var(--text-tertiary)]" style={{ fontSize: 13 }}>No cluster data for this period</p>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart
-                    layout="vertical"
-                    data={data.research.ideasByCluster}
-                    margin={{ top: 0, right: 40, bottom: 0, left: 0 }}
-                  >
-                    <XAxis type="number" tick={{ fontSize: 10, fill: "var(--text-tertiary)" }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="cluster"
-                      tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
-                      width={120}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--bg-primary)",
-                        border: "1px solid var(--border-tertiary)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                    />
-                    <Bar dataKey="count" fill="var(--bg-brand-solid)" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {data.research.ideasByCluster.map((item, i) => {
+                    const maxCount = data.research.ideasByCluster[0]?.count ?? 1;
+                    const pct = Math.round((item.count / maxCount) * 100);
+                    return (
+                      <div key={item.cluster}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: "var(--text-secondary)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            maxWidth: "75%",
+                          }}>
+                            {i + 1}. {item.cluster}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", flexShrink: 0 }}>
+                            {item.count.toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ height: 4, background: "var(--bg-secondary)", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{
+                            height: "100%",
+                            width: `${pct}%`,
+                            background: "var(--bg-brand-solid)",
+                            borderRadius: 4,
+                            transition: "width 400ms ease-out",
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
@@ -365,7 +381,6 @@ export function ArthurMetricsClient() {
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 {[
                   { label: "Avg cost per session",  value: formatCost(data.research.avgResearchCost)      },
-                  { label: "Session success rate",  value: `${data.research.researchSuccessRate}%`        },
                   { label: "Avg iterations",        value: `${data.research.avgIterations}`               },
                   { label: "Total sessions",        value: `${data.research.totalResearchSessions}`       },
                 ].map(({ label, value }, i) => (

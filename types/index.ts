@@ -317,7 +317,6 @@ export type ArthurMetrics = {
   };
   research: {
     avgResearchCost: number;
-    researchSuccessRate: number;
     avgIterations: number;
     ideasByCluster: { cluster: string; count: number }[];
     totalResearchSessions: number;
