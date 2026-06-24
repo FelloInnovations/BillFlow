@@ -286,3 +286,47 @@ export interface ProjectOutcomeSummary {
   mtd: OutcomeMtdSummary;
   lastSynced: string | null;
 }
+
+export type ArthurMetrics = {
+  period: string;
+  kpi: {
+    totalIdeas: number;
+    totalArticles: number;
+    totalPublished: number;
+    totalTokens: number;
+    tokensIn: number;
+    tokensOut: number;
+    conversionRate: number;
+  };
+  funnel: {
+    totalResearchSessions: number;
+    totalIdeas: number;
+    totalArticles: number;
+    totalPublished: number;
+    ideasPerSession: number;
+    ideaToArticleRate: number;
+    articlesToPublishedRate: number;
+    fullFunnelRate: number;
+  };
+  quality: {
+    avgQualityScore: number;
+    pipelineSuccessRate: number;
+    revisionRate: number;
+    articlesByStage: { draft: number; review: number; published: number };
+    qualityOverTime: { week: string; avg: number }[];
+  };
+  research: {
+    avgResearchCost: number;
+    researchSuccessRate: number;
+    avgIterations: number;
+    ideasByCluster: { cluster: string; count: number }[];
+    totalResearchSessions: number;
+  };
+  cost: {
+    totalCost: number;
+    totalPipelineCost: number;
+    totalResearchCost: number;
+    avgPipelineCostPerArticle: number;
+    costPerPublishedArticle: number;
+  };
+};

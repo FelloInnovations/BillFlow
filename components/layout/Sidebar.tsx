@@ -21,7 +21,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/records", label: "Financial Records", icon: FileText },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/outcomes", label: "Outcomes", icon: BarChart2 },
+  { href: "/outcomes", label: "Metrics", icon: BarChart2 },
   { href: "/tools", label: "Tools", icon: Wrench },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/forecasting", label: "Forecasting", icon: TrendingUp },

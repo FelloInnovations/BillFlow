@@ -270,10 +270,10 @@ export function ProjectCard({ project, index, maxSpend, arthurLastSynced, pctOfT
       {arthurLastSynced !== undefined && (
         <div className="flex items-center justify-between pt-1 px-5 pb-3">
           <Link
-            href="/projects/arthur/outcomes"
+            href="/projects/arthur/metrics"
             className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--text-brand-primary)] hover:opacity-80 transition-opacity"
           >
-            Outcomes →
+            View Metrics →
           </Link>
           {arthurLastSynced && (
             <p className="text-[10px] text-[var(--text-quaternary)]">

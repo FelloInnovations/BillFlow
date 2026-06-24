@@ -149,17 +149,38 @@ function EnrichmentProjectCard({
   );
 }
 
+type ArthurInputSummary = {
+  totalIdeas: number;
+  totalArticles: number;
+  totalPublished: number;
+  conversionRate: number;
+};
+
 export function OutcomesIndexClient() {
   const [scope, setScope]         = useState<Scope>("all_time");
   const [projects, setProjects]   = useState<ProjectOutcomeSummary[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [arthurInput, setArthurInput] = useState<ArthurInputSummary>({
+    totalIdeas: 0,
+    totalArticles: 0,
+    totalPublished: 0,
+    conversionRate: 0,
+  });
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/outcomes?scope=${scope}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setProjects(Array.isArray(data) ? data : (Array.isArray(data.projects) ? data.projects : []));
+    Promise.all([
+      fetch(`/api/outcomes?scope=${scope}`).then((r) => r.json()),
+      fetch("/api/arthur/metrics?period=all").then((r) => r.json()),
+    ])
+      .then(([outcomesData, arthurData]) => {
+        setProjects(Array.isArray(outcomesData) ? outcomesData : (Array.isArray(outcomesData.projects) ? outcomesData.projects : []));
+        setArthurInput({
+          totalIdeas:    arthurData?.kpi?.totalIdeas    ?? 0,
+          totalArticles: arthurData?.kpi?.totalArticles ?? 0,
+          totalPublished: arthurData?.kpi?.totalPublished ?? 0,
+          conversionRate: arthurData?.kpi?.conversionRate ?? 0,
+        });
       })
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
@@ -174,9 +195,9 @@ export function OutcomesIndexClient() {
     <main className="flex-1 min-h-screen bg-[var(--bg-primary)] p-8">
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Outcomes</h1>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Metrics</h1>
           <p className="text-sm text-[var(--text-tertiary)] mt-1">
-            Business KPI portfolio across all AI projects &middot; {scopeLabel}
+            Performance portfolio across all AI projects &middot; {scopeLabel}
           </p>
         </div>
 
@@ -228,6 +249,11 @@ export function OutcomesIndexClient() {
                   { label: "ARR",     value: arrClosed,   currency: true  },
                 ];
 
+                const isArthur = projectId === "arthur";
+                const detailsHref = isArthur
+                  ? "/projects/arthur/metrics"
+                  : `/projects/${projectId}/outcomes`;
+
                 return (
                   <div
                     key={projectId}
@@ -242,17 +268,17 @@ export function OutcomesIndexClient() {
                           <StatusBadge status={project.projectStatus} />
                         )}
                       </div>
-                      <Link
-                        href={`/projects/${projectId}/outcomes`}
-                        className="text-sm font-semibold text-[var(--text-brand-primary)] hover:opacity-80 transition-opacity shrink-0"
+                      <a
+                        href={detailsHref}
+                        style={{ fontSize: 13, fontWeight: 600, color: "var(--text-brand-primary)", textDecoration: "none" }}
                       >
                         View Details →
-                      </Link>
+                      </a>
                     </div>
 
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-quaternary)] mb-3">
-                        Funnel &middot; {scopeLabel}
+                        {isArthur ? "OUTCOME METRICS · ALL TIME" : `Funnel · ${scopeLabel}`}
                       </p>
                       <div className="flex items-center gap-1 flex-wrap">
                         {funnelSteps.map(({ label, value, currency }, i) => (
@@ -272,6 +298,35 @@ export function OutcomesIndexClient() {
                         ))}
                       </div>
                     </div>
+
+                    {isArthur && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-tertiary)" }}>
+                        <p style={{ fontSize: 10, fontWeight: 500, color: "var(--text-tertiary)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
+                          INPUT METRICS · ALL TIME
+                        </p>
+                        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+                          <div>
+                            <p style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{arthurInput.totalIdeas.toLocaleString()}</p>
+                            <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>Ideas</p>
+                          </div>
+                          <span style={{ color: "var(--text-quaternary)", fontSize: 16 }}>→</span>
+                          <div>
+                            <p style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{arthurInput.totalArticles.toLocaleString()}</p>
+                            <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>Articles</p>
+                          </div>
+                          <span style={{ color: "var(--text-quaternary)", fontSize: 16 }}>→</span>
+                          <div>
+                            <p style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{arthurInput.totalPublished.toLocaleString()}</p>
+                            <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>Published</p>
+                          </div>
+                          <span style={{ color: "var(--text-quaternary)", fontSize: 16 }}>·</span>
+                          <div>
+                            <p style={{ fontSize: 20, fontWeight: 600, color: "var(--text-brand-primary)", margin: 0 }}>{arthurInput.conversionRate}%</p>
+                            <p style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>Conversion</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {project.lastSynced && (
                       <div className="mt-5 pt-4 border-t border-[var(--border-tertiary)]">
