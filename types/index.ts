@@ -314,6 +314,7 @@ export type ArthurMetrics = {
     revisionRate: number;
     articlesByStage: { draft: number; review: number; published: number };
     qualityOverTime: { week: string; avg: number }[];
+    publishedOverTime: { week: string; count: number }[];
   };
   research: {
     avgResearchCost: number;

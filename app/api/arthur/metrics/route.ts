@@ -110,6 +110,24 @@ export async function GET(req: NextRequest) {
       avg: Math.round(scores.reduce((s, n) => s + n, 0) / scores.length * 10) / 10,
     }));
 
+  // Articles published over time (weekly buckets from published_at)
+  const weeklyPublished: Record<string, number> = {};
+  for (const a of safeArticles) {
+    const pub = a.published_at;
+    if (!pub || pub === "") continue;
+    try {
+      const date = new Date(pub);
+      if (isNaN(date.getTime())) continue;
+      const weekStart = new Date(date);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const key = weekStart.toISOString().substring(0, 10);
+      weeklyPublished[key] = (weeklyPublished[key] ?? 0) + 1;
+    } catch { continue; }
+  }
+  const publishedOverTime = Object.entries(weeklyPublished)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([week, count]) => ({ week, count }));
+
   // ── Research Intelligence ──────────────────────────────────────
   const completedResearch    = safeResearch.filter(r => r.status === "completed").length;
   const researchSuccessRate  = safeResearch.length > 0
@@ -165,6 +183,7 @@ export async function GET(req: NextRequest) {
       revisionRate,
       articlesByStage,
       qualityOverTime,
+      publishedOverTime,
     },
     research: {
       avgResearchCost,
