@@ -5,7 +5,7 @@
 
 // POST /api/alerts
 // Body: { project_name, openrouter_key_name, limit_usd, warning_pct? }
-// Upserts on project_name. Sets status = 'ok', current_spend = 0 on create.
+// Upserts on (project_name, openrouter_key_name). Sets status = 'ok', current_spend = 0 on create.
 // limit_period is always 'monthly' — not user-configurable.
 
 import { NextRequest, NextResponse } from "next/server";
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         is_active: true,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "project_name" }
+      { onConflict: "project_name,openrouter_key_name" }
     )
     .select()
     .single();
